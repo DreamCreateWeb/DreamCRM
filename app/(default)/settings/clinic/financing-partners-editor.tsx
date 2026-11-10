@@ -4,6 +4,7 @@ import { useState } from 'react'
 import type { ClinicFinancingPartner } from '@/lib/types/clinic-content'
 import { FINANCING_COPY, FINANCING_PROVIDERS, financingProvider, parseConnectValue, type FinancingProviderId } from '@/lib/financing-providers'
 import { AddButton, EditorCard, EmptyHint, Field, inputCls, textareaCls } from '@/components/ui/editor-kit'
+import { Checkbox } from '@/components/ui/form-fields'
 
 interface Props {
   name: string
@@ -163,11 +164,11 @@ export default function FinancingPartnersEditor({ name, defaultValue }: Props) {
               {def?.widget === 'cherry' && (
                 <div className="space-y-1.5">
                   <label className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-200">
-                    <input type="checkbox" className="form-checkbox mt-0.5" checked={p.showWidget === true} onChange={(e) => update(i, { showWidget: e.target.checked })} disabled={!p.slug} />
+                    <Checkbox className="mt-0.5" checked={p.showWidget === true} onChange={(e) => update(i, { showWidget: e.target.checked })} disabled={!p.slug} />
                     <span>{FINANCING_COPY.widgetToggle(def.name)}</span>
                   </label>
                   <label className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-200">
-                    <input type="checkbox" className="form-checkbox mt-0.5" checked={p.floatingButton === true} onChange={(e) => update(i, { floatingButton: e.target.checked })} disabled={!p.slug} data-testid="financing-floating" />
+                    <Checkbox className="mt-0.5" checked={p.floatingButton === true} onChange={(e) => update(i, { floatingButton: e.target.checked })} disabled={!p.slug} data-testid="financing-floating" />
                     <span>
                       {FINANCING_COPY.floatingToggle}
                       <span className="block text-xs text-gray-500 dark:text-gray-400">{FINANCING_COPY.floatingHint}</span>
@@ -177,7 +178,7 @@ export default function FinancingPartnersEditor({ name, defaultValue }: Props) {
               )}
               {def?.widget === 'sunbit' && (
                 <label className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-200">
-                  <input type="checkbox" className="form-checkbox mt-0.5" checked={p.showWidget === true} onChange={(e) => update(i, { showWidget: e.target.checked })} disabled={!p.slug} />
+                  <Checkbox className="mt-0.5" checked={p.showWidget === true} onChange={(e) => update(i, { showWidget: e.target.checked })} disabled={!p.slug} />
                   <span>{FINANCING_COPY.sunbitToggle}</span>
                 </label>
               )}

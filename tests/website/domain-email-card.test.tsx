@@ -79,4 +79,20 @@ describe('EmailDomainCard', () => {
     fireEvent.click(screen.getByRole('button', { name: /Check now/ }))
     await waitFor(() => expect(screen.getByText(/couldn’t reach our email provider/)).toBeTruthy())
   })
+
+  it('failed: Try again re-runs the request, shows found values, and says when it checks daily', async () => {
+    actions.request.mockResolvedValue({ ok: true, state: st({ status: 'pending', failedChecks: 0 }) })
+    render(
+      <EmailDomainCard
+        initialState={st({ status: 'failed', failedChecks: 3, records: [rec({ status: 'failed', found: 'p=OLD' })] })}
+        siteDomain="acme.com"
+        timeZone="America/Chicago"
+      />,
+    )
+    expect(screen.getByText(/We found: p=OLD/)).toBeTruthy()
+    expect(screen.getByText(/check once a day/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /Try again/ }))
+    await waitFor(() => expect(actions.request).toHaveBeenCalled())
+    expect(actions.check).not.toHaveBeenCalled()
+  })
 })

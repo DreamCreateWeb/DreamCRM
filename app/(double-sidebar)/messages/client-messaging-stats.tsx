@@ -51,10 +51,10 @@ function Stat({
   tone?: Tone
   active?: boolean
 }) {
-  const valueClass = active && tone !== 'neutral' ? TONE_TEXT[tone] : 'text-gray-800 dark:text-gray-100'
+  const valueClass = active && tone !== 'neutral' ? TONE_TEXT[tone] : 'text-ink-900'
   return (
     <div>
-      <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">{label}</p>
+      <p className="text-xs uppercase tracking-wider text-ink-500 font-semibold">{label}</p>
       <p className={`text-xl font-bold leading-tight tabular-nums font-mono-num ${valueClass}`}>{value}</p>
     </div>
   )

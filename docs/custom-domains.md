@@ -248,3 +248,26 @@ redirect hop is fully retired — the apex points straight at App Runner and
 | `resend._domainkey` | TXT | DKIM public key (full value in Resend dashboard) |
 | `in` | MX + DKIM | Resend Inbound domain (replies → /messages; values in Resend dashboard) |
 | (+ ACM validation CNAMEs for the wildcard cert — values in ACM console) |
+
+## Email from the clinic's own domain (ML-63 / ML-63b) — runbook
+
+- `RESEND_API_KEY` must be set in the app secrets (the client is built lazily
+  per call, so a keyless build is fine; the key is never logged).
+- The domain registers with Resend on the **bare apex** (`www.` is dropped:
+  `www.acme.com` -> `acme.com`), only once the custom domain is ACTIVE.
+- The practice adds the SPF / DKIM / return-path records at **its own DNS
+  host**; the card lists them with copy buttons. Resend's receiving MX is never
+  shown — replies keep landing through the platform's inbound domain.
+- Resend's return-path MX on the `send.` subdomain is **bounce handling**, not
+  the clinic's mail MX. It is shown on the card and does not affect the
+  clinic's existing email.
+- The `custom-domains` sweep verifies every 15 minutes while the domain is
+  pending. A `failed` verdict is retried on the SAME Resend domain ("Try again"
+  runs verify + get; only if Resend says the domain no longer exists is a new
+  one registered). After **3 consecutive failed checks** the sweep asks once a
+  day instead, and the card says so. The card shows which records are still
+  wrong (expected vs found when Resend reports it).
+- Removing or swapping the custom domain deletes the Resend domain
+  (`domains.remove`, fail-open with one `custom_domain` strike) and clears the
+  six `email_domain_*` columns plus `email_domain_failed_checks`, so the
+  Tier 3 sender never points at a dead domain; a swapped domain starts fresh.

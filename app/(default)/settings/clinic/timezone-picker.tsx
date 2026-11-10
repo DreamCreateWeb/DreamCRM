@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { FIELD_BOX_CLASSES, TextInput } from '@/components/ui/form-fields'
 
 /**
  * Searchable IANA timezone picker for the clinic Hours section.
@@ -166,7 +167,7 @@ export default function TimezonePicker({
         }}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="form-input w-full flex items-center justify-between gap-2 text-left"
+        className={`${FIELD_BOX_CLASSES} w-full flex items-center justify-between gap-2 text-left`}
       >
         <span className="truncate">
           {labelFor(value)}
@@ -184,12 +185,12 @@ export default function TimezonePicker({
       {open && (
         <div className="pop-in absolute z-20 mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-[var(--shadow-pop)]">
           <div className="p-2 border-b border-gray-100 dark:border-gray-700/60">
-            <input
+            <TextInput
               autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search city or region…"
-              className="form-input w-full text-sm"
+              className="w-full text-sm"
             />
           </div>
           <ul role="listbox" className="max-h-64 overflow-y-auto py-1">

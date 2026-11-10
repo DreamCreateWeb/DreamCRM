@@ -1,4 +1,5 @@
 import { EmptyState } from '@/components/ui/empty-state'
+import { buttonClasses } from '@/components/ui/action-button'
 
 interface Props {
   configured: boolean
@@ -18,7 +19,7 @@ export default function ConnectPrompt({ configured }: Props) {
               // in-app navigation, so it must not be a next/link.
               <a
                 href="/api/oauth/gmail/start"
-                className="btn-sm bg-teal-600 hover:bg-teal-700 text-white dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300 inline-flex items-center gap-2"
+                className={buttonClasses({ variant: 'primary', size: 'sm', className: 'min-h-10 gap-2' })}
               >
                 <GoogleIcon />
                 Connect Gmail

@@ -10,6 +10,8 @@ import { MAX_IMAGE_MB } from '@/lib/media'
 import { SettingsSection, SettingsRow } from '../settings-kit'
 import { SettingsTabs } from '../settings-tabs'
 import { downscaleImageFile } from '@/lib/image-downscale'
+import { buttonClasses } from '@/components/ui/action-button'
+import { TextInput, Textarea } from '@/components/ui/form-fields'
 
 interface InitialUser {
   id: string
@@ -145,7 +147,7 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
                     </div>
                   )}
                   <div className="min-w-0">
-                    <label className="btn-sm dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300 cursor-pointer">
+                    <label className={buttonClasses({ size: 'sm', className: 'min-h-10 cursor-pointer' })}>
                       {uploading ? 'Uploading…' : image ? 'Change photo' : 'Upload photo'}
                       <input type="file" accept={AVATAR_ACCEPT} className="hidden" onChange={handleAvatarChange} disabled={uploading} />
                     </label>
@@ -161,9 +163,9 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
                     htmlFor="acct-name"
                     description={`Up to ${NAME_MAX} characters.`}
                     control={
-                      <input
+                      <TextInput
                         id="acct-name"
-                        className="form-input w-full sm:w-80"
+                        className="w-full sm:w-80"
                         type="text"
                         maxLength={NAME_MAX}
                         value={name}
@@ -177,9 +179,9 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
                     description="A sentence or two about you."
                     control={
                       <div className="w-full sm:w-80">
-                        <textarea
+                        <Textarea
                           id="acct-bio"
-                          className="form-textarea w-full"
+                          className="w-full"
                           rows={3}
                           maxLength={BIO_MAX}
                           placeholder="Front-desk lead, here to make your visit easy."
@@ -261,9 +263,9 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
                           <label className="sr-only" htmlFor="acct-email">
                             Email address
                           </label>
-                          <input
+                          <TextInput
                             id="acct-email"
-                            className="form-input w-full sm:w-80"
+                            className="w-full sm:w-80"
                             type="email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}

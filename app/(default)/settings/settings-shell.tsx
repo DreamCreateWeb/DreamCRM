@@ -1,6 +1,5 @@
 'use client'
 
-import { usePathname } from 'next/navigation'
 import { useRealtimeRefresh } from '@/components/realtime/realtime-provider'
 
 /**
@@ -16,8 +15,6 @@ import { useRealtimeRefresh } from '@/components/realtime/realtime-provider'
  * up the new values; client form state is preserved across the refresh.
  */
 export default function SettingsShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname()
   useRealtimeRefresh('settings')
-  if (pathname === '/settings') return <>{children}</>
-  return <div className="mx-auto w-full max-w-4xl">{children}</div>
+  return <>{children}</>
 }

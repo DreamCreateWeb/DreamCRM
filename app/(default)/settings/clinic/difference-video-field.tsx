@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { videoUrlProblem } from '@/lib/website-url'
+import { TextInput } from '@/components/ui/form-fields'
 
 /**
  * "Why us?" ambient-video URL field for the Branding section. URL-only by design
@@ -55,12 +56,12 @@ export default function DifferenceVideoField({
         &ldquo;Why us?&rdquo; ambient video URL
         <span className="text-xs font-normal text-gray-500 dark:text-gray-400 ml-2">(optional)</span>
       </label>
-      <input
+      <TextInput
         id={name}
         name={name}
         type="url"
         inputMode="url"
-        className={`form-input w-full ${state === 'invalid' ? 'border-rose-400 dark:border-rose-500' : ''}`}
+        className={`w-full ${state === 'invalid' ? 'border-rose-400 dark:border-rose-500' : ''}`}
         placeholder="https://…/video.mp4"
         value={value}
         onChange={(e) => setValue(e.target.value)}

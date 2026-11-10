@@ -120,7 +120,13 @@ export default [
         'error',
         // `nesting` OR `id` — the repo uses both shapes deliberately, and a
         // label with only text and a `for` is still a correct label.
-        { assert: 'either', depth: 3 },
+        {
+          assert: 'either',
+          depth: 3,
+          // The shared fields (components/ui/form-fields.tsx) render a real
+          // <input>/<select>/<textarea>; a label around one names it.
+          controlComponents: ['TextInput', 'Select', 'Textarea', 'Checkbox', 'Radio'],
+        },
       ],
 
       // ── Roles and ARIA: the silent-failure class ────────────────────
