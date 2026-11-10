@@ -7353,3 +7353,21 @@ use `Tabs`, `StatusPill` and the ink ramp; its composer, broadcast and
 thread panels use the shared fields. Left: `surface-tabs.tsx` (clinic-only)
 is not on the primitive; the two-pane Messages/Inbox pages stay off
 `PageFrame` by design.
+
+## 2026-11-10 — ML-L2: Cosmetic and Pediatric wear their own About and Team; the modal proves itself at 390
+
+ML-52's and ML-56's stated follow-ups. Modern's About and Team bodies became
+the shared skinned layouts (`templates/shared/about-layout.tsx` — `AboutSkin`:
+eyebrow / heading / button / story / stats / portrait-radius / photo / map
+radius / closing; `templates/shared/team-layout.tsx` — `TeamSkin`), exactly
+the way ML-52 shared Services; Modern renders through them with the skins
+that reproduce its original classes. Cosmetic (Fraunces, the thin rule,
+`rounded-[2px]`, the tracked uppercase eyebrow, round buttons) and
+Pediatric (tinted eyebrow pills, bold headings, `rounded-[2rem]` cards, the
+blob portrait) own `about` and `team` in `subpageSource`; the conformance
+harness enrols them. The 390×844 e2e check for the Add patient modal
+(inside the viewport, no sideways scroll, the primary action visible, Escape
+returns focus to the opener) exposed a real defect: `useFocusTrap` captured
+the opener in a passive effect, AFTER an `autoFocus` child had already taken
+focus, so every modal with an `autoFocus` field lost its restore. The opener
+is now read during render; a unit test holds the `autoFocus` case.
