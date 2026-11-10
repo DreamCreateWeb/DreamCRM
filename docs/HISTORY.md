@@ -7387,3 +7387,20 @@ returns focus to the opener) exposed a real defect: `useFocusTrap` captured
 the opener in a passive effect, AFTER an `autoFocus` child had already taken
 focus, so every modal with an `autoFocus` field lost its restore. The opener
 is now read during render; a unit test holds the `autoFocus` case.
+
+## 2026-11-10 — The full suite's worker crash: Playwright under happy-dom
+
+Since the two-step sign-in PR the full `pnpm test` run printed an unhandled
+`connect ECONNREFUSED 127.0.0.1:3000` on a `ClientRequest` and a dead worker.
+Not a flake: two guard tests (`tests/guards/axe-exclusion-premise.test.ts`,
+`tests/guards/e2e-duplicate-watch.test.ts`) import the real
+`@playwright/test` through `e2e/axe` and `e2e/duplicate-watch`; under
+happy-dom Playwright's bundled source-map-support sees a `window` and
+issues a SYNCHRONOUS XMLHttpRequest for its own source map, which happy-dom
+serves by spawning a node child (`SyncFetch.sendRequest`) whose connection
+error is unhandled. The first test now runs under the node environment (no
+DOM needed); the second mocks `@playwright/test`. `tests/setup.ts` gains
+two guards so no test can ever hit the network: `fetch` rejects any
+localhost or relative URL with a message naming it, and
+`XMLHttpRequest.prototype.open` throws a `NetworkError` for localhost, so
+the child is never spawned.

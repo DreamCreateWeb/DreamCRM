@@ -1,3 +1,6 @@
+// @vitest-environment node
+// Imports `@playwright/test` (via e2e/axe). Under happy-dom that installs a source-map-support
+// which sync-XHRs http://localhost:3000 (a child process; ECONNREFUSED killed a worker). No DOM needed here.
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
