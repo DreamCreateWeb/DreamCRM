@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
 import { patient } from '@/lib/db/schema/clinic'
 import { requireTenant } from '@/lib/auth/context'
+import { upsertPatientInsurance } from '@/lib/services/insurance-eligibility/plans'
 
 export type ProfileActionResult = { ok: true } | { ok: false; error: string }
 
@@ -30,12 +31,18 @@ export async function updateMyProfileAction(formData: FormData): Promise<Profile
       city: formData.get('city')?.toString().trim() || null,
       state: formData.get('state')?.toString().trim() || null,
       postalCode: formData.get('postalCode')?.toString().trim() || null,
-      insuranceProvider: formData.get('insuranceProvider')?.toString().trim() || null,
-      insurancePolicyNumber: formData.get('insurancePolicyNumber')?.toString().trim() || null,
-      insuranceGroupNumber: formData.get('insuranceGroupNumber')?.toString().trim() || null,
       updatedAt: new Date(),
     })
     .where(and(eq(patient.id, ctx.patientId), eq(patient.organizationId, ctx.organizationId)))
+
+  // ML-50b: the card is the primary slot, authoritative in patient_insurance
+  // (upsertPatientInsurance also writes the flat mirror). The form's
+  // insuranceProvider / insurancePolicyNumber / insuranceGroupNumber fields.
+  await upsertPatientInsurance(ctx.organizationId, ctx.patientId, 'primary', {
+    provider: formData.get('insuranceProvider')?.toString().trim() || null,
+    policyNumber: formData.get('insurancePolicyNumber')?.toString().trim() || null,
+    groupNumber: formData.get('insuranceGroupNumber')?.toString().trim() || null,
+  })
 
   revalidatePath('/patient/profile')
   revalidatePath('/patient/dashboard')

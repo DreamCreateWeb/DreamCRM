@@ -1,6 +1,7 @@
 import 'server-only'
 import { and, eq, desc, gte, inArray, ne, isNull, lt } from 'drizzle-orm'
 import { db } from '@/lib/db'
+import { getPatientInsurance } from '@/lib/services/insurance-eligibility/plans'
 import {
   patient,
   appointment,
@@ -302,14 +303,13 @@ export async function getMyRecords(
       city: patient.city,
       state: patient.state,
       postalCode: patient.postalCode,
-      insuranceProvider: patient.insuranceProvider,
-      insurancePolicyNumber: patient.insurancePolicyNumber,
-      insuranceGroupNumber: patient.insuranceGroupNumber,
     })
     .from(patient)
     .where(and(eq(patient.id, patientId), eq(patient.organizationId, organizationId)))
     .limit(1)
   if (!patientRow) return null
+  // ML-50b: the card is the primary slot in patient_insurance.
+  const primaryCard = await getPatientInsurance(organizationId, patientId, 'primary')
 
   const [formRows, visitRows] = await Promise.all([
     db
@@ -349,7 +349,12 @@ export async function getMyRecords(
   ])
 
   return {
-    patient: patientRow,
+    patient: {
+      ...patientRow,
+      insuranceProvider: primaryCard?.provider ?? null,
+      insurancePolicyNumber: primaryCard?.policyNumber ?? null,
+      insuranceGroupNumber: primaryCard?.groupNumber ?? null,
+    },
     forms: formRows.map((f) => ({
       submissionId: f.submissionId,
       formTitle: f.formTitle,

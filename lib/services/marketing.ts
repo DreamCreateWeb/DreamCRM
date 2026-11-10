@@ -1,4 +1,5 @@
 import 'server-only'
+import { primaryCardsByPatient } from '@/lib/services/insurance-eligibility/plans'
 import {
   and,
   asc,
@@ -571,7 +572,6 @@ export async function resolvePatientAudience(
       marketingSmsOptIn: schema.patient.marketingSmsOptIn,
       pmsRecallDueAt: schema.patient.pmsRecallDueAt,
       pmsBalanceCents: schema.patient.pmsBalanceCents,
-      insuranceProvider: schema.patient.insuranceProvider,
     })
     .from(schema.patient)
     .where(and(...where))
@@ -586,6 +586,9 @@ export async function resolvePatientAudience(
     parsed.recallStatuses?.length || parsed.hasUnconfirmedNextHours != null || parsed.noUpcomingVisit
 
   const ids = patients.map((p) => p.id)
+
+  // ML-50b: "has insurance" reads the primary slot in patient_insurance.
+  const cardByPatient = parsed.hasInsurance != null ? await primaryCardsByPatient(organizationId, ids) : null
 
   // Tag targeting — only resolve when the filter asks for it. Build a per-patient
   // tag-id set so the post-query predicate is O(1).
@@ -701,7 +704,7 @@ export async function resolvePatientAudience(
       }
       if (parsed.hasUnconfirmedNextHours != null && !unconfirmedSet.has(r.p.id)) return false
       if (parsed.hasInsurance != null) {
-        const insured = !!r.p.insuranceProvider?.trim()
+        const insured = !!cardByPatient?.get(r.p.id)?.provider?.trim()
         if (parsed.hasInsurance !== insured) return false
       }
       if (parsed.noUpcomingVisit && r.hasUpcoming) return false

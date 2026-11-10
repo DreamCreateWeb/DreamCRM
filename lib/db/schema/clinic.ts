@@ -25,6 +25,12 @@ export const patient = pgTable(
     state: text('state'),
     postalCode: text('postal_code'),
 
+    // ML-50b: these four insurance_* columns are a MIRROR (2026-11-10, one
+    // release): the PRIMARY plan is authoritative in `patient_insurance`
+    // (rank 'primary'). Every writer goes through `upsertPatientInsurance`,
+    // which also writes these; nothing reads them but plans.ts (the fallback
+    // for a primary with no slot row yet). Pinned by
+    // tests/guards/insurance-flat-readers.test.ts. Drop them next release.
     insuranceProvider: text('insurance_provider'),
     insurancePolicyNumber: text('insurance_policy_number'),
     insuranceGroupNumber: text('insurance_group_number'),
@@ -259,10 +265,9 @@ export const insuranceVerification = pgTable(
 )
 export type InsuranceVerificationRow = typeof insuranceVerification.$inferSelect
 
-// ML-50: a patient's coverage SLOTS. 'secondary' is authoritative here; the
-// 'primary' row mirrors the flat patient.insurance_* columns for one release
-// (those stay the display truth and keep every existing reader working —
-// `upsertPatientInsurance` is the ONE place that writes the mirror).
+// ML-50 / ML-50b: a patient's coverage SLOTS. BOTH ranks are authoritative
+// here (ML-50b, 2026-11-10); the flat patient.insurance_* columns are a mirror
+// for one release (written by `upsertPatientInsurance`, no longer read).
 export const patientInsurance = pgTable(
   'patient_insurance',
   {

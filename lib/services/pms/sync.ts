@@ -3,6 +3,7 @@ import { attributeBookingToCampaign } from '@/lib/services/campaign-attribution'
 import { createHash, randomUUID } from 'crypto'
 import { and, desc, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { patchPrimaryInsurance } from '@/lib/services/insurance-eligibility/plans'
 import { scheduleKick } from '@/lib/services/day-one-kick'
 import { decryptSecret } from '@/lib/crypto'
 import type { PmsConnection } from '@/lib/db/schema/clinic'
@@ -613,6 +614,7 @@ async function reconcileMappedPatient(
   const persistedHash = contactWouldChange
     ? patientProfileHash({ ...np, email: row.email, phone: row.phone })
     : profileHash
+  await mirrorPmsPrimaryInsurance(organizationId, existing.internalId, np)
   await touchMap(existing.id, persistedHash)
   if (contactWouldChange) t.skippedContactOverwrites = (t.skippedContactOverwrites ?? 0) + 1
   t.updated++
@@ -648,6 +650,7 @@ async function reconcileUnmappedPatient(
         updatedAt: new Date(),
       })
       .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, linkId)))
+    await mirrorPmsPrimaryInsurance(organizationId, linkId, np)
     await insertMap(organizationId, 'patient', np.externalId, linkId, 'pms', profileHash)
     mappedInternalIds.add(linkId)
     t.updated++
@@ -688,7 +691,20 @@ async function createImportedPatient(organizationId: string, np: NormalizedPatie
     pmsBalanceCents: np.balanceCents ?? null,
     pmsBalanceUpdatedAt: np.balanceCents != null ? now : null,
   })
+  await mirrorPmsPrimaryInsurance(organizationId, id, np)
   return id
+}
+
+// ML-50b: the PMS's primary card lands in patient_insurance (the authority).
+// PMS-wins only for a field it HAS; absent never clears the clinic's own entry
+// (patchPrimaryInsurance keeps the undefined keys).
+async function mirrorPmsPrimaryInsurance(organizationId: string, patientId: string, np: NormalizedPatient) {
+  if (!np.insuranceProvider && !np.insurancePolicyNumber && !np.insuranceGroupNumber) return
+  await patchPrimaryInsurance(organizationId, patientId, {
+    provider: np.insuranceProvider ?? undefined,
+    policyNumber: np.insurancePolicyNumber ?? undefined,
+    groupNumber: np.insuranceGroupNumber ?? undefined,
+  })
 }
 
 /** Under-18 at `now`, judged from a 'YYYY-MM-DD' DOB. Unknown/garbage DOB is

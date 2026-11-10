@@ -7319,3 +7319,20 @@ seen a cascade-layer defeat. (3) The financing editor's floating-button
 hint still said "bottom-right … your chat bubble stays bottom-left",
 written before the 2026-10-12 move; it now says where the button is.
 
+
+## 2026-11-10 — ML-50b: the primary plan is authoritative in `patient_insurance`
+
+ML-50's stated follow-up. `getPatientInsurance(org, patient, rank)` is the ONE
+read of a slot (table first; the only fallback is a primary with no row yet,
+read from the flat mirror inside `plans.ts`). Every writer of the primary now
+goes through `upsertPatientInsurance` / `patchPrimaryInsurance` (partial,
+keeps undefined keys) / `seedPrimaryInsuranceBulk` (the CSV import): the
+`createPatient`/`updatePatient` funnel (edit modal, the insurance tool), the
+PMS sync (mapped, linked, created), the portal profile card, the intake
+write-back, merge's blank-fill, the demo seeder (persona-keyed). Readers moved
+to the table: the record header, the inbox patient context, the portal
+records, the insurance tool's on-file member id, the remembered card, My Day's
+audit, the marketing "has insurance" audience, the CSV export. The flat
+columns are a MIRROR for one release (written, not read); no migration.
+`tests/guards/insurance-flat-readers.test.ts` pins the writer contract and a
+dated, shrink-only allowlist of files that may name a flat column.

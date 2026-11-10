@@ -1,4 +1,5 @@
 import 'server-only'
+import { getPatientInsurance, rememberSlotCard } from '@/lib/services/insurance-eligibility/plans'
 import { and, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { detailFromRequest, type EligibilityRequest } from '@/lib/insurance-eligibility'
@@ -31,14 +32,16 @@ export async function seedDemoInsuranceChecks(
 
   // Positive anchor: Mia's row must exist (exhausted seeder-test queue → skip).
   const [mia] = await db
-    .select({ id: schema.patient.id, policy: schema.patient.insurancePolicyNumber, detail: schema.patient.insuranceDetail })
+    .select({ id: schema.patient.id })
     .from(schema.patient)
     .where(and(eq(schema.patient.organizationId, orgId), eq(schema.patient.id, miaId)))
     .limit(1)
   if (!mia) return
+  // ML-50b: her card is the primary slot in patient_insurance.
+  const miaCard = await getPatientInsurance(orgId, miaId, 'primary')
   // Mia's checks carry HER on-file policy number, so the remembered card the
   // rows imply still matches the record (the merge rule drops a mismatch).
-  const miaMemberId = (mia.policy ?? '').trim() || 'DD-100-2231'
+  const miaMemberId = (miaCard?.policyNumber ?? '').trim() || 'DD-100-2231'
 
   const personas = buildPatientPersonas(now)
   const person = (i: number) => {
@@ -134,12 +137,9 @@ export async function seedDemoInsuranceChecks(
   // The record remembers the card (polish phase 3): stamp Mia's detail the
   // way her latest seeded check would have, once — a self-heal for demos
   // seeded before the column existed. Never touches the flat columns.
-  if (!mia.detail) {
+  if (!miaCard?.detail) {
     const input = request(0, miaMemberId)
     const latest = new Date(now.getTime() - 12 * dayMs)
-    await db
-      .update(schema.patient)
-      .set({ insuranceDetail: detailFromRequest(input, renderSandboxScenario('active_ppo', input, latest), 'check', latest) })
-      .where(and(eq(schema.patient.organizationId, orgId), eq(schema.patient.id, miaId)))
+    await rememberSlotCard(orgId, miaId, 'primary', detailFromRequest(input, renderSandboxScenario('active_ppo', input, latest), 'check', latest))
   }
 }
