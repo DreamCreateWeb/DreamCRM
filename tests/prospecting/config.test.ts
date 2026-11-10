@@ -93,6 +93,29 @@ describe('resolveProspectingConfig', () => {
     expect(resolveProspectingConfig({ budgets: { phoneValidatePerMonth: 0 } }).budgets.phoneValidatePerMonth).toBe(0)
   })
 
+  it('the hygiene clocks ship at 90 / 60 / 30 / 30 days (P-03) — P-01’s 60 and 30 lifted into config unchanged', () => {
+    const c = resolveProspectingConfig(null)
+    expect(c.hygiene).toEqual({ staleAfterDays: 90, reverifyAfterDays: 60, parkedRecheckDays: 30, discoveryRefreshDays: 30 })
+  })
+
+  it('the clocks merge over defaults, floor at 7 (a zero would rest everything every tick), cap, and shrug off junk', () => {
+    expect(resolveProspectingConfig({ hygiene: { staleAfterDays: 120 } }).hygiene).toEqual({
+      staleAfterDays: 120,
+      reverifyAfterDays: 60,
+      parkedRecheckDays: 30,
+      discoveryRefreshDays: 30,
+    })
+    expect(resolveProspectingConfig({ hygiene: { staleAfterDays: 0, reverifyAfterDays: 9999 } }).hygiene).toMatchObject({
+      staleAfterDays: 7,
+      reverifyAfterDays: 365,
+    })
+    expect(resolveProspectingConfig({ hygiene: 'soon' }).hygiene.staleAfterDays).toBe(90)
+    expect(resolveProspectingConfig({ hygiene: { staleAfterDays: 'lots' } }).hygiene.staleAfterDays).toBe(90)
+    const a = resolveProspectingConfig(null)
+    a.hygiene.staleAfterDays = 1
+    expect(resolveProspectingConfig(null).hygiene.staleAfterDays).toBe(90)
+  })
+
   it('brain defaults to empty override + no battle cards', () => {
     expect(resolveProspectingConfig(null).brain).toEqual({ productOverride: '', battleCards: [] })
   })

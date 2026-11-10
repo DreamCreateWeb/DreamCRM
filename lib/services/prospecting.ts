@@ -15,15 +15,18 @@ import {
   type ProspectLossReason,
   type ProspectQualityCounts,
   type ProspectCallOutcome,
+  type DuplicateCandidate,
   type WinLossReport,
 } from '@/lib/types/prospecting'
+import { survivorOf } from './prospect-dedupe'
+import { wakeStatus } from '@/lib/prospect-decay'
 import {
   BAD_PHONE_STATUSES,
   type ProspectPhoneLineType,
   type ProspectPhoneStatus,
   type ProspectQualityBand,
 } from '@/lib/db/schema/prospecting'
-import { computeQualityScore } from '@/lib/prospect-quality'
+import { computeQualityScore, qualityInput } from '@/lib/prospect-quality'
 import { nanpDigits, validateNanp } from '@/lib/phone-nanp'
 import { SEGMENT_LABELS, type OutreachSegment } from '@/lib/types/prospecting'
 import { stateZip3Prefixes, stateTimeZone } from '@/lib/types/us-geo'
@@ -174,6 +177,9 @@ export async function findExistingProspect(input: {
     city: schema.prospect.city,
     status: schema.prospect.status,
   }
+  // A merged duplicate is not "already in the pipeline" — its survivor is,
+  // and the survivor carries the same phone / name, so it answers instead.
+  const notMerged = notInArray(schema.prospect.status, ['merged'])
   // The same NANP ten digits the writers store (a typed "+1 (404) 555-1212"
   // is '4045551212' on the row) — and the eleven a legacy row still carries.
   const phone = nanpDigits(input.phone)
@@ -181,7 +187,12 @@ export async function findExistingProspect(input: {
     const [byPhone] = await db
       .select(cols)
       .from(schema.prospect)
-      .where(phone.length === 10 ? inArray(schema.prospect.phone, [phone, `1${phone}`]) : eq(schema.prospect.phone, phone))
+      .where(
+        and(
+          phone.length === 10 ? inArray(schema.prospect.phone, [phone, `1${phone}`]) : eq(schema.prospect.phone, phone),
+          notMerged,
+        ),
+      )
       .limit(1)
     if (byPhone) return byPhone
   }
@@ -194,6 +205,7 @@ export async function findExistingProspect(input: {
       and(
         sql`lower(${schema.prospect.name}) = ${name}`,
         state ? eq(schema.prospect.state, state) : sql`true`,
+        notMerged,
       ),
     )
     .limit(1)
@@ -204,6 +216,9 @@ export async function findExistingProspect(input: {
 
 /** Prospects we treat as closed/off-board (won or lost). */
 const PIPELINE_TERMINAL = ['converted', 'suppressed', 'disqualified', 'not_interested']
+/** …plus the hygiene states (P-03): a merged duplicate lives on under its
+ *  survivor, a resting row is off every working surface until it wakes. */
+const OFF_BOARD = [...PIPELINE_TERMINAL, 'merged', 'dormant']
 
 /** Colors the card's next-step line: what to DO, not just what happened. */
 export type PipelineCardTone = 'due' | 'reply' | 'quiet'
@@ -276,7 +291,7 @@ export async function getPipelineBoard(opts?: { now?: Date; perColumn?: number }
       and(
         inArray(schema.prospectMeeting.status, ['booked', 'completed', 'no_show']),
         isNotNull(schema.prospectMeeting.scheduledAt),
-        notInArray(p.status, PIPELINE_TERMINAL),
+        notInArray(p.status, OFF_BOARD),
       ),
     )
     .orderBy(desc(schema.prospectMeeting.scheduledAt))
@@ -334,7 +349,7 @@ export async function getPipelineBoard(opts?: { now?: Date; perColumn?: number }
     .from(p)
     .where(
       and(
-        notInArray(p.status, PIPELINE_TERMINAL),
+        notInArray(p.status, OFF_BOARD),
         or(
           exists(
             db
@@ -378,7 +393,7 @@ export async function getPipelineBoard(opts?: { now?: Date; perColumn?: number }
   const activeRows = await db
     .select({ id: p.id, band: p.scoreBand })
     .from(p)
-    .where(notInArray(p.status, PIPELINE_TERMINAL))
+    .where(notInArray(p.status, OFF_BOARD))
   const activeTotal = activeRows.length
 
   const worked = new Set<string>([...commActive.map((r) => r.id), ...Array.from(demoIds)])
@@ -689,6 +704,9 @@ export async function listProspects(
   const conds = []
   if (filters.state) conds.push(eq(schema.prospect.state, filters.state))
   if (filters.status) conds.push(eq(schema.prospect.status, filters.status))
+  // Hygiene (P-03): merged duplicates and resting rows leave the default
+  // view; each has its own filter chip.
+  else conds.push(notInArray(schema.prospect.status, ['merged', 'dormant']))
   if (filters.scoreBand) conds.push(eq(schema.prospect.scoreBand, filters.scoreBand))
   if (filters.qualityBand) {
     // A quality band only means something for the pool the floor applies
@@ -744,6 +762,7 @@ export async function listProspects(
       phoneLineType: schema.prospect.phoneLineType,
       verifiedAt: schema.prospect.verifiedAt,
       assignedCallerId: schema.prospect.assignedCallerId,
+      mergedIntoProspectId: schema.prospect.mergedIntoProspectId,
     })
     .from(schema.prospect)
     .where(where)
@@ -755,10 +774,24 @@ export async function listProspects(
     .limit(LIST_PAGE_SIZE)
     .offset((Math.max(1, page) - 1) * LIST_PAGE_SIZE)
 
+  // The survivors' names for the "Merged into …" line (only the merged view
+  // ever has any).
+  const survivorIds = Array.from(new Set(rows.map((r) => r.mergedIntoProspectId).filter((v): v is string => Boolean(v))))
+  const survivorNames = new Map<string, string>()
+  if (survivorIds.length > 0) {
+    const survivors = await db
+      .select({ id: schema.prospect.id, name: schema.prospect.name })
+      .from(schema.prospect)
+      .where(inArray(schema.prospect.id, survivorIds))
+    for (const s of survivors) survivorNames.set(s.id, s.name)
+  }
+
   return {
     rows: rows.map((r) => ({
       ...r,
       qualityReasons: Array.isArray(r.qualityReasons) ? (r.qualityReasons as string[]) : [],
+      mergedIntoProspectId: r.mergedIntoProspectId ?? null,
+      mergedIntoName: r.mergedIntoProspectId ? (survivorNames.get(r.mergedIntoProspectId) ?? null) : null,
     })) as ProspectListRow[],
     total: total ?? 0,
     pageSize: LIST_PAGE_SIZE,
@@ -867,7 +900,11 @@ export async function getFunnelStats(): Promise<ProspectFunnelStats> {
   const contacted = sum(['contacted', 'not_interested', 'suppressed']) + engaged
   const enriched = sum(['enriched', 'queued']) + contacted
   const discovered = sum(['discovered', 'enriching', 'disqualified']) + enriched
-  return { discovered, enriched, contacted, engaged, callList, converted }
+  // Hygiene (P-03): a resting row is still a discovered practice; a merged
+  // one is counted once, under its survivor.
+  const dormant = sum(['dormant'])
+  const merged = sum(['merged'])
+  return { discovered: discovered + dormant, enriched, contacted, engaged, callList, converted, dormant, merged }
 }
 
 /** Live-pool score-band counts (enriched-and-later prospects) — grounds the
@@ -880,7 +917,7 @@ export async function getBandCounts(): Promise<Record<string, number>> {
     .where(
       and(
         isNotNull(schema.prospect.scoreBand),
-        notInArray(schema.prospect.status, ['discovered', 'enriching', 'disqualified', 'suppressed']),
+        notInArray(schema.prospect.status, ['discovered', 'enriching', 'disqualified', 'suppressed', 'merged', 'dormant']),
       ),
     )
     .groupBy(schema.prospect.scoreBand)
@@ -1043,16 +1080,23 @@ export async function getTerritoryCoverage(
 ): Promise<import('@/lib/types/prospecting').TerritoryRow[]> {
   const enabled = new Set(enabledStates)
 
-  const statusRows = await db
-    .select({
-      state: schema.prospect.state,
-      status: schema.prospect.status,
-      band: schema.prospect.scoreBand,
-      n: sql<number>`count(*)::int`,
-    })
-    .from(schema.prospect)
-    .where(isNotNull(schema.prospect.state))
-    .groupBy(schema.prospect.state, schema.prospect.status, schema.prospect.scoreBand)
+  // A resting row (P-03) is still the practice it was — it was contacted,
+  // that is why it could rest — so it is counted where it came from, never
+  // as an unworked row (a territory does not become "10% worked" as its
+  // contacted rows rest).
+  const statusRows = (
+    await db
+      .select({
+        state: schema.prospect.state,
+        status: schema.prospect.status,
+        dormantFromStatus: schema.prospect.dormantFromStatus,
+        band: schema.prospect.scoreBand,
+        n: sql<number>`count(*)::int`,
+      })
+      .from(schema.prospect)
+      .where(and(isNotNull(schema.prospect.state), notInArray(schema.prospect.status, ['merged'])))
+      .groupBy(schema.prospect.state, schema.prospect.status, schema.prospect.dormantFromStatus, schema.prospect.scoreBand)
+  ).map((r) => ({ ...r, status: r.status === 'dormant' ? wakeStatus(r.dormantFromStatus) : r.status }))
 
   const progress = await getDiscoveryProgress()
   const progressByState = new Map(progress.map((p) => [p.state, p]))
@@ -1136,6 +1180,10 @@ export interface ProspectDetail {
   calls: Array<{ outcome: string; note: string | null; createdAt: Date; callerId: string | null }>
   /** The cold caller working this practice right now (P-02), if any. */
   assignedCaller: { id: string; name: string; assignedAt: Date | null } | null
+  /** Hygiene (P-03): the survivor a merged row went into. */
+  mergedInto: { id: string; name: string } | null
+  /** Hygiene (P-03): rows the matcher thinks are this practice. */
+  duplicates: DuplicateCandidate[]
 }
 
 /** Everything the drawer shows: the row + outreach history + call log. */
@@ -1187,6 +1235,20 @@ export async function getProspectDetail(prospectId: string): Promise<ProspectDet
       .limit(1)
     if (c) assignedCaller = { id: c.id, name: c.name, assignedAt: row.assignedAt ?? null }
   }
+  let mergedInto: { id: string; name: string } | null = null
+  if (row.status === 'merged' && row.mergedIntoProspectId) {
+    const [s] = await db
+      .select({ id: schema.prospect.id, name: schema.prospect.name })
+      .from(schema.prospect)
+      .where(eq(schema.prospect.id, row.mergedIntoProspectId))
+      .limit(1)
+    mergedInto = s ?? null
+  }
+  let duplicates: DuplicateCandidate[] = []
+  if (row.status !== 'merged') {
+    const { findDuplicateCandidates } = await import('./prospect-dedupe')
+    duplicates = await findDuplicateCandidates(prospectId).catch(() => [])
+  }
   return {
     prospect: row,
     contacts,
@@ -1194,15 +1256,20 @@ export async function getProspectDetail(prospectId: string): Promise<ProspectDet
     events,
     calls: calls.map((c) => ({ ...c, callerId: c.callerId ?? null })),
     assignedCaller,
+    mergedInto,
+    duplicates,
   }
 }
 
 // ── Mutations (platform admin actions) ─────────────────────────────────────
 
 export async function suppressProspect(
-  prospectId: string,
+  inputProspectId: string,
   reason: string,
 ): Promise<void> {
+  // "Never again" is the practice's word: a merged duplicate's survivor
+  // takes it, and the folded row is never flipped (P-03).
+  const prospectId = await survivorOf(inputProspectId)
   const [row] = await db
     .select({ email: schema.prospect.email })
     .from(schema.prospect)
@@ -1218,7 +1285,7 @@ export async function suppressProspect(
       lostReason: lossReasonForSuppression(reason),
       updatedAt: new Date(),
     })
-    .where(eq(schema.prospect.id, prospectId))
+    .where(and(eq(schema.prospect.id, prospectId), ne(schema.prospect.status, 'merged')))
   // A suppressed row is no caller's to dial (P-02): free the slot now.
   await releaseCallerSlot(prospectId)
   if (row?.email) {
@@ -1781,9 +1848,14 @@ export async function logCallOutcome(input: {
   followUpAt?: Date | null
 }): Promise<void> {
   const now = new Date()
+  // A call with a merged duplicate is a call with its survivor (P-03): the
+  // owner's stale Call Mode card dialled the same practice, and the outcome
+  // lands on the row that kept the history — a live status is never written
+  // onto a merged row (every write below is guarded on it too).
+  const prospectId = await survivorOf(input.prospectId)
   await db.insert(schema.prospectCallLog).values({
     id: newId('pcall'),
-    prospectId: input.prospectId,
+    prospectId,
     outcome: input.outcome,
     note: input.note ?? null,
     calledByUserId: input.calledByUserId ?? null,
@@ -1795,18 +1867,22 @@ export async function logCallOutcome(input: {
   // terminal ones clear it.
   const plan = followUpForOutcome(input.outcome, now)
   const followUpAt = plan.at && input.followUpAt && input.followUpAt.getTime() > now.getTime() ? input.followUpAt : plan.at
+  // A call outcome is an inbound signal (P-03): a resting row wakes to the
+  // status it came from, inside this same write (a no-op on every other row).
+  const { wakeSetSql } = await import('./prospect-hygiene')
   await db
     .update(schema.prospect)
     .set({
+      ...wakeSetSql(),
       replyDraft: null,
       nextFollowUpAt: followUpAt,
       followUpReason: plan.reason,
       updatedAt: now,
     })
-    .where(eq(schema.prospect.id, input.prospectId))
-  await applyCallerFeedback(input.prospectId, input.outcome, now)
+    .where(and(eq(schema.prospect.id, prospectId), ne(schema.prospect.status, 'merged')))
+  await applyCallerFeedback(prospectId, input.outcome, now)
   if (input.outcome === 'closed') {
-    await stopActiveEnrollments(input.prospectId, 'call_closed', now)
+    await stopActiveEnrollments(prospectId, 'call_closed', now)
   }
   if (input.outcome === 'not_interested') {
     await db
@@ -1817,13 +1893,13 @@ export async function logCallOutcome(input: {
         lostReason: input.lostReason ?? 'other',
         updatedAt: new Date(),
       })
-      .where(eq(schema.prospect.id, input.prospectId))
-    await stopActiveEnrollments(input.prospectId, 'call_not_interested', now)
+      .where(and(eq(schema.prospect.id, prospectId), ne(schema.prospect.status, 'merged')))
+    await stopActiveEnrollments(prospectId, 'call_not_interested', now)
   }
   // A no, a closed practice or a dead number leaves no caller anything to
   // dial (P-02): the assignment ends here, whoever logged the call.
   if (['not_interested', 'closed', 'disconnected', 'wrong_number'].includes(input.outcome)) {
-    await releaseCallerSlot(input.prospectId)
+    await releaseCallerSlot(prospectId)
   }
 }
 
@@ -1935,7 +2011,7 @@ async function applyCallerFeedback(prospectId: string, outcome: string, now: Dat
     .from(schema.prospect)
     .where(eq(schema.prospect.id, prospectId))
     .limit(1)
-  if (!row) return
+  if (!row || row.status === 'merged') return
   const verification = parseVerification(row.verification)
   const checkedAt = now.toISOString()
   const label = CALL_OUTCOME_LABELS[outcome as ProspectCallOutcome] ?? outcome
@@ -1990,21 +2066,32 @@ async function applyCallerFeedback(prospectId: string, outcome: string, now: Dat
 
   // A verdict always rescored (the hard zero is honest with no other
   // signal); a reach rescored only once the pass has looked at the record.
+  // The parked clock is the config's — the stored sentence names the
+  // number the sweep actually uses.
   if (isVerdict || row.verifiedAt) {
-    const q = computeQualityScore({
-      status,
-      verification,
-      phoneStatus,
-      phoneLineType: patch.phoneLineType === null ? null : row.phoneLineType,
-      businessStatus: row.businessStatus,
-      reviewCount: row.reviewCount,
-      websiteUrl: row.websiteUrl,
-    })
+    const config = await getProspectingConfig()
+    const q = computeQualityScore(
+      qualityInput(
+        {
+          status,
+          verification,
+          phoneStatus,
+          phoneLineType: patch.phoneLineType === null ? null : row.phoneLineType,
+          businessStatus: row.businessStatus,
+          reviewCount: row.reviewCount,
+          websiteUrl: row.websiteUrl,
+        },
+        config.hygiene,
+      ),
+    )
     patch.qualityScore = q.score
     patch.qualityBand = q.band
     patch.qualityReasons = q.reasons
   }
-  await db.update(schema.prospect).set(patch).where(eq(schema.prospect.id, prospectId))
+  await db
+    .update(schema.prospect)
+    .set(patch)
+    .where(and(eq(schema.prospect.id, prospectId), ne(schema.prospect.status, 'merged')))
 }
 
 /**
@@ -2035,6 +2122,9 @@ export async function updateProspectPhone(
     .where(eq(schema.prospect.id, prospectId))
     .limit(1)
   if (!row) return { ok: false, reason: 'not_found' }
+  // A merged duplicate's number is its survivor's to fix — a stale drawer
+  // never writes onto the folded row (P-03).
+  if (row.status === 'merged') return { ok: false, reason: 'merged' }
   const now = new Date()
   const verification = parseVerification(row.verification)
   verification.phone = {
@@ -2053,15 +2143,21 @@ export async function updateProspectPhone(
     updatedAt: now,
   }
   if (row.verifiedAt) {
-    const q = computeQualityScore({
-      status: row.status,
-      verification,
-      phoneStatus: 'unknown',
-      phoneLineType: null,
-      businessStatus: row.businessStatus,
-      reviewCount: row.reviewCount,
-      websiteUrl: row.websiteUrl,
-    })
+    const config = await getProspectingConfig()
+    const q = computeQualityScore(
+      qualityInput(
+        {
+          status: row.status,
+          verification,
+          phoneStatus: 'unknown',
+          phoneLineType: null,
+          businessStatus: row.businessStatus,
+          reviewCount: row.reviewCount,
+          websiteUrl: row.websiteUrl,
+        },
+        config.hygiene,
+      ),
+    )
     patch.qualityScore = q.score
     patch.qualityBand = q.band
     patch.qualityReasons = q.reasons
@@ -2075,7 +2171,10 @@ export async function updateProspectPhone(
     patch.qualityBand = null
     patch.qualityReasons = null
   }
-  await db.update(schema.prospect).set(patch).where(eq(schema.prospect.id, prospectId))
+  await db
+    .update(schema.prospect)
+    .set(patch)
+    .where(and(eq(schema.prospect.id, prospectId), ne(schema.prospect.status, 'merged')))
   return { ok: true, phone: digits }
 }
 
@@ -2153,6 +2252,23 @@ export async function convertProspectForSignup(input: {
   }
 
   if (candidates.length === 0) return none
+  // A merged duplicate's win belongs to its survivor (P-03).
+  for (let i = 0; i < candidates.length; i++) {
+    if (candidates[i].status !== 'merged') continue
+    const sid = await survivorOf(candidates[i].id)
+    const [s] = await db
+      .select({
+        id: schema.prospect.id,
+        status: schema.prospect.status,
+        convertedOrganizationId: schema.prospect.convertedOrganizationId,
+      })
+      .from(schema.prospect)
+      .where(eq(schema.prospect.id, sid))
+      .limit(1)
+    if (s) candidates[i] = s
+  }
+  candidates = candidates.filter((c) => c.status !== 'merged')
+  if (candidates.length === 0) return none
   const already = candidates.find((c) => c.convertedOrganizationId === input.organizationId)
   if (already) return { converted: true, prospectId: already.id }
   const target = candidates.find((c) => c.status !== 'converted')
@@ -2164,9 +2280,12 @@ export async function convertProspectForSignup(input: {
 
 /** Link a won prospect to its brand-new clinic org. */
 export async function markConverted(
-  prospectId: string,
+  inputProspectId: string,
   organizationId: string,
 ): Promise<void> {
+  // The clinic is the practice: a merged duplicate's survivor is what
+  // converts, and the folded row is never flipped (P-03).
+  const prospectId = await survivorOf(inputProspectId)
   await db
     .update(schema.prospect)
     .set({
@@ -2175,7 +2294,7 @@ export async function markConverted(
       outcomeAt: new Date(),
       updatedAt: new Date(),
     })
-    .where(eq(schema.prospect.id, prospectId))
+    .where(and(eq(schema.prospect.id, prospectId), ne(schema.prospect.status, 'merged')))
   await db
     .update(schema.outreachEnrollment)
     .set({ status: 'stopped_manual', stoppedAt: new Date(), stopReason: 'converted' })

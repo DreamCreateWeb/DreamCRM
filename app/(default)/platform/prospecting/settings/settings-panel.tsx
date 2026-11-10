@@ -6,8 +6,11 @@ import { PROSPECT_SCORE_BANDS } from '@/lib/db/schema/prospecting'
 import { SCORE_BAND_LABELS, splitAtFloor, type ProspectScoreBand } from '@/lib/types/prospecting'
 import { US_STATES, US_STATE_NAMES, type UsState } from '@/lib/types/us-geo'
 import { StatusPill } from '@/components/ui/status-pill'
+import { ActionButton } from '@/components/ui/action-button'
+import { TextInput } from '@/components/ui/form-fields'
 import { runAction } from '@/lib/run-action'
 import {
+  updateHygieneAction,
   setQualityFloorAction,
   setKillSwitchAction,
   setDryRunAction,
@@ -162,6 +165,99 @@ export function QualityFloor({ floor, quality }: { floor: number; quality: Prosp
           <span className="text-teal-700 dark:text-teal-300">Saved ✓</span>
         ) : null}
       </div>
+      {error && (
+        <p role="alert" className="mt-2 text-xs text-rose-600 dark:text-rose-400">
+          {error}
+        </p>
+      )}
+    </section>
+  )
+}
+
+/**
+ * THE HYGIENE CLOCKS (P-03). How long an untouched row stays live before it
+ * rests, and how often a verified row is checked again. Saved through
+ * runAction; the button carries the busy state.
+ */
+function HygieneKnobs({ hygiene }: { hygiene: ProspectingConfig['hygiene'] }) {
+  // The fields hold what was TYPED; the number is read at save (a per-
+  // keystroke clamp made "30" impossible to type — the 3 snapped to 7).
+  const [staleText, setStale] = useState(String(hygiene.staleAfterDays))
+  const [reverifyText, setReverify] = useState(String(hygiene.reverifyAfterDays))
+  const [saved, setSaved] = useState({ staleAfterDays: hygiene.staleAfterDays, reverifyAfterDays: hygiene.reverifyAfterDays })
+  const [pending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+  const staleAfterDays = Number(staleText)
+  const reverifyAfterDays = Number(reverifyText)
+  const dirty = staleText !== String(saved.staleAfterDays) || reverifyText !== String(saved.reverifyAfterDays)
+  const field = 'w-24 text-sm tabular-nums'
+
+  return (
+    <section className={SECTION} data-hygiene-knobs>
+      <div className={SECTION_TITLE}>Hygiene — the list cleans itself</div>
+      <p className={SECTION_SUB}>
+        On every engine tick (about every half hour) the engine folds exact duplicates into one record (nothing
+        deleted), rests any prospect nobody has touched in a while (off the queues until a reply, a call, a
+        booked demo or a better re-verify wakes it), re-verifies what has gone stale, and re-sweeps one finished
+        territory for new practices. Two clocks are yours to set.
+      </p>
+      <div className="flex flex-wrap items-end gap-4">
+        <label className="flex flex-col gap-1 text-xs font-medium text-gray-600 dark:text-gray-300">
+          Rest after (days without a touch)
+          <TextInput
+            type="number"
+            min={7}
+            max={730}
+            className={field}
+            value={staleText}
+            disabled={pending}
+            onChange={(e) => setStale(e.target.value)}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-gray-600 dark:text-gray-300">
+          Re-verify after (days)
+          <TextInput
+            type="number"
+            min={7}
+            max={365}
+            className={field}
+            value={reverifyText}
+            disabled={pending}
+            onChange={(e) => setReverify(e.target.value)}
+          />
+        </label>
+        <ActionButton
+          size="sm"
+          variant="primary"
+          pending={pending}
+          disabled={!dirty}
+          onClick={() =>
+            startTransition(async () => {
+              setError(null)
+              if (!Number.isInteger(staleAfterDays) || staleAfterDays < 7 || staleAfterDays > 730) {
+                setError('Rest after must be a whole number of days from 7 to 730.')
+                return
+              }
+              if (!Number.isInteger(reverifyAfterDays) || reverifyAfterDays < 7 || reverifyAfterDays > 365) {
+                setError('Re-verify after must be a whole number of days from 7 to 365.')
+                return
+              }
+              const r = await runAction(() => updateHygieneAction({ staleAfterDays, reverifyAfterDays }))
+              if (!r.ok) setError(r.error)
+              else setSaved({ staleAfterDays, reverifyAfterDays })
+            })
+          }
+        >
+          Save the clocks
+        </ActionButton>
+        {!dirty && !pending && (
+          <span className="text-xs text-teal-700 dark:text-teal-300">Saved ✓</span>
+        )}
+      </div>
+      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+        Parked records are re-checked every {hygiene.parkedRecheckDays} days; a finished territory is re-swept after{' '}
+        {hygiene.discoveryRefreshDays} days.
+      </p>
       {error && (
         <p role="alert" className="mt-2 text-xs text-rose-600 dark:text-rose-400">
           {error}
@@ -403,6 +499,9 @@ export default function SettingsPanel({
 
       {/* The quality floor (P-01) */}
       <QualityFloor floor={config.qualityFloor} quality={quality} />
+
+      {/* The hygiene clocks (P-03) */}
+      <HygieneKnobs hygiene={config.hygiene} />
 
       {/* The brain — editable product knowledge + battle cards */}
       <BrainEditor brain={config.brain} />

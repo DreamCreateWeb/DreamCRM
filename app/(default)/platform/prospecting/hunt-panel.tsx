@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import type { HuntStats } from '@/lib/services/prospecting'
-import type { ProspectingConfig, ProspectQualityCounts } from '@/lib/types/prospecting'
+import type { ProspectingConfig, ProspectHygieneStats, ProspectQualityCounts } from '@/lib/types/prospecting'
 import { INTENT_SIGNAL_LABELS, formatUtcStamp, type ProspectIntentSignal } from '@/lib/types/prospecting'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
@@ -29,6 +29,7 @@ export default function HuntPanel({
   sentByHour,
   quality,
   failures,
+  hygiene,
 }: {
   stats: HuntStats
   /** The hourly send series from the metrics snapshot (ML-38) — spark + honest line. */
@@ -39,6 +40,8 @@ export default function HuntPanel({
   quality?: ProspectQualityCounts | null
   /** The verification pass's strikes this week (P-01), newest first. */
   failures?: Array<{ summary: string; occurredAt: Date }> | null
+  /** The hygiene pass (P-03): merged today, resting now, the last refresh. */
+  hygiene?: ProspectHygieneStats | null
 }) {
   const live = !config.killSwitch && !config.dryRun
   const senderReady = env.senderConfigured || env.gmailConfigured
@@ -111,6 +114,22 @@ export default function HuntPanel({
             {tile('Good', quality.good, 'quality 60–79')}
             {tile('Parked', quality.parked, 'not served', quality.parked > 0 ? 'warn' : undefined)}
             {tile('Not verified yet', quality.unverified, 'the sweep is on it')}
+            {hygiene && (
+              <div className="rounded-[var(--r-xs)] bg-[color:var(--color-surface-sunk)] p-3 sm:col-span-2" data-hygiene-tile>
+                <div className="text-xs text-gray-500 dark:text-gray-400">Hygiene · today</div>
+                <div className="mt-0.5 text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-100">
+                  Merged {hygiene.mergedToday.toLocaleString()} · Resting {hygiene.resting.toLocaleString()}
+                  {hygiene.lastRefresh
+                    ? ` · Refreshed ${hygiene.lastRefresh.state} ${hygiene.lastRefresh.zipPrefix}xx`
+                    : ' · No territory refreshed yet'}
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  {hygiene.lastRefresh
+                    ? `last refresh ${formatUtcStamp(hygiene.lastRefresh.at)}`
+                    : `a finished territory is re-swept once it is ${config.hygiene.discoveryRefreshDays} days old`}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

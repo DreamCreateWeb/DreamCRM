@@ -226,6 +226,46 @@ export async function updateProspectPhoneAction(
   return r
 }
 
+/**
+ * Merge two prospects the matcher called the same practice (P-03). The
+ * survivor rule picks which row stays; nothing is deleted. Returns a refusal
+ * rather than throwing (a throw is the deployment-skew case runAction
+ * classifies).
+ */
+export async function mergeProspectAction(
+  aId: string,
+  bId: string,
+): Promise<{ ok: true; survivorId: string; loserId: string } | { ok: false; reason: string }> {
+  await requirePlatformAdmin()
+  const { mergeDuplicateProspects } = await import('@/lib/services/prospect-dedupe')
+  const r = await mergeDuplicateProspects(z.string().min(1).parse(aId), z.string().min(1).parse(bId))
+  revalidatePath('/platform/prospecting')
+  revalidatePath('/platform/prospecting/call-list')
+  revalidatePath('/platform/prospecting/call-mode')
+  return r.ok ? { ok: true, survivorId: r.survivorId, loserId: r.loserId } : { ok: false, reason: r.reason }
+}
+
+const hygieneSchema = z.object({
+  staleAfterDays: z.number().int().min(7).max(730),
+  reverifyAfterDays: z.number().int().min(7).max(365),
+})
+
+/** The hygiene clocks (P-03): how long an untouched row stays live, how
+ *  often a verified row is checked again. The rest of the block keeps its
+ *  stored values. */
+export async function updateHygieneAction(input: unknown): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requirePlatformAdmin()
+  const parsed = hygieneSchema.safeParse(input)
+  if (!parsed.success) {
+    return { ok: false, error: 'Rest after must be a whole number of days from 7 to 730; re-verify after, from 7 to 365.' }
+  }
+  const config = await getProspectingConfig()
+  await updateProspectingConfig({ hygiene: { ...config.hygiene, ...parsed.data } })
+  revalidatePath('/platform/prospecting')
+  revalidatePath('/platform/prospecting/settings')
+  return { ok: true }
+}
+
 /** The quality floor (P-01): the queues and the hunter serve only
  *  prospects at or above it. 0–100, multiples of 5 from the slider. */
 export async function setQualityFloorAction(floor: number): Promise<{ ok: true; floor: number }> {
@@ -278,8 +318,12 @@ export async function bookDemoForProspectAction(input: unknown): Promise<{ ok: b
   const ctx = await requirePlatformAdmin()
   const parsed = bookDemoSchema.parse(input)
   const demoAt = new Date(parsed.demoAtIso)
+  // A demo booked from a card the sweep merged meanwhile is the SURVIVOR's
+  // demo (P-03): the meeting, the outcome and the brief all land there.
+  const { survivorOf } = await import('@/lib/services/prospect-dedupe')
+  const prospectId = await survivorOf(parsed.prospectId)
   await logBookedDemo({
-    prospectId: parsed.prospectId,
+    prospectId,
     scheduledAt: demoAt,
     attendeeName: parsed.attendeeName || null,
     attendeeEmail: parsed.attendeeEmail || null,
@@ -287,13 +331,13 @@ export async function bookDemoForProspectAction(input: unknown): Promise<{ ok: b
   })
   const { logCallOutcome } = await import('@/lib/services/prospecting')
   await logCallOutcome({
-    prospectId: parsed.prospectId,
+    prospectId,
     outcome: 'demo_booked',
     calledByUserId: ctx.userId,
   })
   // Pre-warm the demo prep brief so it's ready before the meeting.
   import('@/lib/services/demo-brief')
-    .then((m) => m.generateDemoBrief(parsed.prospectId))
+    .then((m) => m.generateDemoBrief(prospectId))
     .catch(() => {})
   revalidatePath('/platform/prospecting')
   revalidatePath('/platform/prospecting/call-list')

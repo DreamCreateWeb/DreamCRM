@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, asc, eq, inArray } from 'drizzle-orm'
+import { and, asc, eq, inArray, lt, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId } from '@/lib/utils'
 import {
@@ -10,6 +10,9 @@ import {
   type NppesOrgResult,
 } from '@/lib/nppes'
 import { stateTimeZone } from '@/lib/types/us-geo'
+import { isExactDuplicate, phoneKey, type DedupeRow } from '@/lib/prospect-dedupe'
+import { tenDigitPhoneSql } from './prospect-dedupe'
+import type { ProspectingConfig } from '@/lib/types/prospecting'
 import { getProspectingConfig } from './prospecting'
 
 /**
@@ -37,13 +40,85 @@ export interface DiscoveryRunResult {
   skipped?: string
 }
 
-async function insertProspects(results: NppesOrgResult[]): Promise<number> {
-  if (results.length === 0) return 0
-  let imported = 0
+/**
+ * THE MATCHER AT THE DOOR (P-03). The NPI unique and the dedupe hash only
+ * catch an exact re-discovery; the matcher (lib/prospect-dedupe.ts) also
+ * sees "Smile Dental PC" under a second NPI with the same desk phone — so a
+ * registry row that is a practice we already hold never becomes a second
+ * row. Rows already in the table are fetched by the batch's phones (as ten
+ * digits) and by its ZIPs, then any candidate that is an EXACT duplicate
+ * of an existing row — or of an earlier candidate in the same page — is
+ * dropped. The bar is the sweep's own (`isExactDuplicate`: same phone AND
+ * same name); a fuzzy likeness (same phone, another name; same name at the
+ * ZIP, another street) is a question for a human, and a human can only
+ * answer it on a row that exists — so those ENTER, and the drawer asks.
+ * Merged rows count as existing: their practice is in the pipeline under
+ * the survivor.
+ */
+export async function filterAlreadyHeld(
+  results: NppesOrgResult[],
+  now: Date,
+): Promise<{ fresh: NppesOrgResult[]; held: number }> {
+  if (results.length === 0) return { fresh: [], held: 0 }
+  const phones = Array.from(new Set(results.map((r) => phoneKey(r.phone)).filter((v): v is string => Boolean(v))))
+  const zips = Array.from(new Set(results.map((r) => r.postalCode).filter((v): v is string => Boolean(v))))
+  const cols = {
+    id: schema.prospect.id,
+    name: schema.prospect.name,
+    phone: schema.prospect.phone,
+    googlePlaceId: schema.prospect.googlePlaceId,
+    postalCode: schema.prospect.postalCode,
+    qualityScore: schema.prospect.qualityScore,
+    verifiedAt: schema.prospect.verifiedAt,
+    createdAt: schema.prospect.createdAt,
+  }
+  const existing: DedupeRow[] = []
+  if (phones.length > 0) {
+    existing.push(...(await db.select(cols).from(schema.prospect).where(inArray(tenDigitPhoneSql(), phones)).limit(2000)))
+  }
+  if (zips.length > 0) {
+    const seen = new Set(existing.map((e) => e.id))
+    const byZip = await db.select(cols).from(schema.prospect).where(inArray(schema.prospect.postalCode, zips)).limit(2000)
+    for (const e of byZip) if (!seen.has(e.id)) existing.push(e)
+  }
+  // Exact pairs share a phone, so the held rows are indexed by it.
+  const byPhone = new Map<string, DedupeRow[]>()
+  const hold = (row: DedupeRow) => {
+    const k = phoneKey(row.phone)
+    if (!k) return
+    byPhone.set(k, [...(byPhone.get(k) ?? []), row])
+  }
+  for (const e of existing) hold(e)
+  const fresh: NppesOrgResult[] = []
   for (const r of results) {
-    // Two-layer dedupe: NPI unique catches re-discovery; the phone+address
-    // hash collapses multi-NPI practices sharing one front desk. Both are
-    // ON CONFLICT DO NOTHING — first writer wins, re-runs are no-ops.
+    const candidate: DedupeRow = {
+      id: `nppes:${r.npiNumber}`,
+      name: r.name,
+      phone: r.phone,
+      googlePlaceId: null,
+      postalCode: r.postalCode,
+      qualityScore: null,
+      verifiedAt: null,
+      createdAt: now,
+    }
+    const k = phoneKey(r.phone)
+    const twins = k ? (byPhone.get(k) ?? []) : []
+    if (twins.some((t) => isExactDuplicate(candidate, t))) continue
+    fresh.push(r)
+    hold(candidate) // a later row of the same practice in this page is held by this one
+  }
+  return { fresh, held: results.length - fresh.length }
+}
+
+async function insertProspects(results: NppesOrgResult[], now: Date = new Date()): Promise<{ imported: number; held: number }> {
+  if (results.length === 0) return { imported: 0, held: 0 }
+  const { fresh, held } = await filterAlreadyHeld(results, now)
+  let imported = 0
+  for (const r of fresh) {
+    // Three-layer dedupe: NPI unique catches re-discovery; the phone+address
+    // hash collapses multi-NPI practices sharing one front desk (both ON
+    // CONFLICT DO NOTHING — first writer wins, re-runs are no-ops); the
+    // matcher above caught everything softer before this insert.
     const inserted = await db
       .insert(schema.prospect)
       .values({
@@ -66,7 +141,7 @@ async function insertProspects(results: NppesOrgResult[]): Promise<number> {
       .returning({ id: schema.prospect.id })
     imported += inserted.length
   }
-  return imported
+  return { imported, held }
 }
 
 /** Split a capped zip3 task into its ten zip5-prefix children (e.g. '303' →
@@ -139,7 +214,7 @@ export async function runDiscovery(opts?: { maxTasks?: number }): Promise<Discov
           enumerationType,
         })
         found += resultCount
-        imported += await insertProspects(results)
+        imported += (await insertProspects(results, new Date())).imported
         skip += NPPES_PAGE_SIZE
 
         if (resultCount < NPPES_PAGE_SIZE) {
@@ -224,4 +299,137 @@ export async function runDiscovery(opts?: { maxTasks?: number }): Promise<Discov
   }
 
   return out
+}
+
+// ── The discovery REFRESH (P-03) ────────────────────────────────────────────
+
+/** NPPES requests one refresh may spend — the same politeness as P-01's
+ *  verification cap. A zip3's two phases at 200 a page fit comfortably. */
+export const REFRESH_NPPES_PER_RUN = 50
+
+export interface TerritoryRefreshResult {
+  taskId: string
+  state: string
+  zipPrefix: string
+  found: number
+  imported: number
+  /** Registry rows the matcher held at the door: a practice already here. */
+  held: number
+  requests: number
+  /** True when the request cap stopped the sweep before NPPES ran dry —
+   *  the next refresh of this territory starts over and may finish. */
+  capped: boolean
+}
+
+/** The stamp a territory is AGED by — what decides it is due: its last
+ *  refresh that happened, else the end of its first sweep. A refresh that
+ *  threw stamps nothing here, so a territory stays due. Exported for the
+ *  boundary test. */
+export function territorySweptAtSql() {
+  return sql`COALESCE(${schema.prospectDiscoveryTask.lastRefreshedAt}, ${schema.prospectDiscoveryTask.updatedAt})`
+}
+
+/** The stamp the due territories are ORDERED by: the most recent attempt
+ *  of either kind (a refresh, a refresh that threw), else the first sweep —
+ *  so a territory whose pages keep failing goes to the BACK of the line,
+ *  behind every other due territory, without ever leaving it. GREATEST
+ *  skips nulls in Postgres. Exported for the boundary test. */
+export function territoryQueueOrderSql() {
+  return sql`GREATEST(${schema.prospectDiscoveryTask.lastRefreshedAt}, ${schema.prospectDiscoveryTask.lastRefreshErrorAt}, ${schema.prospectDiscoveryTask.updatedAt})`
+}
+
+/**
+ * Re-sweep ONE finished territory whose last sweep is older than
+ * `config.hygiene.discoveryRefreshDays`: the same state × zip prefix, both
+ * entity phases from skip 0, every page through the same door as
+ * discovery — so only NEW NPIs enter (the NPI unique, the dedupe hash and
+ * the matcher all stand). A finished sweep stamps `last_refreshed_at`; one
+ * that threw stamps `last_refresh_error_at` instead (the territory stays
+ * due, behind every other due one). The least-recently-attempted territory
+ * goes first, so every territory gets its turn.
+ */
+export async function refreshStaleTerritory(opts: {
+  now?: Date
+  config?: ProspectingConfig
+  nppesBudget?: number
+}): Promise<TerritoryRefreshResult | null> {
+  const now = opts.now ?? new Date()
+  const config = opts.config ?? (await getProspectingConfig())
+  if (config.killSwitch || config.enabledStates.length === 0) return null
+  const cutoff = new Date(now.getTime() - config.hygiene.discoveryRefreshDays * 24 * 60 * 60 * 1000)
+  const [task] = await db
+    .select()
+    .from(schema.prospectDiscoveryTask)
+    .where(
+      and(
+        eq(schema.prospectDiscoveryTask.status, 'done'),
+        inArray(schema.prospectDiscoveryTask.state, config.enabledStates),
+        lt(territorySweptAtSql(), cutoff),
+      ),
+    )
+    .orderBy(asc(territoryQueueOrderSql()))
+    .limit(1)
+  if (!task) return null
+
+  const budget = opts.nppesBudget ?? REFRESH_NPPES_PER_RUN
+  let requests = 0
+  let found = 0
+  let imported = 0
+  let held = 0
+  let capped = false
+  try {
+    for (const enumerationType of ['NPI-2', 'NPI-1'] as const) {
+      let skip = 0
+      for (;;) {
+        if (requests >= budget) {
+          capped = true
+          break
+        }
+        requests++
+        const { results, resultCount } = await searchNppesOrgs({
+          state: task.state,
+          zipPrefix: task.zipPrefix,
+          skip,
+          enumerationType,
+        })
+        found += resultCount
+        const r = await insertProspects(results, now)
+        imported += r.imported
+        held += r.held
+        skip += NPPES_PAGE_SIZE
+        if (resultCount < NPPES_PAGE_SIZE || skip > NPPES_MAX_SKIP) break
+      }
+      if (capped) break
+    }
+  } catch (err) {
+    // A territory whose pages keep failing must not be the one the next tick
+    // re-selects (it would be — it stays the least-recently attempted):
+    // stamp the ERROR clock so it goes to the back of the line and every
+    // other due territory gets its turn — never `last_refreshed_at` (the
+    // hunt tile's "last refresh" is a sweep that happened) and never
+    // `updated_at` (the territory stays due); the throw still reaches the
+    // hygiene strike.
+    await db
+      .update(schema.prospectDiscoveryTask)
+      .set({
+        lastRefreshErrorAt: now,
+        found: task.found + found,
+        imported: task.imported + imported,
+        error: `refresh: ${err instanceof Error ? err.message : String(err)}`.slice(0, 500),
+      })
+      .where(eq(schema.prospectDiscoveryTask.id, task.id))
+    throw err
+  }
+  await db
+    .update(schema.prospectDiscoveryTask)
+    .set({
+      lastRefreshedAt: now,
+      lastRefreshErrorAt: null,
+      found: task.found + found,
+      imported: task.imported + imported,
+      error: null,
+      updatedAt: now,
+    })
+    .where(eq(schema.prospectDiscoveryTask.id, task.id))
+  return { taskId: task.id, state: task.state, zipPrefix: task.zipPrefix, found, imported, held, requests, capped }
 }

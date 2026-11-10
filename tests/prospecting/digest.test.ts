@@ -16,6 +16,8 @@ const FUNNEL: ProspectFunnelStats = {
   engaged: 8,
   callList: 3,
   converted: 1,
+  dormant: 0,
+  merged: 0,
 }
 
 function hunt(over: Partial<HuntStats> = {}): HuntStats {

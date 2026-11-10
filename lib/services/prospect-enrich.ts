@@ -396,6 +396,14 @@ async function enrichOneProspect(
     // pass that finds the signal recovered resumes it.
     await applyOutreachHold(p.id, verified.patch, verifyCtx.now)
 
+    // A re-enrich on a RESTING row (the drawer offers it) re-verifies by
+    // construction: an improved quality wakes it, anything else keeps the
+    // resting sentence in front — exactly as the verify pass reconciles.
+    if (restoreStatus === 'dormant') {
+      const { reconcileDormantAfterVerify } = await import('./prospect-hygiene')
+      await reconcileDormantAfterVerify(p.id, p.qualityScore, verifyCtx.now, { priorReasons: p.qualityReasons })
+    }
+
     // Reachability: classify + MX-verify + rank every discovered address into
     // prospect_contact, and point prospect.email at the best deliverable one
     // (a named dentist over a shared desk). Best-effort — never fails the
@@ -475,6 +483,9 @@ export async function reEnrichProspect(
     .limit(1)
   if (!p) return { ok: false, reason: 'not_found' }
   if (p.status === 'converted') return { ok: false, reason: 'already_converted' }
+  // A merged duplicate is enriched on its survivor — the folded row never
+  // flips to 'enriching' (P-03).
+  if (p.status === 'merged') return { ok: false, reason: 'merged' }
 
   const month = counterMonth()
   const budget: EnrichBudgetCtx = {

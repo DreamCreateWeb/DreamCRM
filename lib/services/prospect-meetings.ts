@@ -202,6 +202,16 @@ export async function bookMeeting(
     })
     .where(eq(schema.prospectMeeting.id, view.meeting.id))
 
+  // A demo the practice booked itself is the loudest inbound signal there
+  // is (P-03): a resting row wakes to where it came from, in one statement
+  // that is a no-op on every other row; `booked_at` is the touch the decay
+  // clock reads.
+  const { wakeSetSql } = await import('./prospect-hygiene')
+  await db
+    .update(schema.prospect)
+    .set({ ...wakeSetSql(), updatedAt: now })
+    .where(eq(schema.prospect.id, view.meeting.prospectId))
+
   await sendBookingEmails(view, slot, input.email?.trim()?.toLowerCase() || view.meeting.attendeeEmail || null)
   return { ok: true, scheduledAt: slot }
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, ne } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { decodeToken } from '@/lib/marketing/tokens'
 
@@ -17,6 +17,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
     try {
       const { newId } = await import('@/lib/utils')
       const { inArray } = await import('drizzle-orm')
+      // The token carries the id the email was SENT to; after a merge the
+      // practice lives on under its survivor (P-03) — the suppression, the
+      // stop and the mark land there, and the merged row stays merged.
+      const { survivorOf } = await import('@/lib/services/prospect-dedupe')
+      const prospectId = await survivorOf(payload.pr)
       await db
         .insert(schema.prospectSuppression)
         .values({
@@ -24,7 +29,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
           email: payload.e.toLowerCase(),
           domain: payload.e.split('@')[1]?.toLowerCase() ?? null,
           reason: 'unsub',
-          prospectId: payload.pr,
+          prospectId,
         })
         .onConflictDoNothing()
       await db
@@ -32,7 +37,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
         .set({ status: 'stopped_unsub', stoppedAt: new Date(), stopReason: 'unsubscribed' })
         .where(
           and(
-            eq(schema.outreachEnrollment.prospectId, payload.pr),
+            eq(schema.outreachEnrollment.prospectId, prospectId),
             inArray(schema.outreachEnrollment.status, ['active', 'paused_ooo']),
           ),
         )
@@ -44,10 +49,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
           suppressedAt: new Date(),
           updatedAt: new Date(),
         })
-        .where(eq(schema.prospect.id, payload.pr))
+        .where(and(eq(schema.prospect.id, prospectId), ne(schema.prospect.status, 'merged')))
       await db.insert(schema.outreachEvent).values({
         id: newId('oevt'),
-        prospectId: payload.pr,
+        prospectId,
         touchLogId: payload.tl ?? null,
         type: 'unsub',
         meta: { ua: req.headers.get('user-agent') ?? null },

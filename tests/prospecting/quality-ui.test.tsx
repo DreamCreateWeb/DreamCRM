@@ -97,6 +97,12 @@ describe('VerificationCard', () => {
     )
     expect(screen.getByText(/^Verified · /)).toBeTruthy()
     cleanup()
+    // The window is the LIVE re-verify clock when the caller passes one.
+    render(
+      <VerificationCard verification={full} verifiedAt="2026-11-10T09:05:00.000Z" qualityScore={82} qualityBand="best" qualityReasons={[]} phone="4045551212" phoneSource="nppes" now={new Date(NOW.getTime() + 20 * 24 * 60 * 60 * 1000)} staleAfterDays={14} />,
+    )
+    expect(screen.getByText(/due for another look/)).toBeTruthy()
+    cleanup()
   })
 })
 

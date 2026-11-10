@@ -356,9 +356,12 @@ describe('verifyProspect (standalone) + the sweep', () => {
     const w = state.updates.at(-1)!.values
     expect(w).toMatchObject({ googlePlaceId: 'place_1', reviewCount: 22, websiteUrl: 'https://smiledental.com', qualityScore: 82, verifiedAt: NOW })
   })
-  it('refuses a converted prospect and an unknown id', async () => {
+  it('refuses a converted prospect, a merged duplicate (P-03) and an unknown id', async () => {
     state.selectQueue.push([{ ...PROSPECT, status: 'converted' }])
     expect(await verifyProspect('pros_1')).toEqual({ ok: false, reason: 'already_converted' })
+    state.selectQueue.push([{ ...PROSPECT, status: 'merged' }])
+    expect(await verifyProspect('pros_1')).toEqual({ ok: false, reason: 'merged' })
+    expect(state.updates).toHaveLength(0)
     state.selectQueue.push([])
     expect(await verifyProspect('nope')).toEqual({ ok: false, reason: 'not_found' })
   })
@@ -377,6 +380,7 @@ describe('verifyProspect (standalone) + the sweep', () => {
     configMock.mockResolvedValue(LIVE)
     state.selectQueue.push([{ id: 'pros_1' }]) // never verified
     state.selectQueue.push([{ id: 'pros_9' }]) // stale
+    state.selectQueue.push([]) // resting rows (P-03) — only when room is left
     state.selectQueue.push([PROSPECT]) // verifyProspect(pros_1) row
     state.selectQueue.push([{ ...PROSPECT, id: 'pros_9' }]) // verifyProspect(pros_9) row
     const r = await runVerificationSweep({ now: NOW })

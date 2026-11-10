@@ -38,7 +38,7 @@ export default async function CallListPage({
   let pinned: CallListRow | null = null
   if (highlight && !rows.some((r) => r.id === highlight)) {
     const detail = await getProspectDetail(highlight)
-    if (detail && !['converted', 'suppressed'].includes(detail.prospect.status)) {
+    if (detail && !['converted', 'suppressed', 'merged'].includes(detail.prospect.status)) {
       const p = detail.prospect
       pinned = {
         id: p.id,

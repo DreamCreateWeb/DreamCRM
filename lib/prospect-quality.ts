@@ -33,6 +33,25 @@ export interface QualityInput {
   businessStatus: string | null
   reviewCount: number | null
   websiteUrl: string | null
+  /** The live parked clock (config.hygiene.parkedRecheckDays); the stored
+   *  sentence names it. REQUIRED: every writer that rescores a row builds
+   *  its input through {@link qualityInput} from the resolved config, so
+   *  the sentence and the sweep's clock can never disagree (P-03). */
+  parkedRecheckDays: number
+}
+
+/** The stored signals a writer rescores from — everything but the clocks. */
+export type QualitySignals = Omit<QualityInput, 'parkedRecheckDays'>
+
+/**
+ * THE ONE BUILDER of a QualityInput: the row's stored signals plus the live
+ * clocks from the resolved config (`config.hygiene`, or a verify run's
+ * context, which carries the same number). The verify pass, a logged call
+ * outcome, a hand-typed number and the drawer's actions all score through
+ * this, never `computeQualityScore` with a bare literal.
+ */
+export function qualityInput(signals: QualitySignals, clocks: { parkedRecheckDays: number }): QualityInput {
+  return { ...signals, parkedRecheckDays: clocks.parkedRecheckDays }
 }
 
 export interface QualityResult {
@@ -98,7 +117,11 @@ export function computeQualityScore(input: QualityInput): QualityResult {
 
   // ── Parked: wait, then look again ─────────────────────────────────────
   if (input.businessStatus === 'CLOSED_TEMPORARILY' || v.business?.status === 'temporarily_closed') {
-    return { score: 0, band: 'parked', reasons: ['Google lists it as temporarily closed — checking again in 30 days'] }
+    return {
+      score: 0,
+      band: 'parked',
+      reasons: [`Google lists it as temporarily closed — checking again in ${input.parkedRecheckDays} days`],
+    }
   }
   if (v.website?.status === 'dead') {
     return { score: 0, band: 'parked', reasons: [v.website.detail ?? 'Website is down — a retired-practice signal'] }

@@ -19,6 +19,7 @@ import {
 } from '@/lib/prospect-vendors'
 import DrawerActions from './drawer-actions'
 import AssignCallerControl from './assign-caller-control'
+import DuplicateCard from './duplicate-card'
 import DemoFollowupDrafter from './demo-followup-drafter'
 import ContactsPanel from './contacts-panel'
 import { VerificationCard } from './verification-card'
@@ -47,13 +48,19 @@ export default function ProspectDrawer({
   detail,
   closeHref,
   callers = [],
+  reverifyAfterDays,
 }: {
   detail: ProspectDetail
   closeHref: string
   /** Active cold callers (P-02) for the Reassign picker. */
   callers?: Array<{ id: string; name: string }>
+  /** The live re-verify clock (config.hygiene) the verification headline reads. */
+  reverifyAfterDays?: number
 }) {
   const p = detail.prospect
+  // A merged row is a folded shell: it says where it went and offers nothing
+  // to operate — a contact added here would live on the wrong record.
+  const folded = p.status === 'merged'
   const signals = (p.enrichment ?? null) as ProspectCrawlSignals | null
   const verdict = (p.aiVerdict ?? null) as ProspectAiVerdict | null
 
@@ -80,7 +87,15 @@ export default function ProspectDrawer({
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <StatusPill
-            tone={p.status === 'call_list' ? 'special' : p.status === 'converted' ? 'ok' : 'info'}
+            tone={
+              p.status === 'call_list'
+                ? 'special'
+                : p.status === 'converted'
+                  ? 'ok'
+                  : p.status === 'merged' || p.status === 'dormant'
+                    ? 'neutral'
+                    : 'info'
+            }
             label={PROSPECT_STATUS_LABELS[p.status as keyof typeof PROSPECT_STATUS_LABELS] ?? p.status}
           />
           {p.scoreBand && (
@@ -109,8 +124,9 @@ export default function ProspectDrawer({
         </div>
 
         {/* The cold caller holding it (P-02) — the owner's own queues hide
-            it while someone else is dialling; Reassign / Unassign here. */}
-        {(detail.assignedCaller || callers.length > 0) && (
+            it while someone else is dialling; Reassign / Unassign here. A
+            folded (merged) shell offers no assign control at all. */}
+        {!folded && (detail.assignedCaller || callers.length > 0) && (
           <div className={SECTION}>
             <div className={SECTION_TITLE}>Caller</div>
             <AssignCallerControl
@@ -118,6 +134,38 @@ export default function ProspectDrawer({
               assigned={detail.assignedCaller ? { id: detail.assignedCaller.id, name: detail.assignedCaller.name } : null}
               callers={callers}
             />
+          </div>
+        )}
+        {/* Hygiene (P-03): where a merged row went; who this row might be */}
+        {p.status === 'merged' && (
+          <div className={`${SECTION} rounded-[var(--r-sm)] bg-[color:var(--color-surface-sunk)] p-3 text-sm`} data-merged-banner>
+            <span className="text-gray-700 dark:text-gray-300">
+              Merged into{' '}
+              {detail.mergedInto ? (
+                <Link
+                  href={`/platform/prospecting?prospect=${detail.mergedInto.id}`}
+                  scroll={false}
+                  className="font-medium text-teal-600 dark:text-teal-400 hover:underline"
+                >
+                  {detail.mergedInto.name}
+                </Link>
+              ) : (
+                'its survivor'
+              )}
+              {' '}— the contacts, calls, meetings and outreach history live there now. This record is kept, not deleted.
+            </span>
+          </div>
+        )}
+        {p.status === 'dormant' && (
+          <p className={`${SECTION} text-sm text-gray-700 dark:text-gray-300`} data-resting-note>
+            Resting — no touch for a while, so it left the queues. A reply, a call outcome or a re-verify that
+            improves its quality puts it back where it was
+            {p.dormantFromStatus ? ` (${PROSPECT_STATUS_LABELS[p.dormantFromStatus as keyof typeof PROSPECT_STATUS_LABELS] ?? p.dormantFromStatus})` : ''}.
+          </p>
+        )}
+        {p.status !== 'merged' && p.status !== 'converted' && (detail.duplicates ?? []).length > 0 && (
+          <div className={SECTION}>
+            <DuplicateCard prospectId={p.id} prospectName={p.name} candidates={detail.duplicates} />
           </div>
         )}
 
@@ -148,7 +196,7 @@ export default function ProspectDrawer({
                 )}
                 {p.phone && <PhoneStandingPill status={p.phoneStatus} lineType={p.phoneLineType} />}
                 {/* The way back for a parked number: the one that works, typed here. */}
-                <PhoneEditor prospectId={p.id} phone={p.phone} />
+                {!folded && <PhoneEditor prospectId={p.id} phone={p.phone} />}
               </span>
             </span>
           </div>
@@ -169,12 +217,13 @@ export default function ProspectDrawer({
             qualityReasons={p.qualityReasons}
             phone={p.phone}
             phoneSource={p.phoneSource}
+            staleAfterDays={reverifyAfterDays}
           />
         </div>
 
         {/* Reachability — every discovered/entered address, ranked + verified */}
         <div className={SECTION}>
-          <ContactsPanel prospectId={p.id} contacts={detail.contacts} />
+          <ContactsPanel prospectId={p.id} contacts={detail.contacts} readOnly={folded} />
         </div>
 
         {/* Online presence */}
@@ -329,7 +378,7 @@ export default function ProspectDrawer({
 
         {/* Post-demo follow-up drafter — surfaced once we've actually engaged
             them (touched, called, or a demo brief exists). */}
-        {(detail.touches.length > 0 || detail.calls.length > 0 || Boolean(p.demoBrief)) && (
+        {!folded && (detail.touches.length > 0 || detail.calls.length > 0 || Boolean(p.demoBrief)) && (
           <DemoFollowupDrafter prospectId={p.id} />
         )}
 

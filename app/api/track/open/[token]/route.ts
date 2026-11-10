@@ -14,11 +14,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   if (payload && payload.p === 'o') {
     try {
       if (payload.pr) {
-        // Prospect (platform cold-outreach) open → outreach_event.
+        // Prospect (platform cold-outreach) open → outreach_event — on the
+        // survivor when the emailed row has since been merged (P-03), and
+        // an open is a signal: a resting row wakes first (idempotent,
+        // status-guarded), then the engagement rollup sees the event.
         const { newId } = await import('@/lib/utils')
+        const { survivorOf } = await import('@/lib/services/prospect-dedupe')
+        const { wakeDormantProspect } = await import('@/lib/services/prospect-hygiene')
+        const prospectId = await survivorOf(payload.pr)
+        await wakeDormantProspect(prospectId)
         await db.insert(schema.outreachEvent).values({
           id: newId('oevt'),
-          prospectId: payload.pr,
+          prospectId,
           touchLogId: payload.tl ?? null,
           type: 'open',
           meta: { ua: req.headers.get('user-agent') ?? null },

@@ -7543,3 +7543,43 @@ middleware's custom-domain branch now forwards the resolved viewer host to
 the downstream handler (`NextResponse.rewrite(url, { request: { headers } })`);
 `tests/middleware.test.ts` holds it and `docs/custom-domains.md` carries the
 one-line probe.
+
+## 2026-11-10 — P-03: prospect refresh, dedupe and decay (the list stays clean on its own)
+
+P-01 verifies, P-02 hands the best to callers; P-03 keeps the LIST honest
+over time without the owner operating anything. DEDUPE: a pure matcher
+(`lib/prospect-dedupe.ts`) groups rows by ten-digit phone, Google place id,
+and a practice-name key (legal suffixes and credentials dropped; two or
+more meaningful tokens or no name) with union-find chaining; the daily sweep
+auto-merges only EXACT pairs (same place id, or same phone AND same name),
+fuzzy candidates wait for the drawer's duplicate card. A merge
+(`lib/services/prospect-dedupe.ts`, one transaction with the rows locked)
+keeps the survivor (best quality → most recent verify → oldest), re-points
+every child table (contacts, enrollments, touch log, events, call log,
+meetings, suppression, grades, captures), MOVES the NPI and the phone with
+its verification as one unit, carries a loser's terminal status onto a
+live survivor and refuses a terminal loser beside a converted survivor,
+stops rather than re-points a drip onto a terminal survivor, carries a
+caller assignment only to an unheld live survivor, fills nullable survivor
+columns, and stamps the loser `status='merged'` + `merged_into_prospect_id`
+(migration 0195) — never a delete; `survivorOf` follows chains for replies,
+opens, clicks, unsubscribes and bounces. DECAY (`lib/prospect-decay.ts` +
+`runDecay`): a servable row with no future follow-up, no live enrollment,
+no caller assignment and no touch for `hygiene.staleAfterDays` (90) rests
+as `status='dormant'` with `dormant_from_status` and a plain "No touch
+since <UTC date> — resting" sentence; any reply, call, self-booked demo or
+an improved re-verify wakes it (never a null-vs-number "improvement").
+REFRESH: a done territory task older than `hygiene.discoveryRefreshDays`
+(30) re-runs NPPES (≤50 requests; a failed run is stamped and goes to the
+back of the line) and only exact-new NPIs enter. The sweep
+(`runProspectHygiene`, in the enrich cron after P-01's verification sweep:
+merges ≤25, decays ≤200, one territory) is fail-open with one `hygiene`
+strike per run; day counters `dedupe_merge` / `decay` / `discovery_refresh`;
+config `hygiene.{staleAfterDays, reverifyAfterDays, parkedRecheckDays,
+discoveryRefreshDays}` replaces P-01's literals everywhere the copy names a
+window. Readers: merged rows leave every list and count, resting rows every
+queue (a "Resting" chip + "Merged into <survivor>" door on the table; a
+merged row's drawer folds to a read-only shell). An adversarial review (10
+confirmed, 2 upheld, 21 unverified claims — the usage limit killed the
+skeptics) was fixed in full before merge; every unverified claim was read
+and found real.
