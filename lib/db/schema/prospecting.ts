@@ -28,8 +28,21 @@ export const PROSPECT_STATUSES = [
   'not_interested', // said no (reply or call outcome)
   'suppressed', // unsubscribed / bounced / complained / manual
   'disqualified', // wrong person, closed practice, bad data
+  // Hygiene (P-03). `dormant` = resting: no human or outreach touch inside
+  // config.hygiene.staleAfterDays, no future follow-up, no open enrollment —
+  // off every queue and the default table, woken by any new inbound signal
+  // or a re-verify that improves quality (`dormant_from_status` remembers
+  // where it came from). `merged` = a duplicate folded into its survivor
+  // (`merged_into_prospect_id`); every FK was re-pointed, nothing deleted,
+  // and no reader of live prospects ever serves one.
+  'dormant',
+  'merged',
 ] as const
 export type ProspectStatus = (typeof PROSPECT_STATUSES)[number]
+
+/** The statuses a prospect can be RESTED from, and wakes back to (P-03). */
+export const DECAYABLE_STATUSES = ['enriched', 'queued', 'contacted', 'call_list'] as const
+export type DecayableStatus = (typeof DECAYABLE_STATUSES)[number]
 
 export const PROSPECT_SCORE_BANDS = ['hot', 'warm', 'cool', 'low'] as const
 export type ProspectScoreBand = (typeof PROSPECT_SCORE_BANDS)[number]
@@ -184,6 +197,13 @@ export const prospect = pgTable(
     phoneSource: text('phone_source'), // nppes|places|caller
     phoneValidatedAt: timestamp('phone_validated_at', { withTimezone: true }),
 
+    // Hygiene (P-03). A merged duplicate points at the row that kept its
+    // history (a soft self-pointer — the loser is never deleted, so there is
+    // nothing for a cascade to do); a resting row remembers the status it
+    // wakes back to.
+    mergedIntoProspectId: text('merged_into_prospect_id'),
+    dormantFromStatus: text('dormant_from_status'),
+
     suppressedReason: text('suppressed_reason'),
     suppressedAt: timestamp('suppressed_at', { withTimezone: true }),
 
@@ -279,6 +299,10 @@ export const prospectDiscoveryTask = pgTable(
     found: integer('found').notNull().default(0), // rows NPPES returned
     imported: integer('imported').notNull().default(0), // new prospects created
     error: text('error'),
+    // The discovery REFRESH (P-03): a finished territory is re-swept with the
+    // same parameters once it is older than config.hygiene.discoveryRefreshDays;
+    // only NEW NPIs enter. Null = never refreshed since the first sweep.
+    lastRefreshedAt: timestamp('last_refreshed_at', { withTimezone: true }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },

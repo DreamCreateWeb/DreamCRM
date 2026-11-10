@@ -358,6 +358,7 @@ describe('verifyProspect (standalone) + the sweep', () => {
     configMock.mockResolvedValue(LIVE)
     state.selectQueue.push([{ id: 'pros_1' }]) // never verified
     state.selectQueue.push([{ id: 'pros_9' }]) // stale
+    state.selectQueue.push([]) // resting rows (P-03) — only when room is left
     state.selectQueue.push([PROSPECT]) // verifyProspect(pros_1) row
     state.selectQueue.push([{ ...PROSPECT, id: 'pros_9' }]) // verifyProspect(pros_9) row
     const r = await runVerificationSweep({ now: NOW })

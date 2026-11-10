@@ -4,6 +4,8 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId } from '@/lib/utils'
 import { parseEmail, isJunkEmail } from '@/lib/prospect-email'
+import { survivorOf } from './prospect-dedupe'
+import { stripRestingReasonSql } from './prospect-hygiene'
 import { parsePracticeGradeResult } from '@/lib/practice-grade'
 import {
   captureStatusOf,
@@ -375,16 +377,34 @@ async function linkProspect(i: {
   gradeLetter: string | null
 }): Promise<string | null> {
   const summary = `Met in person at ${i.eventName} — took a free headshot.`
-  const [byEmail] = await db
+  let [byEmail] = await db
     .select({ id: schema.prospect.id, status: schema.prospect.status })
     .from(schema.prospect)
     .where(sql`lower(${schema.prospect.email}) = ${i.email}`)
     .limit(1)
+  if (byEmail?.status === 'merged') {
+    // The address belongs to a merged duplicate — the survivor is the practice (P-03).
+    const sid = await survivorOf(byEmail.id)
+    ;[byEmail] = await db
+      .select({ id: schema.prospect.id, status: schema.prospect.status })
+      .from(schema.prospect)
+      .where(eq(schema.prospect.id, sid))
+      .limit(1)
+  }
   if (byEmail) {
     if (!['converted', 'suppressed', 'not_interested', 'disqualified'].includes(byEmail.status)) {
       await db
         .update(schema.prospect)
-        .set({ status: 'call_list', intentSignal: 'event_met', intentAt: new Date(), intentSummary: summary, updatedAt: new Date() })
+        .set({
+          status: 'call_list',
+          // Meeting someone in person wakes a resting row (P-03).
+          dormantFromStatus: null,
+          qualityReasons: stripRestingReasonSql(),
+          intentSignal: 'event_met',
+          intentAt: new Date(),
+          intentSummary: summary,
+          updatedAt: new Date(),
+        })
         .where(eq(schema.prospect.id, byEmail.id))
     }
     return byEmail.id

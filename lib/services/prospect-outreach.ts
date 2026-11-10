@@ -467,7 +467,7 @@ export async function enrollProspect(
     .limit(1)
   if (!p) return { ok: false, error: 'Prospect not found.' }
   if (!p.email) return { ok: false, error: 'No email on file — this one is phone-only.' }
-  if (['suppressed', 'converted', 'not_interested', 'disqualified'].includes(p.status)) {
+  if (['suppressed', 'converted', 'not_interested', 'disqualified', 'merged'].includes(p.status)) {
     return { ok: false, error: `Cannot enroll a ${p.status.replace(/_/g, ' ')} prospect.` }
   }
   // Fail-closed dedupe: existing customers/clinics/suppressed are UNTOUCHABLE.
@@ -1053,9 +1053,11 @@ export async function runOutreach(opts?: { now?: Date }): Promise<OutreachRunRes
         continue
       }
 
-      // Send-time guard — permanent suppression + known-contact dedupe.
+      // Send-time guard — permanent suppression, a merged duplicate (its
+      // survivor's thread is the live one — P-03) + known-contact dedupe.
       if (
         p.status === 'suppressed' ||
+        p.status === 'merged' ||
         (await isKnownContact({
           email: p.email,
           phone: p.phone,

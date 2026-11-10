@@ -5,6 +5,8 @@ import { db, schema } from '@/lib/db'
 import { newId } from '@/lib/utils'
 import { runClaudeJson, aiConfigured } from '@/lib/ai'
 import { bumpProspectingCounter, counterMonth, getProspectingConfig } from './prospecting'
+import { survivorOf } from './prospect-dedupe'
+import { stripRestingReasonSql, wakeDormantProspect } from './prospect-hygiene'
 import { effectiveProductKnowledge, type ProspectBrain } from '@/lib/prospect-product-knowledge'
 
 /**
@@ -250,6 +252,9 @@ async function applyClassification(
         .update(schema.prospect)
         .set({
           status: 'call_list',
+          // A reply is an inbound signal (P-03): a resting row is awake now.
+          dormantFromStatus: null,
+          qualityReasons: stripRestingReasonSql(),
           intentSignal: verdict.classification === 'interested' ? 'reply_interested' : 'reply_question',
           intentAt: now,
           intentSummary: verdict.summary,
@@ -379,25 +384,33 @@ export async function processInboundForOutreach(opts?: {
   if (inbound.length === 0) return out
 
   const month = counterMonth()
+  const cols = {
+    id: schema.prospect.id,
+    name: schema.prospect.name,
+    email: schema.prospect.email,
+    phone: schema.prospect.phone,
+    status: schema.prospect.status,
+    aiVerdict: schema.prospect.aiVerdict,
+    reviewCount: schema.prospect.reviewCount,
+  }
   for (const msg of inbound) {
     const fromEmail = msg.fromEmail.toLowerCase()
-    const [prospect] = await db
-      .select({
-        id: schema.prospect.id,
-        name: schema.prospect.name,
-        email: schema.prospect.email,
-        phone: schema.prospect.phone,
-        status: schema.prospect.status,
-        aiVerdict: schema.prospect.aiVerdict,
-        reviewCount: schema.prospect.reviewCount,
-      })
+    let [prospect] = await db
+      .select(cols)
       .from(schema.prospect)
       .where(sql`lower(${schema.prospect.email}) = ${fromEmail}`)
       .limit(1)
     if (!prospect) continue
+    // A reply to a merged duplicate's address is a reply from its survivor (P-03).
+    if (prospect.status === 'merged') {
+      const sid = await survivorOf(prospect.id)
+      ;[prospect] = await db.select(cols).from(schema.prospect).where(eq(schema.prospect.id, sid)).limit(1)
+      if (!prospect) continue
+    }
     // Only outreach-touched prospects — a random email from a dentist we
-    // never contacted is not a "reply".
-    if (!['contacted', 'engaged', 'queued', 'call_list'].includes(prospect.status)) continue
+    // never contacted is not a "reply". A resting row was touched once and
+    // a reply is exactly what wakes it.
+    if (!['contacted', 'engaged', 'queued', 'call_list', 'dormant'].includes(prospect.status)) continue
     out.matched++
 
     // Idempotency: one action per inbound message, ever.
@@ -433,6 +446,9 @@ export async function processInboundForOutreach(opts?: {
     out.classified++
     await bumpProspectingCounter(month, 'ai_classify')
     await applyClassification(prospect, verdict, body)
+    // Whatever the reply said, it was a reply: a row still resting after the
+    // classification (an out-of-office, say) goes back where it came from.
+    if (prospect.status === 'dormant') await wakeDormantProspect(prospect.id)
     if (verdict.classification === 'interested' || verdict.classification === 'question') {
       out.callList++
     }
@@ -512,24 +528,38 @@ export async function promoteProspectByEmail(
   email: string,
   signal: 'demo_request' | 'grader_run',
 ): Promise<boolean> {
-  const [prospect] = await db
-    .select({
-      id: schema.prospect.id,
-      name: schema.prospect.name,
-      phone: schema.prospect.phone,
-      status: schema.prospect.status,
-    })
+  const cols = {
+    id: schema.prospect.id,
+    name: schema.prospect.name,
+    phone: schema.prospect.phone,
+    status: schema.prospect.status,
+  }
+  let [prospect] = await db
+    .select(cols)
     .from(schema.prospect)
     .where(sql`lower(${schema.prospect.email}) = ${email.toLowerCase()}`)
     .limit(1)
   if (!prospect) return false
+  if (prospect.status === 'merged') {
+    const sid = await survivorOf(prospect.id)
+    ;[prospect] = await db.select(cols).from(schema.prospect).where(eq(schema.prospect.id, sid)).limit(1)
+    if (!prospect) return false
+  }
   if (['converted', 'suppressed', 'not_interested', 'disqualified'].includes(prospect.status)) {
     return false
   }
   await stopLiveEnrollment(prospect.id, 'stopped_reply', signal)
   await db
     .update(schema.prospect)
-    .set({ status: 'call_list', intentSignal: signal, intentAt: new Date(), updatedAt: new Date() })
+    .set({
+      status: 'call_list',
+      // An inbound signal wakes a resting row (P-03).
+      dormantFromStatus: null,
+      qualityReasons: stripRestingReasonSql(),
+      intentSignal: signal,
+      intentAt: new Date(),
+      updatedAt: new Date(),
+    })
     .where(eq(schema.prospect.id, prospect.id))
   await alertCallList(
     { id: prospect.id, name: prospect.name, email: email, phone: prospect.phone },

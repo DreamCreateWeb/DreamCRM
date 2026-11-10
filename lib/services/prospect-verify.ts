@@ -452,6 +452,7 @@ export async function verifyProspect(
     }
   }
 
+  const priorQuality = p.qualityScore
   const out = await verifyProspectSignals(p, places, ctx)
   const extra: Partial<ProspectRow> = out.place
     ? {
@@ -464,6 +465,12 @@ export async function verifyProspect(
       }
     : {}
   await writePatch(p.id, out.patch, extra)
+  // A resting row (P-03) wakes when the pass IMPROVED its quality; otherwise
+  // it keeps resting, with the resting sentence back in front.
+  if (p.status === 'dormant') {
+    const { reconcileDormantAfterVerify } = await import('./prospect-hygiene')
+    await reconcileDormantAfterVerify(p.id, priorQuality, ctx.now)
+  }
   if (!opts.ctx) await closeVerifyRun(ctx)
   return { ok: true, qualityScore: out.patch.qualityScore, qualityBand: out.patch.qualityBand, placesLookedUp }
 }
@@ -481,8 +488,11 @@ export interface VerifySweepResult {
 /**
  * The re-verify sweep — rides the enrich cron. Never-verified live rows
  * first (the backfill for everything enriched before P-01), then anything
- * verified more than 60 days ago, then parked rows older than 30. Batch
- * 25; Places + phone checks metered; NPPES capped per run.
+ * verified more than `config.hygiene.reverifyAfterDays` ago (default 60),
+ * then parked rows older than `parkedRecheckDays` (default 30), and only
+ * when room is left, RESTING rows on the same clock (P-03 — a re-verify
+ * that improves one wakes it). Batch 25; Places + phone checks metered;
+ * NPPES capped per run.
  */
 export async function runVerificationSweep(opts?: { now?: Date; batchSize?: number }): Promise<VerifySweepResult> {
   const now = opts?.now ?? new Date()
@@ -499,9 +509,9 @@ export async function runVerificationSweep(opts?: { now?: Date; batchSize?: numb
     .orderBy(asc(schema.prospect.enrichedAt))
     .limit(limit)
   const ids = unverified.map((r) => r.id)
+  const staleCutoff = new Date(now.getTime() - (config.hygiene?.reverifyAfterDays ?? VERIFY_STALE_DAYS) * DAY_MS)
+  const parkedCutoff = new Date(now.getTime() - (config.hygiene?.parkedRecheckDays ?? PARKED_RECHECK_DAYS) * DAY_MS)
   if (ids.length < limit) {
-    const staleCutoff = new Date(now.getTime() - VERIFY_STALE_DAYS * DAY_MS)
-    const parkedCutoff = new Date(now.getTime() - PARKED_RECHECK_DAYS * DAY_MS)
     const stale = await db
       .select({ id: schema.prospect.id })
       .from(schema.prospect)
@@ -518,6 +528,20 @@ export async function runVerificationSweep(opts?: { now?: Date; batchSize?: numb
       .orderBy(asc(schema.prospect.verifiedAt))
       .limit(limit - ids.length)
     for (const r of stale) if (!ids.includes(r.id)) ids.push(r.id)
+  }
+  if (ids.length < limit) {
+    const resting = await db
+      .select({ id: schema.prospect.id })
+      .from(schema.prospect)
+      .where(
+        and(
+          eq(schema.prospect.status, 'dormant'),
+          or(isNull(schema.prospect.verifiedAt), lt(schema.prospect.verifiedAt, staleCutoff)),
+        ),
+      )
+      .orderBy(asc(schema.prospect.verifiedAt))
+      .limit(limit - ids.length)
+    for (const r of resting) if (!ids.includes(r.id)) ids.push(r.id)
   }
   if (ids.length === 0) return out
 

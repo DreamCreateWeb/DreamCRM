@@ -150,11 +150,26 @@ describe('every named producer calls it', () => {
     }
   })
 
-  it('the prospecting verifier (P-01) reports through its per-class door, on the platform org', async () => {
+  it('the prospecting verifier (P-01) and the hygiene pass (P-03) report through the per-class door, on the platform org', async () => {
     const { readFileSync } = await import('node:fs')
-    const src = readFileSync('lib/services/prospect-verify.ts', 'utf8')
-    expect(src).toContain('reportProspectingFailure')
-    for (const cls of Object.keys(PROSPECTING_FAILURE_CLASSES)) expect(src).toContain(`'${cls}'`)
+    // Each class has ONE producer: the verifier owns the four plumbing
+    // faults, the hygiene pass owns its own — a class nothing calls is the
+    // defect this registry exists to close.
+    const verify = readFileSync('lib/services/prospect-verify.ts', 'utf8')
+    const hygiene = readFileSync('lib/services/prospect-hygiene.ts', 'utf8')
+    expect(verify).toContain('reportProspectingFailure')
+    expect(hygiene).toContain('reportProspectingFailure')
+    const producer: Record<string, string> = {
+      places_auth: verify,
+      phone_validate_auth: verify,
+      nppes_down: verify,
+      crawl_blocked: verify,
+      hygiene: hygiene,
+    }
+    for (const cls of Object.keys(PROSPECTING_FAILURE_CLASSES)) {
+      expect(producer[cls], `${cls} has no producer named here`).toBeTruthy()
+      expect(producer[cls]).toContain(`'${cls}'`)
+    }
   })
 })
 
@@ -167,7 +182,7 @@ describe('every named producer calls it', () => {
 describe('reportProspectingFailure', () => {
   it('registers under the prospecting capability with a sentence per class, each in the registry’s voice', () => {
     expect(AUTOMATION_FAILURE.prospecting.capability).toBe('prospecting')
-    expect(Object.keys(PROSPECTING_FAILURE_CLASSES)).toEqual(['places_auth', 'phone_validate_auth', 'nppes_down', 'crawl_blocked'])
+    expect(Object.keys(PROSPECTING_FAILURE_CLASSES)).toEqual(['places_auth', 'phone_validate_auth', 'nppes_down', 'crawl_blocked', 'hygiene'])
     for (const s of Object.values(PROSPECTING_FAILURE_CLASSES)) {
       expect(s.startsWith('Couldn’t'), s).toBe(true)
       expect(s).toMatch(/I’ll keep trying/)

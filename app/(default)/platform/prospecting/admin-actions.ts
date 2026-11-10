@@ -206,6 +206,44 @@ export async function verifyProspectAction(
   return r.ok ? { ok: true, qualityScore: r.qualityScore, qualityBand: r.qualityBand } : { ok: false, reason: r.reason }
 }
 
+/**
+ * Merge two prospects the matcher called the same practice (P-03). The
+ * survivor rule picks which row stays; nothing is deleted. Returns a refusal
+ * rather than throwing (a throw is the deployment-skew case runAction
+ * classifies).
+ */
+export async function mergeProspectAction(
+  aId: string,
+  bId: string,
+): Promise<{ ok: true; survivorId: string; loserId: string } | { ok: false; reason: string }> {
+  await requirePlatformAdmin()
+  const { mergeDuplicateProspects } = await import('@/lib/services/prospect-dedupe')
+  const r = await mergeDuplicateProspects(z.string().min(1).parse(aId), z.string().min(1).parse(bId))
+  revalidatePath('/platform/prospecting')
+  revalidatePath('/platform/prospecting/call-list')
+  revalidatePath('/platform/prospecting/call-mode')
+  return r.ok ? { ok: true, survivorId: r.survivorId, loserId: r.loserId } : { ok: false, reason: r.reason }
+}
+
+const hygieneSchema = z.object({
+  staleAfterDays: z.number().int().min(7).max(730),
+  reverifyAfterDays: z.number().int().min(7).max(365),
+})
+
+/** The hygiene clocks (P-03): how long an untouched row stays live, how
+ *  often a verified row is checked again. The rest of the block keeps its
+ *  stored values. */
+export async function updateHygieneAction(input: unknown): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requirePlatformAdmin()
+  const parsed = hygieneSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: 'Days must be whole numbers between 7 and 730.' }
+  const config = await getProspectingConfig()
+  await updateProspectingConfig({ hygiene: { ...config.hygiene, ...parsed.data } })
+  revalidatePath('/platform/prospecting')
+  revalidatePath('/platform/prospecting/settings')
+  return { ok: true }
+}
+
 /** The quality floor (P-01): the queues and the hunter serve only
  *  prospects at or above it. 0–100, multiples of 5 from the slider. */
 export async function setQualityFloorAction(floor: number): Promise<{ ok: true; floor: number }> {

@@ -18,6 +18,7 @@ import {
   type VendorCategory,
 } from '@/lib/prospect-vendors'
 import DrawerActions from './drawer-actions'
+import DuplicateCard from './duplicate-card'
 import DemoFollowupDrafter from './demo-followup-drafter'
 import ContactsPanel from './contacts-panel'
 import { VerificationCard } from './verification-card'
@@ -75,7 +76,15 @@ export default function ProspectDrawer({
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <StatusPill
-            tone={p.status === 'call_list' ? 'special' : p.status === 'converted' ? 'ok' : 'info'}
+            tone={
+              p.status === 'call_list'
+                ? 'special'
+                : p.status === 'converted'
+                  ? 'ok'
+                  : p.status === 'merged' || p.status === 'dormant'
+                    ? 'neutral'
+                    : 'info'
+            }
             label={PROSPECT_STATUS_LABELS[p.status as keyof typeof PROSPECT_STATUS_LABELS] ?? p.status}
           />
           {p.scoreBand && (
@@ -102,6 +111,39 @@ export default function ProspectDrawer({
             />
           )}
         </div>
+
+        {/* Hygiene (P-03): where a merged row went; who this row might be */}
+        {p.status === 'merged' && (
+          <div className={`${SECTION} rounded-[var(--r-sm)] bg-[color:var(--color-surface-sunk)] p-3 text-sm`} data-merged-banner>
+            <span className="text-gray-700 dark:text-gray-300">
+              Merged into{' '}
+              {detail.mergedInto ? (
+                <Link
+                  href={`/platform/prospecting?prospect=${detail.mergedInto.id}`}
+                  scroll={false}
+                  className="font-medium text-teal-600 dark:text-teal-400 hover:underline"
+                >
+                  {detail.mergedInto.name}
+                </Link>
+              ) : (
+                'its survivor'
+              )}
+              {' '}— the contacts, calls, meetings and outreach history live there now. This record is kept, not deleted.
+            </span>
+          </div>
+        )}
+        {p.status === 'dormant' && (
+          <p className={`${SECTION} text-sm text-gray-700 dark:text-gray-300`} data-resting-note>
+            Resting — no touch for a while, so it left the queues. A reply, a call outcome or a re-verify that
+            improves its quality puts it back where it was
+            {p.dormantFromStatus ? ` (${PROSPECT_STATUS_LABELS[p.dormantFromStatus as keyof typeof PROSPECT_STATUS_LABELS] ?? p.dormantFromStatus})` : ''}.
+          </p>
+        )}
+        {p.status !== 'merged' && p.status !== 'converted' && (detail.duplicates ?? []).length > 0 && (
+          <div className={SECTION}>
+            <DuplicateCard prospectId={p.id} prospectName={p.name} candidates={detail.duplicates} />
+          </div>
+        )}
 
         {/* Contact */}
         <div className={SECTION}>
