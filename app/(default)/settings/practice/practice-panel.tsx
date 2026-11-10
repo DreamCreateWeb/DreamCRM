@@ -22,6 +22,7 @@ import {
 } from './actions'
 import { runAction } from '@/lib/run-action'
 import { StaleRefresh } from '@/components/ui/stale-refresh'
+import { Checkbox, Select, TextInput, Textarea } from '@/components/ui/form-fields'
 
 // Client-safe copy of the provider roles (the service module is server-only).
 const PROVIDER_ROLES = [
@@ -263,31 +264,31 @@ function ProvidersSection({
         <div className="flex flex-wrap items-end gap-2">
           <label className="block min-w-[180px] flex-1">
             <span className="text-xs text-gray-500 dark:text-gray-400">Name</span>
-            <input
+            <TextInput
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add() } }}
               placeholder="Dr. Jordan Reyes"
               aria-invalid={dupWarn}
-              className="form-input mt-1 w-full text-sm"
+              className="mt-1 w-full text-sm"
             />
           </label>
           <label className="block">
             <span className="text-xs text-gray-500 dark:text-gray-400">Role</span>
-            <select value={newRole} onChange={(e) => setNewRole(e.target.value)} className="form-select mt-1 text-sm">
+            <Select value={newRole} onChange={(e) => setNewRole(e.target.value)} className="mt-1 text-sm">
               {PROVIDER_ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-            </select>
+            </Select>
           </label>
           <label className="block min-w-[180px] flex-1">
             <span className="text-xs text-gray-500 dark:text-gray-400">Email <span className="text-gray-500 dark:text-gray-400">(optional)</span></span>
-            <input
+            <TextInput
               type="email"
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add() } }}
               placeholder="jordan@clinic.com"
               aria-invalid={emailInvalid}
-              className="form-input mt-1 w-full text-sm"
+              className="mt-1 w-full text-sm"
             />
           </label>
           <ActionButton variant="primary" size="sm" onClick={add} pending={pending} disabled={pending || !trimmedNew || emailInvalid}>Add</ActionButton>
@@ -349,35 +350,35 @@ function ProviderRowEditor({
       <div className="flex flex-wrap items-end gap-2">
         <label className="block min-w-[160px] flex-1">
           <span className="text-xs text-gray-500 dark:text-gray-400">Name</span>
-          <input
+          <TextInput
             value={name}
             onChange={(e) => { setName(e.target.value); setSaved(false) }}
-            className="form-input mt-1 w-full text-sm"
+            className="mt-1 w-full text-sm"
             aria-label={`Name for ${provider.displayName}`}
           />
         </label>
         <label className="block">
           <span className="text-xs text-gray-500 dark:text-gray-400">Role</span>
-          <select
+          <Select
             value={role}
             onChange={(e) => { setRole(e.target.value); setSaved(false) }}
             disabled={disabled}
-            className="form-select mt-1 text-sm"
+            className="mt-1 text-sm"
             aria-label={`Role for ${provider.displayName}`}
           >
             {PROVIDER_ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
             {!ROLE_LABEL[role] && <option value={role}>{role}</option>}
-          </select>
+          </Select>
         </label>
         <label className="block min-w-[160px] flex-1">
           <span className="text-xs text-gray-500 dark:text-gray-400">Email</span>
-          <input
+          <TextInput
             type="email"
             value={email}
             onChange={(e) => { setEmail(e.target.value); setSaved(false) }}
             aria-invalid={emailInvalid}
             placeholder="optional"
-            className="form-input mt-1 w-full text-sm"
+            className="mt-1 w-full text-sm"
             aria-label={`Email for ${provider.displayName}`}
           />
         </label>
@@ -471,19 +472,19 @@ function VisitTypesSection({
             <li key={i} className="v2-card flex flex-wrap items-end gap-3 p-3">
               <label className="block min-w-[150px] flex-1">
                 <span className="text-xs text-gray-500 dark:text-gray-400">Label</span>
-                <input value={t.label} onChange={(e) => update(i, { label: e.target.value })} className="form-input mt-1 w-full text-sm" />
+                <TextInput value={t.label} onChange={(e) => update(i, { label: e.target.value })} className="mt-1 w-full text-sm" />
               </label>
               <label className="block w-28">
                 <span className="text-xs text-gray-500 dark:text-gray-400">Duration</span>
                 <div className="mt-1 flex items-center gap-1.5">
-                  <input
+                  <TextInput
                     type="number"
                     min={15}
                     max={480}
                     step={15}
                     value={t.durationMinutes}
                     onChange={(e) => update(i, { durationMinutes: Math.min(480, Math.max(15, Number(e.target.value) || 30)) })}
-                    className="form-input w-16 text-sm font-mono-num tabular-nums"
+                    className="w-16 text-sm font-mono-num tabular-nums"
                     aria-label={`Duration in minutes for ${t.label}`}
                   />
                   <span className="text-xs text-gray-500 dark:text-gray-400">min</span>
@@ -493,24 +494,24 @@ function VisitTypesSection({
                 <span className="text-xs text-gray-500 dark:text-gray-400">Deposit</span>
                 <div className="mt-1 flex items-center gap-1.5">
                   <span className="text-xs text-gray-500 dark:text-gray-400">$</span>
-                  <input
+                  <TextInput
                     type="number"
                     min={0}
                     max={1000}
                     step={1}
                     value={Math.round((t.depositCents ?? 0) / 100)}
                     onChange={(e) => update(i, { depositCents: Math.min(1000, Math.max(0, Math.round(Number(e.target.value) || 0))) * 100 })}
-                    className="form-input w-16 text-sm font-mono-num tabular-nums"
+                    className="w-16 text-sm font-mono-num tabular-nums"
                     aria-label={`Booking deposit in dollars for ${t.label} (0 = none)`}
                   />
                 </div>
               </label>
               <label className="flex items-center gap-1.5 pb-2 text-xs text-gray-600 dark:text-gray-300">
-                <input type="checkbox" checked={t.bookablePublic} onChange={(e) => update(i, { bookablePublic: e.target.checked })} className="form-checkbox" />
+                <Checkbox checked={t.bookablePublic} onChange={(e) => update(i, { bookablePublic: e.target.checked })}  />
                 Website
               </label>
               <label className="flex items-center gap-1.5 pb-2 text-xs text-gray-600 dark:text-gray-300">
-                <input type="checkbox" checked={t.bookablePortal} onChange={(e) => update(i, { bookablePortal: e.target.checked })} className="form-checkbox" />
+                <Checkbox checked={t.bookablePortal} onChange={(e) => update(i, { bookablePortal: e.target.checked })}  />
                 Portal
               </label>
               <div className="pb-2">
@@ -524,12 +525,12 @@ function VisitTypesSection({
                 <span className="text-xs text-gray-500 dark:text-gray-400">
                   Prep instructions <span className="text-gray-500 dark:text-gray-400">(optional — added to this type&rsquo;s reminder emails)</span>
                 </span>
-                <textarea
+                <Textarea
                   value={t.prepInstructions ?? ''}
                   onChange={(e) => update(i, { prepInstructions: e.target.value.slice(0, 600) })}
                   rows={1}
                   placeholder="e.g. Eat a light meal beforehand and plan for a ride home."
-                  className="form-textarea mt-1 w-full resize-y text-sm"
+                  className="mt-1 w-full resize-y text-sm"
                   aria-label={`Prep instructions for ${t.label}`}
                 />
               </label>
@@ -541,21 +542,20 @@ function VisitTypesSection({
                 <span className="text-xs text-gray-500 dark:text-gray-400">
                   Aftercare <span className="text-gray-500 dark:text-gray-400">(optional — sent the evening of the visit, by email; leave blank to send nothing)</span>
                 </span>
-                <textarea
+                <Textarea
                   value={t.aftercareInstructions ?? ''}
                   onChange={(e) => update(i, { aftercareInstructions: e.target.value.slice(0, 800) })}
                   rows={2}
                   placeholder="e.g. Wait until the numbness wears off before eating. Some sensitivity for a day or two is normal."
-                  className="form-textarea mt-1 w-full resize-y text-sm"
+                  className="mt-1 w-full resize-y text-sm"
                   aria-label={`Aftercare for ${t.label}`}
                 />
               </label>
               <label className="flex items-center gap-1.5 pb-1 text-xs text-gray-600 dark:text-gray-300">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={!!t.checkInAfter}
                   onChange={(e) => update(i, { checkInAfter: e.target.checked })}
-                  className="form-checkbox"
+                  
                   aria-label={`Check in the day after a ${t.label}`}
                 />
                 Check in the day after — the Dream Team drafts a “How are you feeling?” email for your yes
@@ -621,7 +621,7 @@ function OpsSection({
     })
   }
 
-  const numberField = 'form-input mt-1 w-full text-sm font-mono-num tabular-nums'
+  const numberField = 'mt-1 w-full text-sm font-mono-num tabular-nums'
 
   return (
     <section>
@@ -654,13 +654,13 @@ function OpsSection({
             <StatusPill tone="info" label="Reminders" title="Drives who shows as due for a recall visit." />
           </div>
           <div className="mt-1 flex items-center gap-2">
-            <input
+            <TextInput
               type="number"
               min={RECALL_MIN}
               max={RECALL_MAX}
               value={months}
               onChange={(e) => { setMonths(Math.min(RECALL_MAX, Math.max(RECALL_MIN, Number(e.target.value) || 6))); setSaved(false) }}
-              className="form-input w-20 text-sm font-mono-num tabular-nums"
+              className="w-20 text-sm font-mono-num tabular-nums"
               aria-label="Default recall interval in months"
             />
             <span className="text-xs text-gray-500 dark:text-gray-400">months</span>
@@ -676,7 +676,7 @@ function OpsSection({
             <StatusPill tone="neutral" label="💤 quiet" title="Marks a patient lapsed / inactive." />
           </div>
           <div className="mt-1 flex items-center gap-2">
-            <input
+            <TextInput
               type="number"
               min={LAPSED_MIN}
               max={LAPSED_MAX}
@@ -685,7 +685,7 @@ function OpsSection({
               // below LAPSED_MIN (e.g. "36") stays typeable; clamp the MIN on blur.
               onChange={(e) => { setLapsedMonths(Math.min(LAPSED_MAX, Number(e.target.value) || 0)); setSaved(false) }}
               onBlur={() => setLapsedMonths((v) => Math.min(LAPSED_MAX, Math.max(LAPSED_MIN, v || 18)))}
-              className="form-input w-20 text-sm font-mono-num tabular-nums"
+              className="w-20 text-sm font-mono-num tabular-nums"
               aria-label="Flag a patient lapsed after this many months"
             />
             <span className="text-xs text-gray-500 dark:text-gray-400">months</span>

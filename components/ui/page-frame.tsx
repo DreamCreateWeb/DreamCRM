@@ -4,7 +4,7 @@ import { PageHeader } from '@/components/ui/page-header'
 
 /**
  * THE page frame — one outer wrapper + one header for every module page under
- * `app/(default)` (settings excepted until ML-55 lands).
+ * `app/(default)` (settings joined in ML-55b).
  *
  * What it owns, so no page hand-rolls it:
  *  - the gutters: 16px on a phone, 24px from `sm`, 32px from `lg`, never wider

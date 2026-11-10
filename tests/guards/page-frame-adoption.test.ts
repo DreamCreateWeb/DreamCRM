@@ -9,9 +9,9 @@ import { dirname, join, normalize } from 'node:path'
  * body through `<PageFrame>` (components/ui/page-frame.tsx) — the one home of
  * the gutters, the content width, the `<Group> · <clinic name>` eyebrow and the
  * way back — either directly or through ONE relative import (the page shell
- * that hands data to a client view which owns the frame). Three escapes:
+ * that hands data to a client view which owns the frame). Two escapes (settings joined the walk in ML-55b: its pages render through
+ * `SettingsPage` in settings-kit.tsx, one relative hop, which is the frame):
  *
- *  - `app/(default)/settings/**` is ML-55's lane and is not walked here yet;
  *  - a page with NO JSX of its own (a redirect or a re-export) has no frame to
  *    adopt;
  *  - the DATED ALLOWLIST below: pages whose body is a client workspace that
@@ -59,7 +59,6 @@ const ALLOWLIST_CEILING = 25
 function pages(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
     const p = join(dir, name).split('\\').join('/')
-    if (p === 'app/(default)/settings') continue
     if (statSync(p).isDirectory()) pages(p, out)
     else if (name === 'page.tsx') out.push(p)
   }
