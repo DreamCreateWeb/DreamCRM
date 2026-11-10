@@ -4,6 +4,8 @@ import CosmeticFooter from '@/components/clinic-site/templates/cosmetic/footer'
 import CosmeticMobileActions from '@/components/clinic-site/templates/cosmetic/mobile-actions'
 import { buildCosmeticPalette } from './palette'
 import CosmeticServices from '@/components/clinic-site/templates/cosmetic/services'
+import CosmeticAbout from '@/components/clinic-site/templates/cosmetic/about'
+import CosmeticTeam from '@/components/clinic-site/templates/cosmetic/team'
 import { MODERN_SUBPAGES } from '../modern/subpages'
 import { subpageSource } from '../subpage-source'
 import type { SiteTemplateDef } from '../types'
@@ -32,10 +34,10 @@ export const cosmeticTemplate: SiteTemplateDef = {
     Footer: CosmeticFooter,
     MobileActions: CosmeticMobileActions,
   },
-  // ML-52: owns its Services body; the other subpages are shared from Modern
+  // ML-52: owns its Services, About and Team bodies; the other subpages are shared from Modern
   // BY REFERENCE (declared in subpageSource) until this template skins them.
-  pages: { Home: CosmeticHome, subpages: { ...MODERN_SUBPAGES, services: CosmeticServices } },
-  subpageSource: subpageSource('modern', { services: 'self' }),
+  pages: { Home: CosmeticHome, subpages: { ...MODERN_SUBPAGES, services: CosmeticServices, about: CosmeticAbout, team: CosmeticTeam } },
+  subpageSource: subpageSource('modern', { services: 'self', about: 'self', team: 'self' }),
   extraMarketingPages: [],
   buildPalette: buildCosmeticPalette,
   fonts: [{ id: 'dc-fraunces-cosmetic', href: FRAUNCES_ITALIC_HREF }],
