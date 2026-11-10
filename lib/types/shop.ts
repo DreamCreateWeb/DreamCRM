@@ -1,3 +1,4 @@
+import { sanitizeExternalPortalUrl } from '@/lib/types/portal'
 // Client-safe shop types + pure helpers (no server-only deps), so client
 // components can import labels/formatters. DB functions live in
 // lib/services/shop.ts.
@@ -198,6 +199,8 @@ export interface OrderRow {
   discountCents: number
   totalCents: number
   trackingNumber: string | null
+  /** The carrier's tracking link (valid http(s) or null). */
+  trackingUrl: string | null
   /** When the patient was told ready / shipped (null = not yet). */
   readyEmailAt?: Date | null
   shippedEmailAt?: Date | null
@@ -257,4 +260,13 @@ export interface CartLine {
   priceCents: number
   image: string | null
   qty: number
+}
+
+/**
+ * The ONE read of a tracking link (ML-42b, the dead-link law): trimmed,
+ * absolute, http(s) only, within length — anything else is null. Same
+ * validator as the external-portal address.
+ */
+export function normalizeTrackingUrl(value: unknown): string | null {
+  return sanitizeExternalPortalUrl(value)
 }

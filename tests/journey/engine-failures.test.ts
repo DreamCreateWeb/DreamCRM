@@ -142,6 +142,8 @@ describe('every named producer calls it', () => {
       // The notification re-drive (ML-32) — the eighth.
       ['lib/services/notifications.ts', 'staff_alert'],
       ['lib/services/gmail-sync.ts', 'inbox_sync'],
+      // The metrics snapshot (ML-38b) — the tenth.
+      ['lib/services/metric-snapshot.ts', 'metric_snapshot'],
     ]
     for (const [file, key] of sites) {
       const src = readFileSync(file, 'utf8')

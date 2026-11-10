@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { TextInput } from '@/components/ui/form-fields'
 
 /**
  * Office-hours grid for the Hours section. A controlled React editor over the
@@ -184,22 +185,22 @@ export default function HoursGrid({
                 }`}
                 aria-hidden={!isOpen}
               >
-                <input
+                <TextInput
                   name={`hours[${id}].open`}
                   type="time"
                   value={isOpen ? d.open : ''}
                   onChange={(e) => patch(id, { open: e.target.value })}
                   disabled={!isOpen}
-                  className="form-input w-32 font-mono-num tabular-nums"
+                  className="w-32 font-mono-num tabular-nums"
                 />
                 <span className="text-xs text-gray-500 dark:text-gray-400">to</span>
-                <input
+                <TextInput
                   name={`hours[${id}].close`}
                   type="time"
                   value={isOpen ? d.close : ''}
                   onChange={(e) => patch(id, { close: e.target.value })}
                   disabled={!isOpen}
-                  className="form-input w-32 font-mono-num tabular-nums"
+                  className="w-32 font-mono-num tabular-nums"
                 />
               </div>
 

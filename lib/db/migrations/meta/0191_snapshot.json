@@ -1,5 +1,5 @@
 {
-  "id": "44dcb8fc-563a-41ce-8981-6e96e8aae797",
+  "id": "be0d0bcb-28b8-4ef3-b554-1f39f2a4f388",
   "prevId": "fb3a9e8e-c738-4f13-9ac3-4e8a4b51cea3",
   "version": "7",
   "dialect": "postgresql",
@@ -17425,6 +17425,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "email_domain_failed_checks": {
+          "name": "email_domain_failed_checks",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
         "calendar_feed_token": {
           "name": "calendar_feed_token",
           "type": "text",
@@ -19579,60 +19586,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "verification": {
-          "name": "verification",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "verified_at": {
-          "name": "verified_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "quality_score": {
-          "name": "quality_score",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "quality_band": {
-          "name": "quality_band",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "quality_reasons": {
-          "name": "quality_reasons",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "phone_status": {
-          "name": "phone_status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "phone_line_type": {
-          "name": "phone_line_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "phone_source": {
-          "name": "phone_source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "phone_validated_at": {
-          "name": "phone_validated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
         "suppressed_reason": {
           "name": "suppressed_reason",
           "type": "text",
@@ -19771,27 +19724,6 @@
             },
             {
               "expression": "intent_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "idx_prospect_quality": {
-          "name": "idx_prospect_quality",
-          "columns": [
-            {
-              "expression": "quality_band",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "quality_score",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

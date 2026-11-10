@@ -10,6 +10,7 @@ import { SettingsSection, SettingsRow } from '../settings-kit'
 import { SettingsTabs } from '../settings-tabs'
 import type { EmailMode } from '@/lib/types/notifications'
 import { runAction } from '@/lib/run-action'
+import { Radio } from '@/components/ui/form-fields'
 
 /**
  * Personal notification preferences.
@@ -264,13 +265,12 @@ export default function NotificationsPanel({
                               : 'ring-[color:var(--color-hairline)] hover:bg-gray-50 dark:hover:bg-gray-800/40'
                           }`}
                         >
-                          <input
-                            type="radio"
+                          <Radio
                             name="email-mode"
                             value={opt.value}
                             checked={active}
                             onChange={() => setPrefs((p) => ({ ...p, emailMode: opt.value }))}
-                            className="form-radio mt-0.5 shrink-0 text-teal-600"
+                            className="mt-0.5 shrink-0 text-teal-600"
                           />
                           <span className="min-w-0">
                             <span className="block text-sm font-medium text-gray-800 dark:text-gray-100">

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { formatShortDate, formatTime } from '@/lib/utils'
 import type { EmailAccountSummary } from '@/lib/services/mailbox'
 import { PageHeader } from '@/components/ui/page-header'
-import { ActionButton } from '@/components/ui/action-button'
+import { ActionButton, buttonClasses } from '@/components/ui/action-button'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { disconnectMailbox, reclassifyAllAction, syncMailbox } from '../mailbox-actions'
 import { useAsPatientSenderAction } from './actions'
@@ -182,7 +182,7 @@ export default function SettingsPanel({ accounts, configured, flash, patientSend
           // Plain anchor — full-page OAuth redirect, not an in-app navigation.
           <a
             href="/api/oauth/gmail/start"
-            className="btn-sm bg-teal-600 hover:bg-teal-700 text-white dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300 inline-flex items-center gap-2"
+            className={buttonClasses({ variant: 'primary', size: 'sm', className: 'min-h-10 gap-2' })}
           >
             Connect Gmail →
           </a>

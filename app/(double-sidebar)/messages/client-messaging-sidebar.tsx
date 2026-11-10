@@ -11,7 +11,8 @@ import { FilterChip } from '@/components/ui/filter-chip'
 import { EmptyState } from '@/components/ui/empty-state'
 import ClientMessagingStatsCard from './client-messaging-stats'
 import NewConversationButton from './new-conversation-button'
-import { TONE_FILL } from '@/lib/ui/encodings'
+import { StatusPill } from '@/components/ui/status-pill'
+import { Tab, Tabs } from '@/components/ui/tabs'
 
 interface Props {
   conversations: ClientConversation[]
@@ -22,7 +23,7 @@ interface Props {
 }
 
 type FilterMode = 'all' | 'unread' | 'stale'
-type Tab = 'clients' | 'team'
+type KindKey = 'clients' | 'team'
 
 export default function ClientMessagingSidebar({
   conversations,
@@ -41,7 +42,7 @@ export default function ClientMessagingSidebar({
     () => conversations.find((c) => c.id === activeId)?.kind ?? null,
     [conversations, activeId],
   )
-  const [tab, setTab] = useState<Tab>(activeConvoKind === 'team' ? 'team' : 'clients')
+  const [tab, setTab] = useState<KindKey>(activeConvoKind === 'team' ? 'team' : 'clients')
 
   // Counts per tab so the tab labels show the load at a glance.
   const tabCounts = useMemo(() => {
@@ -146,10 +147,10 @@ export default function ClientMessagingSidebar({
         <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700/60">
           <header className="flex items-center justify-between mb-3">
             <div>
-              <div className="text-base font-semibold text-gray-800 dark:text-gray-100">
+              <div className="text-base font-semibold text-ink-900">
                 {tab === 'team' ? 'Team Messaging' : 'Client Messaging'}
               </div>
-              <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              <div className="text-xs text-ink-500 mt-0.5">
                 {tab === 'team'
                   ? 'Conversations with your Dream Create teammates'
                   : 'Conversations with clinic owners & admins'}
@@ -158,22 +159,22 @@ export default function ClientMessagingSidebar({
             <NewConversationButton users={pickerUsers} />
           </header>
           {/* Tab strip — Clients / Team */}
-          <div className="grid grid-cols-2 gap-1 p-0.5 bg-gray-100 dark:bg-gray-700/60 rounded-lg mb-3">
-            <TabButton
+          <Tabs label="Conversation kind" variant="pill" className="mb-3">
+            <KindTab
               label="Clients"
               count={tabCounts.clients}
               unread={tabCounts.clientUnread}
               active={tab === 'clients'}
               onClick={() => setTab('clients')}
             />
-            <TabButton
+            <KindTab
               label="Team"
               count={tabCounts.team}
               unread={tabCounts.teamUnread}
               active={tab === 'team'}
               onClick={() => setTab('team')}
             />
-          </div>
+          </Tabs>
           <div className="mb-2">
             <SearchInput
               value={search}
@@ -273,7 +274,7 @@ export default function ClientMessagingSidebar({
   )
 }
 
-function TabButton({
+function KindTab({
   label,
   count,
   unread,
@@ -287,26 +288,14 @@ function TabButton({
   onClick: () => void
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`relative text-sm font-medium py-1.5 rounded-[var(--r-sm)] transition-colors ${
-        active
-          ? 'bg-teal-500/10 text-teal-700 dark:text-teal-300 ring-1 ring-inset ring-[color:var(--color-hairline-strong)]'
-          : 'text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100'
-      }`}
-    >
-      {label} <span className="text-gray-500 dark:text-gray-400 font-normal tabular-nums">({count})</span>
+    <Tab variant="pill" active={active} onClick={onClick} className="flex-1 justify-center gap-1">
+      {label} <span className="font-normal tabular-nums text-ink-500">({count})</span>
       {unread > 0 && (
-        <span
-          className={`ml-1 inline-flex items-center justify-center text-xs font-bold rounded-full px-1.5 align-middle tabular-nums ${TONE_FILL.warn}`}
-          title={`${unread} unread`}
-        >
+        <StatusPill tone="warn" title={`${unread} unread`} className="tabular-nums">
           {unread}
-        </span>
+        </StatusPill>
       )}
-    </button>
+    </Tab>
   )
 }
 
@@ -327,7 +316,7 @@ function ClinicBucket({
   return (
     <div className="mb-2">
       <div className="flex items-center justify-between px-2 py-1">
-        <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 truncate">
+        <div className="text-xs font-semibold uppercase tracking-wider text-ink-500 truncate">
           {clinicOrgId ? (
             <Link
               href={`/ecommerce/customers/${clinicOrgId}`}
@@ -340,12 +329,9 @@ function ClinicBucket({
           )}
         </div>
         {bucketUnread > 0 && (
-          <span
-            className={`text-xs font-bold rounded-full px-1.5 py-0.5 tabular-nums ${TONE_FILL.warn}`}
-            title={`${bucketUnread} unread in this clinic`}
-          >
+          <StatusPill tone="warn" title={`${bucketUnread} unread in this clinic`} className="tabular-nums">
             {bucketUnread}
-          </span>
+          </StatusPill>
         )}
       </div>
       <ul className="space-y-0.5">
@@ -365,25 +351,22 @@ function ClinicBucket({
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <div className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate" title={title}>
+                  <div className="text-sm font-medium text-ink-900 truncate" title={title}>
                     {title}
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     {c.unreadCount > 0 && (
-                      <span
-                        className={`text-xs font-bold rounded-full px-1.5 py-0.5 tabular-nums ${TONE_FILL.warn}`}
-                        title={`${c.unreadCount} unread`}
-                      >
+                      <StatusPill tone="warn" title={`${c.unreadCount} unread`} className="tabular-nums">
                         {c.unreadCount}
-                      </span>
+                      </StatusPill>
                     )}
                     {c.lastAt && (
-                      <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">{relativeTime(c.lastAt)}</span>
+                      <span className="text-xs text-ink-500 tabular-nums">{relativeTime(c.lastAt)}</span>
                     )}
                   </div>
                 </div>
                 {c.lastMessage && (
-                  <div className="text-xs text-gray-500 dark:text-gray-400 truncate" title={c.lastMessage}>{c.lastMessage}</div>
+                  <div className="text-xs text-ink-500 truncate" title={c.lastMessage}>{c.lastMessage}</div>
                 )}
               </Link>
             </li>

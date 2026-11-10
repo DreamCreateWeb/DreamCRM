@@ -26,6 +26,7 @@ import { ActionButton } from '@/components/ui/action-button'
 import { Toggle } from '@/components/ui/toggle'
 import { FlashToast } from '@/components/ui/flash-toast'
 import { StatusPill } from '@/components/ui/status-pill'
+import { TextInput, Textarea } from '@/components/ui/form-fields'
 
 // Order + copy for the category groups a clinic scans top-to-bottom.
 const CATEGORY_ORDER: EmailCategory[] = ['appointments', 'forms', 'billing', 'portal', 'reviews', 'website', 'shop']
@@ -401,7 +402,7 @@ function EmailCard({
                     {f.label}
                   </label>
                   {f.rows <= 1 ? (
-                    <input
+                    <TextInput
                       id={`${emailKey}-${f.slot}`}
                       ref={(el) => {
                         fieldRefs.current[f.slot] = el
@@ -411,10 +412,10 @@ function EmailCard({
                       onFocus={() => setFocusedSlot(f.slot)}
                       disabled={!canManage}
                       aria-describedby={hintId}
-                      className="form-input w-full text-sm disabled:opacity-70"
+                      className="w-full text-sm disabled:opacity-70"
                     />
                   ) : (
-                    <textarea
+                    <Textarea
                       id={`${emailKey}-${f.slot}`}
                       ref={(el) => {
                         fieldRefs.current[f.slot] = el
@@ -425,7 +426,7 @@ function EmailCard({
                       rows={f.rows}
                       disabled={!canManage}
                       aria-describedby={hintId}
-                      className="form-textarea w-full text-sm disabled:opacity-70"
+                      className="w-full text-sm disabled:opacity-70"
                     />
                   )}
                   {f.hint && (

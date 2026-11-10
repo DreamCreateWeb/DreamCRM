@@ -57,12 +57,16 @@ export const SITE_TEMPLATE_MANIFEST: SiteTemplateManifest = {
     'components/clinic-site/templates/modern/blogIndex.tsx',
     // The skinned Services layout the non-Modern templates compose.
     'components/clinic-site/templates/shared/services-layout.tsx',
+    'components/clinic-site/templates/shared/about-layout.tsx',
+    'components/clinic-site/templates/shared/team-layout.tsx',
   ],
   byTemplate: {
     modern: ['components/clinic-site/templates/modern/home.tsx'],
     cosmetic: [
       'components/clinic-site/templates/cosmetic/home.tsx',
       'components/clinic-site/templates/cosmetic/services.tsx',
+      'components/clinic-site/templates/cosmetic/about.tsx',
+      'components/clinic-site/templates/cosmetic/team.tsx',
       'components/clinic-site/templates/cosmetic/header.tsx',
       'components/clinic-site/templates/cosmetic/footer.tsx',
       'components/clinic-site/templates/cosmetic/mobile-actions.tsx',
@@ -70,6 +74,8 @@ export const SITE_TEMPLATE_MANIFEST: SiteTemplateManifest = {
     pediatric: [
       'components/clinic-site/templates/pediatric/home.tsx',
       'components/clinic-site/templates/pediatric/services.tsx',
+      'components/clinic-site/templates/pediatric/about.tsx',
+      'components/clinic-site/templates/pediatric/team.tsx',
       'components/clinic-site/templates/pediatric/header.tsx',
       'components/clinic-site/templates/pediatric/footer.tsx',
       'components/clinic-site/templates/pediatric/mobile-actions.tsx',

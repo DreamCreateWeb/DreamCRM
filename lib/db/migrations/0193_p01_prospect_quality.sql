@@ -1,3 +1,4 @@
+ALTER TABLE "prospect" ADD COLUMN "website_source" text;--> statement-breakpoint
 ALTER TABLE "prospect" ADD COLUMN "verification" jsonb;--> statement-breakpoint
 ALTER TABLE "prospect" ADD COLUMN "verified_at" timestamp with time zone;--> statement-breakpoint
 ALTER TABLE "prospect" ADD COLUMN "quality_score" integer;--> statement-breakpoint

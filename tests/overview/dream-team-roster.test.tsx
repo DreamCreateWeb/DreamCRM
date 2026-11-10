@@ -43,6 +43,7 @@ describe('the roster ↔ capability registry parity', () => {
       'inbox_sync',
       // P-01: the platform's own prospecting engine — never a clinic's lane.
       'prospecting',
+      'metric_snapshot',
       ...SETUP_CAPABILITIES,
     ])
     for (const c of CAPABILITIES) {

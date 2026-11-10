@@ -31,7 +31,9 @@ import SiteMiniPreview from './site-mini-preview'
 import QuickEdits from './quick-edits'
 import { EmptyState } from '@/components/ui/empty-state'
 import { TONE_TEXT, type Tone } from '@/lib/ui/encodings'
-import { TrendChart } from '@/components/ui/charts'
+import { TrendChart, MiniTrend } from '@/components/ui/charts'
+import { HeartbeatLine } from '@/components/ui/heartbeat-line'
+import { getOrgHeartbeats } from '@/lib/services/metric-series-read'
 import { siteNeedsPersonalization } from '@/lib/services/starter-pack'
 import { getReadinessReport } from '@/lib/services/readiness'
 import GoLiveCard, { TakeOfflineLink } from './go-live-card'
@@ -213,6 +215,10 @@ export default async function WebsiteHubPage() {
   // The announcement bar (live-immediate) — resolve to what's showing NOW at
   // the clinic-local day so the state line matches the public site.
   const clinicTz = profile.timezone || 'America/New_York'
+  // The bookings heartbeat (ML-38b): appointments made per clinic-local day,
+  // every channel (the snapshot's `bookings`). Best-effort — no spark on a
+  // failed read.
+  const bookingBeats = await getOrgHeartbeats(ctx.organizationId, clinicTz, ['bookings'], { nouns: { bookings: 'booked' } }).catch(() => null)
   const liveAnnouncement = activeAnnouncement(profile.announcement, clinicDayKey(new Date(), clinicTz))
 
   // Every band KPI carries its delta vs the prior 30 days, same recipe: a
@@ -429,6 +435,15 @@ export default async function WebsiteHubPage() {
               <div className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
                 new patients booked online
                 {deltaChip(bookedDelta, 'New patients booked online')}
+              </div>
+              {/* Every appointment made, all channels — said in the label. */}
+              <div className="mt-2" data-bookings-heartbeat>
+                {bookingBeats?.bookings.spark ? (
+                  <span role="img" aria-label="Appointments made per day, all channels">
+                    <MiniTrend data={bookingBeats.bookings.spark} width={104} height={26} />
+                  </span>
+                ) : null}
+                <HeartbeatLine line={bookingBeats?.bookings.line ? `appointments made, all channels · ${bookingBeats.bookings.line}` : null} />
               </div>
             </div>
             <div>

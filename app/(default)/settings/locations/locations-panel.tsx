@@ -8,6 +8,7 @@ import { StatusPill } from '@/components/ui/status-pill'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { SettingsSection } from '../settings-kit'
+import { Checkbox, TextInput } from '@/components/ui/form-fields'
 
 interface Props {
   locations: ClinicLocation[]
@@ -241,25 +242,25 @@ function LocationForm({
           <label className="block text-sm font-medium mb-1" htmlFor="loc-name">
             Location name <span className="text-rose-500">*</span>
           </label>
-          <input
+          <TextInput
             id="loc-name"
             name="name"
             type="text"
             required
             defaultValue={location?.name ?? ''}
-            className="form-input w-full"
+            className="w-full"
             placeholder="e.g. Main Office, Downtown"
           />
         </div>
         <div className="sm:w-56">
           <label className="block text-sm font-medium mb-1" htmlFor="loc-phone">Phone</label>
-          <input
+          <TextInput
             id="loc-phone"
             name="phone"
             type="tel"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            className={`form-input w-full ${phoneOff ? 'border-amber-400 dark:border-amber-500/60' : ''}`}
+            className={`w-full ${phoneOff ? 'border-amber-400 dark:border-amber-500/60' : ''}`}
             placeholder="(512) 555-0134"
             aria-describedby={phoneOff ? 'loc-phone-warn' : undefined}
           />
@@ -273,34 +274,33 @@ function LocationForm({
 
       <div>
         <label className="block text-sm font-medium mb-1" htmlFor="loc-address1">Street address</label>
-        <input id="loc-address1" name="addressLine1" type="text" defaultValue={location?.addressLine1 ?? ''} className="form-input w-full" placeholder="123 Main St" />
+        <TextInput id="loc-address1" name="addressLine1" type="text" defaultValue={location?.addressLine1 ?? ''} className="w-full" placeholder="123 Main St" />
       </div>
       <div>
         <label className="block text-sm font-medium mb-1" htmlFor="loc-address2">Suite / unit</label>
-        <input id="loc-address2" name="addressLine2" type="text" defaultValue={location?.addressLine2 ?? ''} className="form-input w-full" placeholder="Suite 200" />
+        <TextInput id="loc-address2" name="addressLine2" type="text" defaultValue={location?.addressLine2 ?? ''} className="w-full" placeholder="Suite 200" />
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="flex-1">
           <label className="block text-sm font-medium mb-1" htmlFor="loc-city">City</label>
-          <input id="loc-city" name="city" type="text" defaultValue={location?.city ?? ''} className="form-input w-full" />
+          <TextInput id="loc-city" name="city" type="text" defaultValue={location?.city ?? ''} className="w-full" />
         </div>
         <div className="sm:w-24">
           <label className="block text-sm font-medium mb-1" htmlFor="loc-state">State</label>
-          <input id="loc-state" name="state" type="text" defaultValue={location?.state ?? ''} className="form-input w-full" placeholder="TX" maxLength={20} />
+          <TextInput id="loc-state" name="state" type="text" defaultValue={location?.state ?? ''} className="w-full" placeholder="TX" maxLength={20} />
         </div>
         <div className="sm:w-36">
           <label className="block text-sm font-medium mb-1" htmlFor="loc-postal">ZIP / postal</label>
-          <input id="loc-postal" name="postalCode" type="text" defaultValue={location?.postalCode ?? ''} className="form-input w-full" inputMode="numeric" />
+          <TextInput id="loc-postal" name="postalCode" type="text" defaultValue={location?.postalCode ?? ''} className="w-full" inputMode="numeric" />
         </div>
       </div>
 
       <div className="rounded-[var(--r-sm)] bg-gray-50 dark:bg-gray-900/30 px-3 py-2.5">
         <label className="flex items-start gap-2 text-sm">
-          <input
-            type="checkbox"
+          <Checkbox
             name="isPrimary"
-            className="form-checkbox mt-0.5"
+            className="mt-0.5"
             defaultChecked={primaryLocked}
             disabled={primaryLocked}
           />

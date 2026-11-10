@@ -24,6 +24,7 @@ import type {
   FulfillmentStatus,
   TopProduct,
 } from '@/lib/types/shop'
+import { normalizeTrackingUrl } from '@/lib/types/shop'
 
 /**
  * Shop service — dental product retail (membership plans live in
@@ -476,6 +477,7 @@ function toOrderRow(
     discountCents: o.discountCents,
     totalCents: o.totalCents,
     trackingNumber: o.trackingNumber,
+    trackingUrl: o.trackingUrl ?? null,
     readyEmailAt: o.readyEmailAt,
     shippedEmailAt: o.shippedEmailAt,
     shippingAddress: o.shippingAddress ?? null,
@@ -544,7 +546,7 @@ export async function exportShopOrdersCsv(organizationId: string): Promise<strin
   const headers = [
     'Order ID', 'Date', 'Status', 'Fulfillment', 'Fulfillment status',
     'Customer', 'Email', 'Phone', 'Items',
-    'Subtotal', 'Shipping', 'Tax', 'Discount', 'Total', 'Tracking #', 'Paid at',
+    'Subtotal', 'Shipping', 'Tax', 'Discount', 'Total', 'Tracking #', 'Tracking link', 'Paid at',
     'Refunded', 'Refunded at', 'Net collected',
   ]
   const rows = orders.map((o) => [
@@ -563,6 +565,7 @@ export async function exportShopOrdersCsv(organizationId: string): Promise<strin
     csvDollars(o.discountCents),
     csvDollars(o.totalCents),
     o.trackingNumber ?? '',
+    o.trackingUrl ?? '',
     o.paidAt ? o.paidAt.toISOString() : '',
     // Month-end reconciliation needs the money that came back next to the
     // money that went out — a 'refunded' status alone doesn't say how much.
@@ -594,9 +597,12 @@ export async function setOrderFulfillment(
   id: string,
   fulfillmentStatus: FulfillmentStatus,
   trackingNumber?: string | null,
+  trackingUrl?: string | null,
 ): Promise<{ emailed: ShopOrderEmailResult | null }> {
   const set: Record<string, unknown> = { fulfillmentStatus, updatedAt: new Date() }
   if (trackingNumber !== undefined) set.trackingNumber = trackingNumber
+  // The dead-link law: only a valid http(s) link is ever stored.
+  if (trackingUrl !== undefined) set.trackingUrl = normalizeTrackingUrl(trackingUrl)
   if (fulfillmentStatus === 'picked_up' || fulfillmentStatus === 'delivered') set.fulfilledAt = new Date()
   await db
     .update(schema.shopOrder)

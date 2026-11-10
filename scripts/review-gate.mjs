@@ -630,6 +630,15 @@ export const INTAKE_RULES = [
       // allowlist count (which may only shrink) — keyed on the pair, not the
       // radius, because the thread-panel chips were `rounded-[var(--r-xs)]`.
       'tests/design-system/tone-pills.test.ts',
+      // The legacy form-class rule (ML-55b, 2026-11-10). A NEW CLASS of
+      // assertion, stated as this entry's `why` asks: it WALKS app/ and
+      // components/ for the Mosaic class vocabulary (the form-input / -select
+      // / -textarea / -checkbox / -radio set and btn / btn-lg / btn-sm /
+      // btn-xs) and fails any file over its dated per-file allowlist count
+      // (which may only shrink), holding Settings and the platform messaging
+      // surface at zero. Class: a tree walk (the census). Blind spot: a class
+      // assembled by string concatenation.
+      'tests/design-system/legacy-form-classes.test.ts',
       // The marketing-forms bare-await rule (2026-10-26, the deep dev cycle).
       // A NEW CLASS of assertion rather than a case on an existing one,
       // stated here rather than guessed as this entry's `why` asks: every
@@ -696,7 +705,7 @@ export const INTAKE_RULES = [
       // The page-frame adoption guard (2026-11-09, ML-54). A NEW CLASS of
       // assertion, stated here as this entry's `why` asks: it WALKS every
       // `page.tsx` under `app/(default)` and `app/(double-sidebar)` (settings
-      // excluded until ML-55) and requires `<PageFrame>` — directly or one
+      // joined the walk in ML-55b) and requires `<PageFrame>` — directly or one
       // relative import away — or a line on a dated allowlist that may only
       // shrink. Class: a tree walk (the census), blind to a frame two hops
       // away and to a conditionally rendered one. A new dashboard page that

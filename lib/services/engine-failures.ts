@@ -81,6 +81,13 @@ export const AUTOMATION_FAILURE = {
     capability: 'prospecting',
     summary: 'Couldn’t verify a batch of prospects just now — I’ll keep trying.',
   },
+  // The metrics snapshot (ML-38b): the hourly pass that records each clinic's
+  // yesterday for the tiles' sparks. One strike per clinic per day when its
+  // pass throws; the walk always continues.
+  metric_snapshot: {
+    capability: 'metric_snapshot',
+    summary: 'Couldn’t update the trend lines on your tiles just now — I’ll keep trying.',
+  },
 } as const satisfies Record<string, { capability: string; summary: string }>
 
 /**

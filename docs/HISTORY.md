@@ -7319,3 +7319,88 @@ seen a cascade-layer defeat. (3) The financing editor's floating-button
 hint still said "bottom-right … your chat bubble stays bottom-left",
 written before the 2026-10-12 move; it now says where the button is.
 
+
+## 2026-11-10 — ML-63b: a failed email domain is retried honestly; removing the custom domain cleans up
+
+ML-63's stated follow-ups. A domain Resend marked failed is retried on the
+SAME Resend domain (verify + get), registered afresh only when Resend says it
+is gone; the Domain card's records show expected vs found. After three
+failed checks (`clinic_profile.email_domain_failed_checks`, migration 0191)
+the custom-domains sweep backs off to a daily check and the card says so
+(`lib/email-domain-backoff.ts` is the one predicate). Removing or swapping
+the custom domain deletes the Resend domain (fail-open, one `custom_domain`
+strike) and clears every `email_domain_*` column (`removeEmailDomain`), so a
+practice never keeps sending from a domain it no longer owns. The runbook
+section is in `docs/custom-domains.md`.
+
+## 2026-11-10 — ML-L1: three follow-ups that make three numbers and one door honest
+
+(1) ML-39b: the Growth hub's Word of mouth row counts referred patients
+SEATED this clinic-local month (`firstSeatedAt` from the journey spine,
+against the same point last month; imported history never counts), not
+first-seen — the journey law. (2) ML-43b: the reconcile checklist's bulk
+"Mark posted" confirm and its BulkBar carry the dollar total of the ticked
+payments (gross face amounts — a refund posts as its own ledger entry;
+`net-refunds` REDUCE_ALLOWED names it). (3) ML-42b: `shop_order.tracking_url`
+(migration 0192); the Shipped step asks for the tracking number and link in
+a `Modal` dialog settled BEFORE the transition (the dialog law) instead of
+`window.prompt`; only a valid http(s) link is stored (`normalizeTrackingUrl`
+over `sanitizeExternalPortalUrl` — the dead-link law); the shipped email
+renders it as an escaped link, the portal receipt shows "Track your
+package", the orders table/drawer and the CSV carry it; the orders client's
+`run()` awaits through `runAction`.
+## 2026-11-10 — ML-55b: the last Mosaic bones, part two (tabs, Settings on the frame, the legacy form classes, the platform inbox)
+
+ML-55's stated follow-ups. `components/ui/tabs.tsx` is the one tab row
+(`Tabs` / `TabLink` / `Tab`: role=tablist, arrow + Home/End focus movement,
+40px tabs, the active tab in `text-ink-900`, the row scrolls inside
+itself); `settings-tabs`, `clinic-settings-nav` and `prospecting-nav` render
+through it. `components/ui/form-fields.tsx` holds `TextInput` / `Select` /
+`Textarea` / `Checkbox` / `Radio` / `Field` (+ `FIELD_BOX_CLASSES`) and
+`buttonClasses()` lives in `action-button.tsx` for the anchors that must stay
+anchors (the Gmail OAuth doors). `SettingsPage` (settings-kit) renders
+through `PageFrame`; fourteen settings pages adopt it and the Settings home
+carries the `Settings · <clinic>` eyebrow. Twenty-two files lost the legacy
+`form-*` / `btn*` classes (Settings and Messages held at ZERO by the new
+grader `tests/design-system/legacy-form-classes.test.ts`, a tree-walk census
+class in `INTAKE_RULES`; the dated allowlist starts at 125 files with its
+ceiling at 125 and may only shrink). The platform inbox's sidebar and stats
+use `Tabs`, `StatusPill` and the ink ramp; its composer, broadcast and
+thread panels use the shared fields. Left: `surface-tabs.tsx` (clinic-only)
+is not on the primitive; the two-pane Messages/Inbox pages stay off
+`PageFrame` by design.
+
+## 2026-11-10 — ML-L2: Cosmetic and Pediatric wear their own About and Team; the modal proves itself at 390
+
+ML-52's and ML-56's stated follow-ups. Modern's About and Team bodies became
+the shared skinned layouts (`templates/shared/about-layout.tsx` — `AboutSkin`:
+eyebrow / heading / button / story / stats / portrait-radius / photo / map
+radius / closing; `templates/shared/team-layout.tsx` — `TeamSkin`), exactly
+the way ML-52 shared Services; Modern renders through them with the skins
+that reproduce its original classes. Cosmetic (Fraunces, the thin rule,
+`rounded-[2px]`, the tracked uppercase eyebrow, round buttons) and
+Pediatric (tinted eyebrow pills, bold headings, `rounded-[2rem]` cards, the
+blob portrait) own `about` and `team` in `subpageSource`; the conformance
+harness enrols them. The 390×844 e2e check for the Add patient modal
+(inside the viewport, no sideways scroll, the primary action visible, Escape
+returns focus to the opener) exposed a real defect: `useFocusTrap` captured
+the opener in a passive effect, AFTER an `autoFocus` child had already taken
+focus, so every modal with an `autoFocus` field lost its restore. The opener
+is now read during render; a unit test holds the `autoFocus` case.
+
+## 2026-11-10 — The full suite's worker crash: Playwright under happy-dom
+
+Since the two-step sign-in PR the full `pnpm test` run printed an unhandled
+`connect ECONNREFUSED 127.0.0.1:3000` on a `ClientRequest` and a dead worker.
+Not a flake: two guard tests (`tests/guards/axe-exclusion-premise.test.ts`,
+`tests/guards/e2e-duplicate-watch.test.ts`) import the real
+`@playwright/test` through `e2e/axe` and `e2e/duplicate-watch`; under
+happy-dom Playwright's bundled source-map-support sees a `window` and
+issues a SYNCHRONOUS XMLHttpRequest for its own source map, which happy-dom
+serves by spawning a node child (`SyncFetch.sendRequest`) whose connection
+error is unhandled. The first test now runs under the node environment (no
+DOM needed); the second mocks `@playwright/test`. `tests/setup.ts` gains
+two guards so no test can ever hit the network: `fetch` rejects any
+localhost or relative URL with a message naming it, and
+`XMLHttpRequest.prototype.open` throws a `NetworkError` for localhost, so
+the child is never spawned.

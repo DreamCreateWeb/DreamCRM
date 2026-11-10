@@ -29,6 +29,7 @@ describe('p01_prospect_quality (by tag)', () => {
       'ALTER TABLE "prospect" ADD COLUMN "phone_line_type" text;',
       'ALTER TABLE "prospect" ADD COLUMN "phone_source" text;',
       'ALTER TABLE "prospect" ADD COLUMN "phone_validated_at" timestamp with time zone;',
+      'ALTER TABLE "prospect" ADD COLUMN "website_source" text;',
       'CREATE INDEX "idx_prospect_quality" ON "prospect" USING btree ("quality_band","quality_score");',
     ])
   })

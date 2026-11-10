@@ -1,1 +1,0 @@
-ALTER TABLE "prospect" ADD COLUMN "website_source" text;

@@ -495,7 +495,7 @@ describe('subpage shells + shared heading components read the template heading t
 
 describe('the shared /about gallery (every design) paints alt through officePhotoAlt', () => {
   it('never renders an office photo with an empty alt', () => {
-    const src = read('components/clinic-site/templates/modern/about.tsx')
+    const src = read('components/clinic-site/templates/shared/about-layout.tsx')
     expect(src).toMatch(/officePhotoAlt\(/)
     expect(src).not.toMatch(/alt=\{p\.alt \?\? ''\}/)
   })

@@ -43,6 +43,23 @@ const BREATH_CLASSES =
 const SIZE_CLASSES = { sm: 'btn-sm', md: 'btn' } as const
 
 /**
+ * The ActionButton's classes as a string, for the rare control that must stay
+ * a plain element (a `<label>` file picker, an OAuth `<a>` that a Link would
+ * prefetch) yet wear the same skin. Same classes the component renders.
+ */
+export function buttonClasses({
+  variant = 'secondary',
+  size = 'md',
+  className = '',
+}: {
+  variant?: ActionButtonVariant
+  size?: 'sm' | 'md'
+  className?: string
+} = {}): string {
+  return `${SIZE_CLASSES[size]} ${VARIANT_CLASSES[variant]} disabled:opacity-60 disabled:pointer-events-none ${className}`
+}
+
+/**
  * Standard dashboard button. Renders a <Link> when `href` is set, otherwise
  * a <button>. Exactly one `primary` per surface (page header, drawer,
  * modal); everything else is secondary/ghost; destructive actions are

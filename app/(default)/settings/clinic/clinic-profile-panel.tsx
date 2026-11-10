@@ -8,6 +8,7 @@ import ImageUploader from '@/components/ui/image-uploader'
 import { ActionButton } from '@/components/ui/action-button'
 import HoursGrid from './hours-grid'
 import TimezonePicker from './timezone-picker'
+import { Radio, Select, TextInput } from '@/components/ui/form-fields'
 
 interface Props {
   profile: ClinicProfile | null
@@ -100,12 +101,12 @@ export default function ClinicProfilePanel({ profile, orgName, gmailAccounts }: 
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1" htmlFor="displayName">Display Name <span className="text-rose-500">*</span></label>
-                <input id="displayName" name="displayName" className="form-input w-full" type="text" defaultValue={profile?.displayName ?? orgName} />
+                <TextInput id="displayName" name="displayName" className="w-full" type="text" defaultValue={profile?.displayName ?? orgName} />
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Shown on your website and in the dashboard.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1" htmlFor="legalName">Legal Name</label>
-                <input id="legalName" name="legalName" className="form-input w-full" type="text" defaultValue={profile?.legalName ?? ''} />
+                <TextInput id="legalName" name="legalName" className="w-full" type="text" defaultValue={profile?.legalName ?? ''} />
               </div>
             </div>
           </div>
@@ -121,19 +122,19 @@ export default function ClinicProfilePanel({ profile, orgName, gmailAccounts }: 
               <div className="flex space-x-4">
                 <div className="flex-1">
                   <label className="block text-sm font-medium mb-1" htmlFor="phone">Phone</label>
-                  <input id="phone" name="phone" className="form-input w-full" type="tel" defaultValue={profile?.phone ?? ''} />
+                  <TextInput id="phone" name="phone" className="w-full" type="tel" defaultValue={profile?.phone ?? ''} />
                 </div>
                 <div className="flex-1">
                   <label className="block text-sm font-medium mb-1" htmlFor="email">Email</label>
-                  <input id="email" name="email" className="form-input w-full" type="email" defaultValue={profile?.email ?? ''} />
+                  <TextInput id="email" name="email" className="w-full" type="email" defaultValue={profile?.email ?? ''} />
                 </div>
               </div>
               <div className="sm:w-1/2 sm:pr-2">
                 <label className="block text-sm font-medium mb-1" htmlFor="npi">Practice NPI</label>
-                <input
+                <TextInput
                   id="npi"
                   name="npi"
-                  className="form-input w-full"
+                  className="w-full"
                   inputMode="numeric"
                   maxLength={12}
                   placeholder="10 digits"
@@ -145,10 +146,10 @@ export default function ClinicProfilePanel({ profile, orgName, gmailAccounts }: 
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1" htmlFor="emailSenderName">Email sender name</label>
-                <input
+                <TextInput
                   id="emailSenderName"
                   name="emailSenderName"
-                  className="form-input w-full"
+                  className="w-full"
                   type="text"
                   defaultValue={profile?.emailSenderName ?? ''}
                   placeholder={profile?.displayName ?? orgName}
@@ -165,12 +166,11 @@ export default function ClinicProfilePanel({ profile, orgName, gmailAccounts }: 
                 {gmailAccounts.length > 0 ? (
                   <div role="radiogroup" aria-labelledby="clinic-email-sender-label" className="space-y-1.5">
                     <label className="flex items-start gap-2 text-sm">
-                      <input
-                        type="radio"
+                      <Radio
                         name="emailSendingAccountId"
                         value=""
                         defaultChecked={!profile?.emailSendingAccountId}
-                        className="form-radio mt-0.5"
+                        className="mt-0.5"
                       />
                       <span>
                         <span className="text-gray-800 dark:text-gray-100">DreamCRM (default)</span>
@@ -181,12 +181,11 @@ export default function ClinicProfilePanel({ profile, orgName, gmailAccounts }: 
                     </label>
                     {gmailAccounts.map((a) => (
                       <label key={a.id} className="flex items-start gap-2 text-sm">
-                        <input
-                          type="radio"
+                        <Radio
                           name="emailSendingAccountId"
                           value={a.id}
                           defaultChecked={profile?.emailSendingAccountId === a.id}
-                          className="form-radio mt-0.5"
+                          className="mt-0.5"
                         />
                         <span>
                           <span className="text-gray-800 dark:text-gray-100">Your Google inbox — {a.emailAddress}</span>
@@ -209,34 +208,34 @@ export default function ClinicProfilePanel({ profile, orgName, gmailAccounts }: 
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1" htmlFor="addressLine1">Street Address</label>
-                <input id="addressLine1" name="addressLine1" className="form-input w-full" type="text" defaultValue={profile?.addressLine1 ?? ''} />
+                <TextInput id="addressLine1" name="addressLine1" className="w-full" type="text" defaultValue={profile?.addressLine1 ?? ''} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1" htmlFor="addressLine2">Suite / Apt</label>
-                <input id="addressLine2" name="addressLine2" className="form-input w-full" type="text" defaultValue={profile?.addressLine2 ?? ''} />
+                <TextInput id="addressLine2" name="addressLine2" className="w-full" type="text" defaultValue={profile?.addressLine2 ?? ''} />
               </div>
               <div className="flex space-x-4">
                 <div className="flex-1">
                   <label className="block text-sm font-medium mb-1" htmlFor="city">City</label>
-                  <input id="city" name="city" className="form-input w-full" type="text" defaultValue={profile?.city ?? ''} />
+                  <TextInput id="city" name="city" className="w-full" type="text" defaultValue={profile?.city ?? ''} />
                 </div>
                 <div className="w-24">
                   <label className="block text-sm font-medium mb-1" htmlFor="state">State</label>
-                  <input id="state" name="state" className="form-input w-full" type="text" defaultValue={profile?.state ?? ''} />
+                  <TextInput id="state" name="state" className="w-full" type="text" defaultValue={profile?.state ?? ''} />
                 </div>
                 <div className="w-32">
                   <label className="block text-sm font-medium mb-1" htmlFor="postalCode">Postal Code</label>
-                  <input id="postalCode" name="postalCode" className="form-input w-full" type="text" defaultValue={profile?.postalCode ?? ''} />
+                  <TextInput id="postalCode" name="postalCode" className="w-full" type="text" defaultValue={profile?.postalCode ?? ''} />
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1" htmlFor="country">Country</label>
-                <select id="country" name="country" className="form-select w-full" defaultValue={profile?.country ?? 'US'}>
+                <Select id="country" name="country" className="w-full" defaultValue={profile?.country ?? 'US'}>
                   <option value="US">United States</option>
                   <option value="CA">Canada</option>
                   <option value="GB">United Kingdom</option>
                   <option value="AU">Australia</option>
-                </select>
+                </Select>
               </div>
             </div>
           </div>
