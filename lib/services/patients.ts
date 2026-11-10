@@ -1,7 +1,8 @@
 import 'server-only'
 import { loadIntakeOnFile } from '@/lib/services/intake-on-file-read'
 import { getFeatureSwitchState } from '@/lib/services/feature-switches'
-import { parseInsuranceDetail, type PatientInsuranceDetail } from '@/lib/insurance-eligibility'
+import type { PatientInsuranceDetail } from '@/lib/insurance-eligibility'
+import { getPatientInsurance, patchPrimaryInsurance, upsertPatientInsurance } from '@/lib/services/insurance-eligibility/plans'
 import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, notInArray, or, sql, type SQL } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { sumNetCollectedSql } from '@/lib/net-collected'
@@ -972,6 +973,8 @@ export async function getPatientHeader(
     )
     .limit(1)
   if (!p) return null
+  // ML-50b: the primary card is read from patient_insurance (the ONE read).
+  const primaryCard = await getPatientInsurance(organizationId, patientId, 'primary')
 
   const now = new Date()
   const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000)
@@ -1135,10 +1138,10 @@ export async function getPatientHeader(
     city: p.city,
     state: p.state,
     postalCode: p.postalCode,
-    insuranceProvider: p.insuranceProvider,
-    insurancePolicyNumber: p.insurancePolicyNumber,
-    insuranceGroupNumber: p.insuranceGroupNumber,
-    insuranceDetail: parseInsuranceDetail(p.insuranceDetail),
+    insuranceProvider: primaryCard?.provider ?? null,
+    insurancePolicyNumber: primaryCard?.policyNumber ?? null,
+    insuranceGroupNumber: primaryCard?.groupNumber ?? null,
+    insuranceDetail: primaryCard?.detail ?? null,
     notes: p.notes,
     source: p.source,
     lifecycle,
@@ -1262,6 +1265,15 @@ export async function createPatient(input: CreatePatientInput): Promise<CreatePa
     recallIntervalMonths: input.recallIntervalMonths ?? null,
     notes: input.notes ?? null,
   })
+  // ML-50b: the primary slot is authoritative in patient_insurance.
+  if (input.insuranceProvider || input.insurancePolicyNumber || input.insuranceGroupNumber || input.insuranceDetail) {
+    await upsertPatientInsurance(input.organizationId, id, 'primary', {
+      provider: input.insuranceProvider ?? null,
+      policyNumber: input.insurancePolicyNumber ?? null,
+      groupNumber: input.insuranceGroupNumber ?? null,
+      ...(input.insuranceDetail !== undefined ? { detail: input.insuranceDetail } : {}),
+    })
+  }
   return { id }
 }
 
@@ -1322,6 +1334,20 @@ export async function updatePatient({ organizationId, patientId, patch }: Update
     .where(
       and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, patientId)),
     )
+  // ML-50b: a change to the primary card lands in patient_insurance (the authority) too.
+  if (
+    patch.insuranceProvider !== undefined ||
+    patch.insurancePolicyNumber !== undefined ||
+    patch.insuranceGroupNumber !== undefined ||
+    patch.insuranceDetail !== undefined
+  ) {
+    await patchPrimaryInsurance(organizationId, patientId, {
+      provider: patch.insuranceProvider,
+      policyNumber: patch.insurancePolicyNumber,
+      groupNumber: patch.insuranceGroupNumber,
+      detail: patch.insuranceDetail,
+    })
+  }
 }
 
 export interface PatientOption {

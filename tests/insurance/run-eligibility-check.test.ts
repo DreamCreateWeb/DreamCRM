@@ -15,6 +15,8 @@ const state = {
   usage: { used: 0, included: 200, unreadable: false },
   inserts: [] as Array<{ table: string; values: Record<string, unknown> }>,
   updates: [] as Array<{ table: string; values: Record<string, unknown> }>,
+  // ML-50b: writes to the authoritative patient_insurance slot table
+  slotWrites: [] as Array<Record<string, unknown>>,
   failInsert: false,
 }
 
@@ -31,7 +33,8 @@ vi.mock('@/lib/db', async () => {
     obj.where = () => obj
     obj.orderBy = () => obj
     obj.limit = async () => {
-      if (table === schema.patient) return state.patients
+      // the slot read falls back to the patient row for an unmirrored primary; the owner check reads {id}
+      if (table === schema.patient) return state.patients.map((p) => ({ ...p, policyNumber: p.insurancePolicyNumber ?? null, provider: null, groupNumber: null, detail: null }))
       if (table === schema.organization) return state.org
       if (table === schema.clinicProfile) return state.profile
       return []
@@ -42,9 +45,14 @@ vi.mock('@/lib/db', async () => {
     db: {
       select: () => chain(),
       insert: (t: unknown) => ({
-        values: async (vals: Record<string, unknown>) => {
-          if (state.failInsert) throw new Error('db down')
+        values: (vals: Record<string, unknown>) => {
+          if (t === schema.patientInsurance) {
+            state.slotWrites.push(vals)
+            return { onConflictDoUpdate: async () => undefined }
+          }
+          if (state.failInsert) return Promise.reject(new Error('db down'))
           state.inserts.push({ table: t === schema.insuranceVerification ? 'insurance_verification' : 'other', values: vals })
+          return Promise.resolve()
         },
       }),
       update: (t: unknown) => ({
@@ -131,6 +139,7 @@ beforeEach(() => {
   delete process.env.STEDI_DEFAULT_NPI
   state.inserts = []
   state.updates = []
+  state.slotWrites = []
   state.failInsert = false
   recordAction.mockClear()
   vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -324,27 +333,26 @@ describe('runEligibilityCheck', () => {
     expect(recordAction).not.toHaveBeenCalled()
   })
 
-  it('a recognised answer for the card on file is REMEMBERED on the patient — detail only, never the flat columns', async () => {
+  it('a recognised answer for the card on file is REMEMBERED on the patient on the primary SLOT (patient_insurance), card fields untouched', async () => {
     state.patients = [{ id: 'pat_1', firstName: 'Mia', lastName: 'Hayes', insurancePolicyNumber: 'DD-100-2231' }]
     const r = await runEligibilityCheck('org_1', { input: { ...input(), payerId: '77777', payerName: 'Delta Dental of California' }, patientId: 'pat_1', now: NOW })
     expect(r.ok).toBe(true)
-    expect(state.updates).toHaveLength(1)
-    const vals = state.updates[0].values
-    expect(state.updates[0].table).toBe('patient')
-    expect(Object.keys(vals).sort()).toEqual(['insuranceDetail', 'updatedAt'])
-    expect(vals.insuranceDetail).toMatchObject({ memberId: 'DD-100-2231', payerId: '77777', source: 'check', relationship: 'self' })
+    expect(state.slotWrites).toHaveLength(1)
+    const vals = state.slotWrites[0]
+    expect(vals).toMatchObject({ rank: 'primary', organizationId: 'org_1', patientId: 'pat_1', policyNumber: 'DD-100-2231' })
+    expect(vals.detail).toMatchObject({ memberId: 'DD-100-2231', payerId: '77777', source: 'check', relationship: 'self' })
   })
 
   it('a card that is NOT the one on file is not remembered (edits don’t change the record until saved)', async () => {
     state.patients = [{ id: 'pat_1', firstName: 'Mia', lastName: 'Hayes', insurancePolicyNumber: 'OTHER-999' }]
     await runEligibilityCheck('org_1', { input: input('DD-100-2231'), patientId: 'pat_1', now: NOW })
-    expect(state.updates).toHaveLength(0)
+    expect(state.slotWrites).toHaveLength(0)
   })
 
   it('an empty policy number on file lets the first recognised check fill the card', async () => {
     state.patients = [{ id: 'pat_1', firstName: 'Mia', lastName: 'Hayes', insurancePolicyNumber: null }]
     await runEligibilityCheck('org_1', { input: input('DD-100-2231'), patientId: 'pat_1', now: NOW })
-    expect(state.updates).toHaveLength(1)
+    expect(state.slotWrites).toHaveLength(1)
   })
 
   it('a not-found or failed answer remembers nothing — the payer said nothing about the card', async () => {
@@ -352,12 +360,12 @@ describe('runEligibilityCheck', () => {
     await runEligibilityCheck('org_1', { input: input('DD-100-9999'), patientId: 'pat_1', now: NOW })
     state.patients = [{ id: 'pat_1', firstName: 'Mia', lastName: 'Hayes', insurancePolicyNumber: 'DD-100-0001' }]
     await runEligibilityCheck('org_1', { input: input('DD-100-0001'), patientId: 'pat_1', now: NOW })
-    expect(state.updates).toHaveLength(0)
+    expect(state.slotWrites).toHaveLength(0)
   })
 
   it('an unattached check (no patient) remembers nothing', async () => {
     await runEligibilityCheck('org_1', { input: input(), patientId: null, now: NOW })
-    expect(state.updates).toHaveLength(0)
+    expect(state.slotWrites).toHaveLength(0)
   })
 })
 

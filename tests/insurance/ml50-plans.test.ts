@@ -75,9 +75,9 @@ beforeEach(() => {
 })
 
 describe('listPatientInsurance — [primary, secondary?]', () => {
-  it('reads the primary from the flat columns and the secondary from its own slot, each with its own card', async () => {
+  it('reads BOTH slots from patient_insurance, each with its own card', async () => {
     h.selects = [
-      [{ provider: 'Delta Dental', policy: 'DD-100', group: 'G1', detail: { memberId: 'DD-100', relationship: 'self' } }],
+      [{ provider: 'Delta Dental', policyNumber: 'DD-100', groupNumber: 'G1', detail: { memberId: 'DD-100', relationship: 'self' } }],
       [{ provider: 'Cigna', policyNumber: 'CG-200', groupNumber: null, detail: { memberId: 'OLD-1', relationship: 'self' } }],
     ]
     const cards = await listPatientInsurance('org_1', 'pat_1')
@@ -91,10 +91,21 @@ describe('listPatientInsurance — [primary, secondary?]', () => {
   })
 
   it('omits an empty slot, and a record with no patient reads as no plans', async () => {
-    h.selects = [[{ provider: null, policy: ' ', group: null, detail: null }], []]
+    h.selects = [[{ provider: null, policyNumber: ' ', groupNumber: null, detail: null }], []]
     expect(await listPatientInsurance('org_1', 'pat_1')).toEqual([])
-    h.selects = [[]]
+    h.selects = [[], [], []]
     expect(await listPatientInsurance('org_1', 'nobody')).toEqual([])
+  })
+
+  it('a primary with no slot row yet falls back to the unmirrored flat columns (legacy rows only)', async () => {
+    h.selects = [
+      [], // primary slot row: none
+      [], // secondary slot row: none (both slot reads fire together)
+      [{ provider: 'Delta Dental', policyNumber: 'DD-100', groupNumber: null, detail: null }], // flat fallback
+    ]
+    const cards = await listPatientInsurance('org_1', 'pat_1')
+    expect(cards.map((c) => c.rank)).toEqual(['primary'])
+    expect(cards[0].policyNumber).toBe('DD-100')
   })
 })
 

@@ -66,6 +66,7 @@ export async function mergePatients(
     return { ok: false, survivorId, error: 'One of these records was already merged.' }
   }
 
+  let filledPrimaryCard: { provider: string | null; policyNumber: string | null; groupNumber: string | null; detail?: never } | null = null
   await db.transaction(async (tx) => {
     // 1. Simple re-points (set patient_id = survivor).
     for (const { table } of SIMPLE_REPOINTS) {
@@ -141,6 +142,14 @@ export async function mergePatients(
       patch.lastActivityAt = duplicate.lastActivityAt
     }
     await tx.update(schema.patient).set(patch).where(eq(schema.patient.id, survivorId))
+    if (['insuranceProvider', 'insurancePolicyNumber', 'insuranceGroupNumber'].some((k) => k in patch)) {
+      filledPrimaryCard = {
+        provider: (patch.insuranceProvider ?? survivor.insuranceProvider ?? null) as string | null,
+        policyNumber: (patch.insurancePolicyNumber ?? survivor.insurancePolicyNumber ?? null) as string | null,
+        groupNumber: (patch.insuranceGroupNumber ?? survivor.insuranceGroupNumber ?? null) as string | null,
+        ...('insuranceDetail' in patch ? { detail: patch.insuranceDetail as never } : {}),
+      }
+    }
 
     // 6. Tombstone the duplicate (archived + pointer; not deleted).
     await tx
@@ -148,6 +157,16 @@ export async function mergePatients(
       .set({ mergedIntoPatientId: survivorId, isActive: 0, lifecycle: 'archived', updatedAt: new Date() })
       .where(eq(schema.patient.id, duplicateId))
   })
+
+  // ML-50b: a primary card filled from the duplicate lands in patient_insurance (the authority).
+  if (filledPrimaryCard) {
+    try {
+      const { upsertPatientInsurance } = await import('@/lib/services/insurance-eligibility/plans')
+      await upsertPatientInsurance(organizationId, survivorId, 'primary', filledPrimaryCard)
+    } catch (e) {
+      console.error('[patient-merge] primary card mirror failed:', e)
+    }
+  }
 
   // ML-50: the duplicate's second plan comes along when the survivor has none. Best-effort.
   try {

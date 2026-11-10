@@ -26,6 +26,16 @@ const updated: Array<{ set: Record<string, unknown>; where: unknown }> = []
 
 const scheduleKick = vi.fn()
 vi.mock('@/lib/services/day-one-kick', () => ({ scheduleKick: (...a: unknown[]) => scheduleKick(...(a as [])) }))
+// ML-50b: the carrier reads/writes go through the slot service (its own tests cover it).
+vi.mock('@/lib/services/insurance-eligibility/plans', () => ({
+  primaryCardsByPatient: async (_org: string, ids: string[]) =>
+    new Map(
+      (existing.rows as Array<Record<string, unknown>>)
+        .filter((r) => ids.includes(r.id as string))
+        .map((r) => [r.id as string, { provider: (r.insuranceProvider as string) ?? null, policyNumber: null, groupNumber: null }]),
+    ),
+  seedPrimaryInsuranceBulk: vi.fn(async () => undefined),
+}))
 vi.mock('@/lib/services/clinic-timezone', () => ({ getClinicTimeZone: vi.fn(async () => 'America/Chicago') }))
 
 // Hoisted beside the mock factory that reads them (vi.mock is hoisted above
@@ -467,6 +477,7 @@ describe('exportPatientsCsv', () => {
   it('quote-escapes fields containing commas', async () => {
     existing.rows = [
       {
+        id: 'pat_jane',
         firstName: 'Jane',
         lastName: 'Doe',
         email: 'jane@x.com',

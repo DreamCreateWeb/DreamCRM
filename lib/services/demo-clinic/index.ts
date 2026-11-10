@@ -88,6 +88,7 @@ import {
   seedDemoWaitlist,
 } from './seed-money'
 import { seedDemoInsuranceChecks } from './seed-insurance'
+import { upsertPatientInsurance } from '@/lib/services/insurance-eligibility/plans'
 import { seedRecallOutreachForOrg } from './seed-outreach'
 import { seedDemoMoneyCoherence, seedDemoReferralPartner } from './seed-partners'
 import { seedReviewsForOrg } from './seed-reviews'
@@ -1271,6 +1272,14 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
       // @example.com email convention (survives an email edit).
       isDemoPersona: 1,
     })
+    // ML-50b: the persona's primary card lives in patient_insurance (the authority), keyed by the persona's own id.
+    if (p.insuranceProvider || p.insurancePolicyNumber) {
+      await upsertPatientInsurance(orgId, pid, 'primary', {
+        provider: p.insuranceProvider,
+        policyNumber: p.insurancePolicyNumber,
+        groupNumber: null,
+      })
+    }
   }
 
   // Now that patient IDs exist, build the testimonials so each one references

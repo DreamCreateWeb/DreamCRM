@@ -1,6 +1,7 @@
 import 'server-only'
 import { and, eq, isNull } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { primaryCardsByPatient, seedPrimaryInsuranceBulk } from '@/lib/services/insurance-eligibility/plans'
 import { scheduleKick } from '@/lib/services/day-one-kick'
 import { newPatientId } from '@/lib/services/patients'
 import { newAppointmentId } from '@/lib/services/appointments'
@@ -387,6 +388,11 @@ export async function importPatients({
     const chunk = toInsert.slice(i, i + CHUNK)
     if (chunk.length) await db.insert(schema.patient).values(chunk)
   }
+  // ML-50b: the carrier the file carried lands in patient_insurance (the authority).
+  await seedPrimaryInsuranceBulk(
+    organizationId,
+    toInsert.map((r) => ({ patientId: r.id, provider: r.insuranceProvider ?? null })),
+  )
   for (let i = 0; i < visitsToInsert.length; i += CHUNK) {
     const chunk = visitsToInsert.slice(i, i + CHUNK)
     if (chunk.length) await db.insert(schema.appointment).values(chunk)
@@ -463,7 +469,7 @@ export async function exportPatientsCsvWithCount(organizationId: string): Promis
       city: schema.patient.city,
       state: schema.patient.state,
       postalCode: schema.patient.postalCode,
-      insuranceProvider: schema.patient.insuranceProvider,
+      id: schema.patient.id,
       source: schema.patient.source,
       lifecycle: schema.patient.lifecycle,
       firstSeenAt: schema.patient.firstSeenAt,
@@ -472,6 +478,8 @@ export async function exportPatientsCsvWithCount(organizationId: string): Promis
     .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.isActive, 1)))
     .orderBy(schema.patient.lastName, schema.patient.firstName)
 
+  // ML-50b: the carrier column is the primary slot in patient_insurance.
+  const cards = await primaryCardsByPatient(organizationId, rows.map((r) => r.id))
   const lines = [EXPORT_HEADERS.join(',')]
   for (const r of rows) {
     lines.push(
@@ -485,7 +493,7 @@ export async function exportPatientsCsvWithCount(organizationId: string): Promis
         csvCell(r.city),
         csvCell(r.state),
         csvCell(r.postalCode),
-        csvCell(r.insuranceProvider),
+        csvCell(cards.get(r.id)?.provider ?? null),
         csvCell(r.source),
         csvCell(r.lifecycle),
         csvCell(r.firstSeenAt ? r.firstSeenAt.toISOString().slice(0, 10) : ''),

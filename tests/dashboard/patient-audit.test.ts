@@ -27,6 +27,18 @@ vi.mock('@/lib/services/feature-switches', () => ({
 vi.mock('@/lib/services/insurance-eligibility', () => ({
   getLatestInsuranceChecksForPatients: vi.fn(async () => latestChecks),
 }))
+// ML-50b: the card on file is the primary slot in patient_insurance
+// (primaryCardsByPatient; its own query is pinned in tests/insurance/ml50-plans.test.ts).
+// A fixture appointment's `policyNumber` stands for that slot's member id.
+vi.mock('@/lib/services/insurance-eligibility/plans', () => ({
+  primaryCardsByPatient: vi.fn(async (_org: string, ids: string[]) => {
+    const out = new Map<string, { provider: string | null; policyNumber: string | null; groupNumber: string | null }>()
+    for (const r of state.appointments as Array<{ patientId: string; policyNumber?: string | null }>) {
+      if (ids.includes(r.patientId) && r.policyNumber) out.set(r.patientId, { provider: null, policyNumber: r.policyNumber, groupNumber: null })
+    }
+    return out
+  }),
+}))
 // The chair read (ML-27): the cached intake alerts, keyed by appointment. Its
 // own query is pinned in tests/intake-forms/intake-alerts-read.test.ts.
 const intakeAlerts = new Map<string, { submissionId: string; alerts: string[] }>()
