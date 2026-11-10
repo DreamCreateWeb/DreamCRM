@@ -200,7 +200,7 @@ describe('ClientMessagingSidebar', () => {
         activeId={null}
       />,
     )
-    await user.click(screen.getByRole('button', { name: /^Team \(1\)/ }))
+    await user.click(screen.getByRole('tab', { name: /^Team \(1\)/ }))
     expect(screen.queryByText('Acme Alice')).not.toBeInTheDocument()
     expect(screen.getByText('Teammate Tom')).toBeInTheDocument()
   })
@@ -219,8 +219,8 @@ describe('ClientMessagingSidebar', () => {
       />,
     )
     // Tab labels include count
-    expect(screen.getByRole('button', { name: /^Clients \(1\)/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^Team \(1\)/ })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /^Clients \(1\)/ })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /^Team \(1\)/ })).toBeInTheDocument()
   })
 
   it('opens on the Team tab when the active conversation is a team thread', () => {
@@ -251,7 +251,7 @@ describe('ClientMessagingSidebar', () => {
         activeId={null}
       />,
     )
-    await user.click(screen.getByRole('button', { name: /^Team \(0\)/ }))
+    await user.click(screen.getByRole('tab', { name: /^Team \(0\)/ }))
     // Batch 39: the path-as-prose became a handed-over action button.
     expect(screen.getByText(/Invite a teammate, then start a thread/i)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Invite a teammate/i })).toHaveAttribute('href', '/settings/team')

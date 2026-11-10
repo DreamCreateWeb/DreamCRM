@@ -6,6 +6,7 @@ import { sendChatMessage } from './actions'
 import { relativeTime } from '@/lib/utils'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
+import { TextInput } from '@/components/ui/form-fields'
 
 export interface ChatMessage {
   id: number
@@ -98,11 +99,11 @@ export default function MessagesBody({
           <form className="grow flex" onSubmit={onSubmit}>
             <div className="grow mr-3">
               <label htmlFor="msg-input" className="sr-only">Type a message</label>
-              <input
+              <TextInput
                 id="msg-input"
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
-                className="form-input w-full bg-gray-100 dark:bg-gray-800 border-transparent focus:bg-white dark:focus:bg-gray-800 placeholder-gray-500"
+                className="w-full bg-gray-100 dark:bg-gray-800 border-transparent focus:bg-white dark:focus:bg-gray-800 placeholder-gray-500"
                 type="text"
                 placeholder={conversationId ? 'Aa' : 'No conversation selected'}
                 disabled={!conversationId || pending}

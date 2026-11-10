@@ -34,6 +34,13 @@ const readers = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/services/metric-readers', () => ({ ORG_READERS: readers.org, PLATFORM_READERS: readers.platform }))
 vi.mock('@/lib/services/billing-state', () => ({ listShutDownOrgIds: vi.fn(async () => new Set<string>()) }))
+const strikes = vi.hoisted(() => ({ calls: [] as Array<[string, string]> }))
+vi.mock('@/lib/services/engine-failures', () => ({
+  reportAutomationFailure: vi.fn(async (org: string, key: string) => {
+    strikes.calls.push([org, key])
+    return true
+  }),
+}))
 const sweepSpy = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/services/cron-sweep', () => ({
   sweepClinics: sweepSpy,
@@ -59,6 +66,7 @@ beforeEach(() => {
     readers.platform[k] = async () => 9
   }
   sweepSpy.mockReset()
+  strikes.calls.length = 0
 })
 
 describe('buckets are in the right calendar', () => {
@@ -133,13 +141,13 @@ describe('captureOrgDay', () => {
     readers.org.visits = async () => {
       throw new Error('boom')
     }
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const n = await captureOrgDay('org_a', 'America/Chicago', now)
     expect(n).toBe(metricsFor('org', 'day').length - 2)
     const metricsWritten = inserts().map((r) => r.params[1])
     expect(metricsWritten).not.toContain('outstanding_balance')
     expect(metricsWritten).not.toContain('visits')
-    warn.mockRestore()
+    // The broken reader costs its clinic a strike under metric_snapshot.
+    expect(strikes.calls).toEqual([['org_a', 'metric_snapshot']])
   })
 })
 
@@ -152,5 +160,14 @@ describe('the tick', () => {
     // The platform passes ran (day + hour) even with no clinics.
     expect(r.platformDay).toBe(metricsFor('platform', 'day').length)
     expect(r.platformHour).toBe(metricsFor('platform', 'hour').length)
+  })
+
+  it('a clinic whose pass throws is one strike under metric_snapshot (onError), never a stop', async () => {
+    sweepSpy.mockResolvedValue({ completed: true, swept: 0, remaining: 0, resumeAt: null })
+    await runMetricSnapshots(new Date('2026-11-09T06:30:00Z'))
+    const opts = sweepSpy.mock.calls[0][4] as { onError: (c: { organizationId: string }, e: unknown) => void }
+    opts.onError({ organizationId: 'org_z' }, new Error('x'))
+    await Promise.resolve()
+    expect(strikes.calls).toEqual([['org_z', 'metric_snapshot']])
   })
 })

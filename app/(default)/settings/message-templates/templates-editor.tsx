@@ -17,6 +17,7 @@ import {
   reorderMessageTemplatesAction,
 } from './actions'
 import { runAction } from '@/lib/run-action'
+import { TextInput, Textarea } from '@/components/ui/form-fields'
 
 /**
  * Manage the clinic's canned-reply templates (backed by email_snippet). Add /
@@ -296,12 +297,12 @@ function TemplateForm({
         <label htmlFor="tmpl-name" className="block text-xs font-medium text-gray-700 dark:text-gray-300">
           Name <span className="font-normal text-gray-500 dark:text-gray-400">(only your team sees this)</span>
         </label>
-        <input
+        <TextInput
           id="tmpl-name"
           value={name}
           onChange={(e) => setName(e.target.value.slice(0, MAX_TEMPLATE_NAME_LEN))}
           placeholder="e.g. Confirming your visit"
-          className="form-input w-full text-sm"
+          className="w-full text-sm"
           maxLength={MAX_TEMPLATE_NAME_LEN}
           autoFocus
         />
@@ -316,14 +317,14 @@ function TemplateForm({
             {bodyLen.toLocaleString()} / {MAX_TEMPLATE_BODY_LEN.toLocaleString()}
           </span>
         </div>
-        <textarea
+        <Textarea
           id="tmpl-body"
           value={body}
           onChange={(e) => setBody(e.target.value)}
           placeholder="Hi {{firstName}}, …"
           rows={4}
           aria-invalid={over}
-          className={`form-textarea w-full text-sm ${over ? 'border-rose-500/70 focus:border-rose-500' : ''}`}
+          className={`w-full text-sm ${over ? 'border-rose-500/70 focus:border-rose-500' : ''}`}
         />
         {over && (
           <p className="text-xs text-rose-600 dark:text-rose-400">

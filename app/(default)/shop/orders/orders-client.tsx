@@ -10,6 +10,7 @@ import {
   type OrderRow,
   type OrderStatus,
   type FulfillmentStatus,
+  normalizeTrackingUrl,
 } from '@/lib/types/shop'
 import { setOrderFulfillmentAction } from '../actions'
 import { PageHeader } from '@/components/ui/page-header'
@@ -20,6 +21,9 @@ import { FilterChip } from '@/components/ui/filter-chip'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
 import { FlashToast } from '@/components/ui/flash-toast'
+import { runAction } from '@/lib/run-action'
+import Modal from '@/components/ui/modal'
+import { TextInput } from '@/components/ui/form-fields'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
 import type { PillLegendRow, Tone } from '@/lib/ui/encodings'
 
@@ -104,6 +108,8 @@ export default function OrdersClient({
   const [filter, setFilter] = useState<OrdersFilter>(initialFilter)
   const [search, setSearch] = useState('')
   const [toast, setToast] = useState<string | null>(null)
+  // The ship dialog: which order is being marked shipped (null = closed).
+  const [trackingFor, setTrackingFor] = useState<{ order: OrderRow; label: string } | null>(null)
   // Fulfillment status flips instantly; the action + revalidation catch up.
   const [optimisticFulfillment, setOptimisticFulfillment] = useOptimistic<
     Record<string, FulfillmentStatus>,
@@ -124,15 +130,16 @@ export default function OrdersClient({
   function run(key: string, fn: () => Promise<unknown>, done?: string | ((result: unknown) => string)) {
     setActive(key)
     startTransition(async () => {
-      try {
-        const result = await fn()
-        if (done) setToast(typeof done === 'function' ? done(result) : done)
-        router.refresh()
-      } catch (err) {
-        // Surface the failure (and let the optimistic flip revert) instead of
-        // swallowing it — otherwise the status snaps back with no explanation.
-        setToast(err instanceof Error ? err.message : "Couldn't update the order — please try again.")
+      // Every await of a server action goes through runAction: a throw (a
+      // redeploy under the tab, a dropped network) becomes a failure toast and
+      // the optimistic flip reverts when the transition settles.
+      const res = await runAction(async () => ({ ok: true as const, result: await fn() }))
+      if (!res.ok) {
+        setToast(res.error)
+        return
       }
+      if (done) setToast(typeof done === 'function' ? done(res.result) : done)
+      router.refresh()
     })
   }
 
@@ -159,15 +166,30 @@ export default function OrdersClient({
   }
 
   function changeFulfillment(o: OrderRow, next: FulfillmentStatus, label: string) {
-    // Tracking prompt stays synchronous + up front (pre-existing); the optimistic
-    // flip + action then run together in the transition.
-    const tracking =
-      next === 'shipped' ? window.prompt('Tracking number (optional):')?.trim() || undefined : undefined
+    // THE DIALOG LAW: shipping asks for its tracking details in a dialog that
+    // is settled BEFORE any transition starts (the dialog's submit calls
+    // `ship`; nothing is awaited inside a transition on its behalf).
+    if (next === 'shipped') {
+      setTrackingFor({ order: o, label })
+      return
+    }
     run(
       `${o.id}:${next}`,
       async () => {
         setOptimisticFulfillment({ id: o.id, status: next })
-        return setOrderFulfillmentAction(o.id, next, tracking)
+        return setOrderFulfillmentAction(o.id, next)
+      },
+      (r) => `Marked ${label}.${emailNote(r)}`,
+    )
+  }
+
+  function ship(o: OrderRow, label: string, tracking: string | undefined, trackingUrl: string | undefined) {
+    setTrackingFor(null)
+    run(
+      `${o.id}:shipped`,
+      async () => {
+        setOptimisticFulfillment({ id: o.id, status: 'shipped' })
+        return setOrderFulfillmentAction(o.id, 'shipped', tracking, trackingUrl)
       },
       (r) => `Marked ${label}.${emailNote(r)}`,
     )
@@ -314,8 +336,16 @@ export default function OrdersClient({
                       .map((i) => `${i.quantity}× ${i.productName}${i.variantName ? ` (${i.variantName})` : ''}`)
                       .join(', ')}
                   </p>
-                  {o.trackingNumber && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Tracking: {o.trackingNumber}</p>
+                  {(o.trackingNumber || o.trackingUrl) && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      {o.trackingNumber && <>Tracking: {o.trackingNumber}</>}
+                      {o.trackingNumber && o.trackingUrl && ' · '}
+                      {o.trackingUrl && (
+                        <a href={o.trackingUrl} target="_blank" rel="noopener noreferrer" className="text-teal-700 dark:text-teal-400 hover:underline">
+                          Tracking link
+                        </a>
+                      )}
+                    </p>
                   )}
                 </div>
                 <div className="text-right shrink-0">
@@ -440,6 +470,13 @@ export default function OrdersClient({
                   Tracking: <span className="font-mono-num">{selected.trackingNumber}</span>
                 </p>
               )}
+              {selected.trackingUrl && (
+                <p className="text-sm">
+                  <a href={selected.trackingUrl} target="_blank" rel="noopener noreferrer" className="text-teal-700 hover:underline dark:text-teal-400">
+                    Open tracking link →
+                  </a>
+                </p>
+              )}
 
               <div>
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Items</p>
@@ -526,7 +563,105 @@ export default function OrdersClient({
         </>
       )}
 
+      {trackingFor && (
+        <TrackingDialog
+          label={trackingFor.label}
+          onCancel={() => setTrackingFor(null)}
+          onSubmit={(num, url) => ship(trackingFor.order, trackingFor.label, num, url)}
+        />
+      )}
+
       {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
     </div>
+  )
+}
+
+/**
+ * The ship dialog (ML-42b): the tracking number and link, both optional, on
+ * the Modal primitive. The link is checked here in words that name the fix —
+ * the same `normalizeTrackingUrl` the server stores through (the dead-link
+ * law: never a link that is not a valid http(s) address).
+ */
+function TrackingDialog({
+  label,
+  onCancel,
+  onSubmit,
+}: {
+  label: string
+  onCancel: () => void
+  onSubmit: (tracking: string | undefined, trackingUrl: string | undefined) => void
+}) {
+  const [number, setNumber] = useState('')
+  const [link, setLink] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  function submit(e?: React.FormEvent) {
+    e?.preventDefault()
+    const rawLink = link.trim()
+    let url: string | undefined
+    if (rawLink) {
+      const ok = normalizeTrackingUrl(rawLink)
+      if (!ok) {
+        setError('That link won’t open — paste the full address from the carrier, starting with https://')
+        return
+      }
+      url = ok
+    }
+    onSubmit(number.trim() || undefined, url)
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onCancel}
+      title={`Mark ${label}`}
+      size="sm"
+      footer={
+        <>
+          <ActionButton variant="ghost" size="sm" onClick={onCancel}>
+            Cancel
+          </ActionButton>
+          <ActionButton variant="primary" size="sm" onClick={() => submit()}>
+            {`Mark ${label}`}
+          </ActionButton>
+        </>
+      }
+    >
+      <form onSubmit={submit} className="space-y-3 p-5">
+        <p className="text-sm text-gray-600 dark:text-gray-300">
+          Add tracking so the patient can follow the package — both are optional, and they go in the shipped email.
+        </p>
+        <label className="block text-sm">
+          <span className="mb-1 block font-medium text-gray-800 dark:text-gray-100">Tracking number (optional)</span>
+          <TextInput
+            className="w-full text-sm"
+            value={number}
+            onChange={(e) => setNumber(e.target.value)}
+            autoComplete="off"
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block font-medium text-gray-800 dark:text-gray-100">Tracking link (optional)</span>
+          <TextInput
+            className="w-full text-sm"
+            type="url"
+            inputMode="url"
+            placeholder="https://"
+            value={link}
+            onChange={(e) => {
+              setLink(e.target.value)
+              setError(null)
+            }}
+            aria-invalid={error ? true : undefined}
+            autoComplete="off"
+          />
+        </label>
+        {error && (
+          <p role="alert" className="text-sm text-rose-700 dark:text-rose-300">
+            {error}
+          </p>
+        )}
+      </form>
+    </Modal>
   )
 }

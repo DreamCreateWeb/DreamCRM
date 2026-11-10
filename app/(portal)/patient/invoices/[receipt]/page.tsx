@@ -44,6 +44,7 @@ export default async function PortalReceiptPage({
   let lines: ReceiptLine[] = []
   let totalCents = 0
   let footNote: string | null = null
+  let trackingUrl: string | null = null
 
   if (receipt.startsWith('order-')) {
     const bills = await getMyBills(ctx.patientId, ctx.organizationId)
@@ -79,6 +80,7 @@ export default async function PortalReceiptPage({
     ]
       .filter(Boolean)
       .join(' · ') || null
+    trackingUrl = order.trackingUrl
   } else if (receipt.startsWith('pay-')) {
     const payments = await getMyBalancePayments(ctx.patientId, ctx.organizationId)
     const pay = payments.find((p) => p.id === receipt.slice('pay-'.length))
@@ -198,6 +200,13 @@ export default async function PortalReceiptPage({
         {footNote && (
           <p className="mt-4 text-[0.85rem] leading-relaxed" style={{ color: PORTAL_MUTED }}>
             {footNote}
+          </p>
+        )}
+        {trackingUrl && (
+          <p className="mt-2 text-[0.85rem]">
+            <a href={trackingUrl} target="_blank" rel="noopener noreferrer" className="underline" style={{ color: PORTAL_INK }}>
+              Track your package
+            </a>
           </p>
         )}
 

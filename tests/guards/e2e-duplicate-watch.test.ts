@@ -1,7 +1,12 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describeReport, installDuplicateWatch } from '../../e2e/duplicate-watch'
+
+// e2e/duplicate-watch imports the real `@playwright/test`, and under happy-dom that installs a
+// source-map-support that sync-XHRs http://localhost:3000 (ECONNREFUSED killed a worker). Only
+// `expectSole` uses it, and these tests never call that — so playwright never loads.
+vi.mock('@playwright/test', () => ({ expect: () => { throw new Error('playwright is not loaded in unit tests') } }))
 
 /**
  * THE DIAGNOSTIC THAT HAS TO SURVIVE BEING USEFUL ONCE A MONTH.

@@ -20,13 +20,13 @@ const groups = [
 describe('ClinicSettingsNav (horizontal section nav)', () => {
   it('renders a chip per section, flattened across groups, linking to #id', () => {
     render(<ClinicSettingsNav groups={groups} />)
-    expect(screen.getByRole('link', { name: 'Basics' }).getAttribute('href')).toBe('#basics')
-    expect(screen.getByRole('link', { name: 'Hours' }).getAttribute('href')).toBe('#hours')
-    expect(screen.getByRole('link', { name: 'Branding' }).getAttribute('href')).toBe('#branding')
+    expect(screen.getByRole('tab', { name: 'Basics' }).getAttribute('href')).toBe('#basics')
+    expect(screen.getByRole('tab', { name: 'Hours' }).getAttribute('href')).toBe('#hours')
+    expect(screen.getByRole('tab', { name: 'Branding' }).getAttribute('href')).toBe('#branding')
   })
 
   it('marks the first section active by default', () => {
     render(<ClinicSettingsNav groups={groups} />)
-    expect(screen.getByRole('link', { name: 'Basics' }).getAttribute('aria-current')).toBe('true')
+    expect(screen.getByRole('tab', { name: 'Basics' }).getAttribute('aria-current')).toBe('page')
   })
 })

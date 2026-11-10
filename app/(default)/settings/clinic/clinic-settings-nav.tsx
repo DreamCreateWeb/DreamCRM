@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { TabLink, Tabs } from '@/components/ui/tabs'
 
 /**
  * Sticky HORIZONTAL section nav for the Clinic profile hub. Replaces the old
@@ -73,26 +74,19 @@ export default function ClinicSettingsNav({ groups }: { groups: NavGroup[] }) {
       aria-label="Clinic settings sections"
       className="sticky top-16 z-10 mb-6 -mx-1 border-b border-gray-100 dark:border-gray-800 bg-[color:var(--color-canvas)]/85 backdrop-blur supports-[backdrop-filter]:bg-[color:var(--color-canvas)]/70"
     >
-      <div className="flex gap-1 overflow-x-auto no-scrollbar px-1 py-2">
-        {items.map((it) => {
-          const on = it.id === active
-          return (
-            <a
-              key={it.id}
-              href={`#${it.id}`}
-              onClick={(e) => jump(e, it.id)}
-              aria-current={on ? 'true' : undefined}
-              className={`whitespace-nowrap rounded-[var(--r-pill)] px-3 py-1.5 text-sm transition-colors ${
-                on
-                  ? 'bg-teal-500/12 font-medium text-teal-700 dark:text-teal-300'
-                  : 'text-gray-600 hover:bg-gray-500/[0.08] dark:text-gray-300 dark:hover:bg-white/[0.06]'
-              }`}
-            >
-              {it.label}
-            </a>
-          )
-        })}
-      </div>
+      <Tabs label="Clinic settings sections" variant="pill" className="px-1 py-1">
+        {items.map((it) => (
+          <TabLink
+            key={it.id}
+            variant="pill"
+            href={`#${it.id}`}
+            active={it.id === active}
+            onClick={(e) => jump(e, it.id)}
+          >
+            {it.label}
+          </TabLink>
+        ))}
+      </Tabs>
     </nav>
   )
 }

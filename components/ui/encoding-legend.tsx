@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { ActionButton } from '@/components/ui/action-button'
 import {
   AGING_LEGENDS,
   AGING_TIERS,
@@ -65,18 +66,18 @@ export function EncodingLegend({
 
   return (
     <span ref={rootRef} className={`relative inline-flex ${className}`}>
-      <button
-        type="button"
+      <ActionButton
+        size="sm"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="btn-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-600 dark:text-gray-300 gap-1.5"
+        className="gap-1.5"
         title="What the colors and icons on this page mean"
       >
         <svg className="shrink-0 fill-current text-gray-500 dark:text-gray-400" width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
           <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0Zm0 12a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm1-3.5a1 1 0 0 1-2 0V5a1 1 0 0 1 2 0v3.5Z" />
         </svg>
         {label}
-      </button>
+      </ActionButton>
 
       {open && (
         <div

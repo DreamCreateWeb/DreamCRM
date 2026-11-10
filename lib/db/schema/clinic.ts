@@ -1591,6 +1591,8 @@ export const shopOrder = pgTable(
     stripeCheckoutSessionId: text('stripe_checkout_session_id'),
     stripePaymentIntentId: text('stripe_payment_intent_id'),
     trackingNumber: text('tracking_number'),
+    // ML-42b: the carrier's tracking link — http(s) only (the dead-link law).
+    trackingUrl: text('tracking_url'),
     notes: text('notes'),
     // Refund truth, written by the Connect webhook. Cumulative cents Stripe
     // has sent back on this order's charge; `status` flips to 'refunded' only

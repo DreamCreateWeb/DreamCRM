@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { Tab, Tabs } from '@/components/ui/tabs'
 
 /**
  * The standard two-level navigation for a Settings page: top tabs, optional
@@ -95,30 +96,20 @@ export function SettingsTabs({ tabs }: { tabs: SettingsTabDef[] }) {
   return (
     <div>
       {/* Top-level tabs — underline nav. */}
-      <div role="tablist" className="flex flex-wrap gap-1 border-b border-gray-200 dark:border-gray-700/60 mb-6">
-        {tabs.map((t) => {
-          const on = t.id === activeTab
-          return (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={on}
-              onClick={() => {
-                setActiveTab(t.id)
-                writeUrl(t.id, activeSub[t.id])
-              }}
-              className={`-mb-px px-3.5 py-2 text-sm font-medium border-b-2 transition-colors ${
-                on
-                  ? 'border-teal-500 text-teal-700 dark:text-teal-300'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-              }`}
-            >
-              {t.label}
-            </button>
-          )
-        })}
-      </div>
+      <Tabs label="Settings sections" className="mb-6">
+        {tabs.map((t) => (
+          <Tab
+            key={t.id}
+            active={t.id === activeTab}
+            onClick={() => {
+              setActiveTab(t.id)
+              writeUrl(t.id, activeSub[t.id])
+            }}
+          >
+            {t.label}
+          </Tab>
+        ))}
+      </Tabs>
 
       {/* Render every tab (inactive hidden) so a single Save submits everything. */}
       {tabs.map((t) => {
@@ -130,30 +121,21 @@ export function SettingsTabs({ tabs }: { tabs: SettingsTabDef[] }) {
             {subs.length > 0 ? (
               <>
                 {/* Subtab pills. */}
-                <div role="tablist" className="flex flex-wrap gap-1.5 mb-5">
-                  {subs.map((s) => {
-                    const on = s.id === activeSubId
-                    return (
-                      <button
-                        key={s.id}
-                        type="button"
-                        role="tab"
-                        aria-selected={on}
-                        onClick={() => {
-                          setActiveSub((p) => ({ ...p, [t.id]: s.id }))
-                          writeUrl(t.id, s.id)
-                        }}
-                        className={`px-3 py-1.5 text-sm font-medium rounded-full border transition-colors ${
-                          on
-                            ? 'bg-teal-500/10 border-teal-500/40 text-teal-700 dark:text-teal-300'
-                            : 'bg-transparent border-gray-200 dark:border-gray-700 text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-100'
-                        }`}
-                      >
-                        {s.label}
-                      </button>
-                    )
-                  })}
-                </div>
+                <Tabs label={`${t.label} sections`} variant="pill" className="mb-5">
+                  {subs.map((s) => (
+                    <Tab
+                      key={s.id}
+                      variant="pill"
+                      active={s.id === activeSubId}
+                      onClick={() => {
+                        setActiveSub((p) => ({ ...p, [t.id]: s.id }))
+                        writeUrl(t.id, s.id)
+                      }}
+                    >
+                      {s.label}
+                    </Tab>
+                  ))}
+                </Tabs>
                 {subs.map((s) => (
                   <div key={s.id} className={s.id === activeSubId ? '' : 'hidden'}>
                     {s.content}
