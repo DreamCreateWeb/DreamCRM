@@ -265,13 +265,15 @@ export default async function ProspectingPage({
           </FilterChip>
         ))}
         <span className="mx-1 h-4 w-px bg-[color:var(--color-hairline)]" aria-hidden="true" />
-        {/* Quality (P-01): can we actually reach them? Best / Good serve; Parked waits. */}
+        {/* Quality (P-01): can we actually reach them? Best / Good serve; Parked waits.
+            A quality chip counts the SERVABLE pool, so it clears any status chip
+            (and a status chip clears it): the count is always the rows listed. */}
         {(['best', 'good', 'parked'] as const).map((q) => (
           <FilterChip
             key={q}
             active={filters.qualityBand === q}
             count={quality[q]}
-            href={buildQuery(params, { quality: filters.qualityBand === q ? undefined : q })}
+            href={buildQuery(params, { quality: filters.qualityBand === q ? undefined : q, status: undefined })}
             title={
               q === 'parked'
                 ? 'Dead numbers, retired NPIs, closed or parked sites — not served to any queue'
@@ -285,10 +287,10 @@ export default async function ProspectingPage({
         <FilterChip active={filters.hasWebsite === false} href={buildQuery(params, { web: filters.hasWebsite === false ? undefined : 'no' })} title="Clinics with no website at all — the hottest segment">
           🌐✕ No website
         </FilterChip>
-        <FilterChip active={filters.status === 'call_list'} href={buildQuery(params, { status: filters.status === 'call_list' ? undefined : 'call_list' })}>
+        <FilterChip active={filters.status === 'call_list'} href={buildQuery(params, { status: filters.status === 'call_list' ? undefined : 'call_list', quality: undefined })}>
           📞 Call list
         </FilterChip>
-        <FilterChip active={filters.status === 'converted'} href={buildQuery(params, { status: filters.status === 'converted' ? undefined : 'converted' })}>
+        <FilterChip active={filters.status === 'converted'} href={buildQuery(params, { status: filters.status === 'converted' ? undefined : 'converted', quality: undefined })}>
           Converted
         </FilterChip>
         {activeStates.length > 1 && (

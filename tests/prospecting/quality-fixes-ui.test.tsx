@@ -112,7 +112,7 @@ describe('C11 — the refused-dial copy names a door that exists', () => {
   })
 })
 
-describe('C12 — the floor slider never disables itself mid-adjust', () => {
+describe('C12 — the floor slider never disables itself mid-adjust, and saves are serialized', () => {
   const quality = { best: 1, good: 2, weak: 3, parked: 4, unverified: 5, bestInQueue: 1, scoreBuckets: Array.from({ length: 21 }, () => 0) }
 
   it('stays enabled while the save is pending, keeps taking input, and says "Saving"', async () => {
@@ -128,10 +128,49 @@ describe('C12 — the floor slider never disables itself mid-adjust', () => {
     fireEvent.change(slider, { target: { value: '70' } })
     expect(slider.value).toBe('70')
     expect(slider.disabled).toBe(false)
-    // Release the held saves so nothing stays pending after this test.
+    // The second value waits behind the first: ONE save in flight.
+    await new Promise((r) => setTimeout(r, 600))
+    expect(floorMock).toHaveBeenCalledTimes(1)
+    floorSaves.splice(0).forEach((release) => release({ ok: true, floor: 65 }))
     await waitFor(() => expect(floorMock).toHaveBeenCalledWith(70), { timeout: 2000 })
     for (const release of floorSaves.splice(0)) release({ ok: true, floor: 70 })
     await waitFor(() => expect(screen.getByText('Saved ✓')).toBeTruthy())
+  })
+
+  it('an older value can never land after a newer one: the queued value is the LATEST, sent only once the in-flight save settles, and "Saved ✓" means the value on the slider', async () => {
+    render(<QualityFloor floor={60} quality={quality} />)
+    const slider = screen.getByRole('slider') as HTMLInputElement
+    // ArrowRight 60→65: save A fires after the debounce.
+    fireEvent.change(slider, { target: { value: '65' } })
+    await waitFor(() => expect(floorMock).toHaveBeenCalledWith(65), { timeout: 2000 })
+    // Two more steps while A is in flight: 70 is overtaken by 75 before
+    // anything is sent — 70 is never sent at all.
+    fireEvent.change(slider, { target: { value: '70' } })
+    await new Promise((r) => setTimeout(r, 500))
+    fireEvent.change(slider, { target: { value: '75' } })
+    await new Promise((r) => setTimeout(r, 600))
+    expect(floorMock).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('Saving')).toBeTruthy()
+    // A settles (with 65): only now does the latest value go out.
+    floorSaves.splice(0).forEach((release) => release({ ok: true, floor: 65 }))
+    await waitFor(() => expect(floorMock).toHaveBeenCalledTimes(2), { timeout: 2000 })
+    expect(floorMock.mock.calls.map((c) => c[0])).toEqual([65, 75])
+    // Between the two saves the note is honest: not "Saved ✓" for 75.
+    expect(screen.queryByText('Saved ✓')).toBeNull()
+    floorSaves.splice(0).forEach((release) => release({ ok: true, floor: 75 }))
+    await waitFor(() => expect(screen.getByText('Saved ✓')).toBeTruthy())
+    expect(slider.value).toBe('75')
+  })
+
+  it('the counts beside the slider say what is SERVED: at or above the floor, below it, and the parked rows that are never served', () => {
+    const buckets = Array.from({ length: 21 }, () => 0)
+    buckets[13] = 3 // 65–69 (servable)
+    buckets[17] = 2 // 85–89
+    render(<QualityFloor floor={70} quality={{ ...quality, parked: 9, scoreBuckets: buckets }} />)
+    const slider = screen.getByRole('slider') as HTMLInputElement
+    expect(slider.getAttribute('aria-valuetext')).toBe('70 — 2 prospects served at or above, 3 below the floor, 9 parked')
+    expect(screen.getByText('served at or above').previousSibling?.textContent ?? screen.getByText('served at or above').textContent).toContain('2')
+    expect(screen.getByText(/parked — never served/)).toHaveTextContent('9')
   })
 })
 

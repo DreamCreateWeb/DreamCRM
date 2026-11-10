@@ -15,15 +15,24 @@ import {
   type ProspectingConfig,
   type VerificationSignal,
 } from '@/lib/types/prospecting'
-import type { ProspectPhoneLineType, ProspectPhoneSource, ProspectPhoneStatus, ProspectQualityBand } from '@/lib/db/schema/prospecting'
+import type {
+  ProspectPhoneLineType,
+  ProspectPhoneSource,
+  ProspectPhoneStatus,
+  ProspectQualityBand,
+  ProspectWebsiteSource,
+} from '@/lib/db/schema/prospecting'
 import { checkSiteLiveness, type SiteLiveness } from './prospect-site-liveness'
 import { phoneValidateDriver, validatePhoneLine } from './phone-validate'
 import { reportProspectingFailure, type ProspectingFailureClass } from './engine-failures'
 import {
   bumpProspectingCounter,
+  clearSystemFollowUp,
   counterMonth,
   getProspectingConfig,
   getProspectingCounter,
+  pauseActiveEnrollments,
+  resumeVerifyPausedEnrollments,
   stopActiveEnrollments,
 } from './prospecting'
 
@@ -83,8 +92,9 @@ export type VerifiableProspect = Pick<
   | 'verification'
   | 'status'
 > &
-  /** The stored listing facts — what the score reads when no fresh lookup ran. */
-  Partial<Pick<ProspectRow, 'businessStatus' | 'reviewCount'>>
+  /** The stored listing facts — what the score reads when no fresh lookup
+   *  ran — and where the website came from (a listing's goes with the listing). */
+  Partial<Pick<ProspectRow, 'businessStatus' | 'reviewCount' | 'websiteSource'>>
 
 /** Per-run context — budgets, the once-a-run failure strikes, the
  *  crawl-blocked tally. One per cron run; the drawer action makes its own. */
@@ -152,8 +162,12 @@ export interface VerifyOutcome {
   /** The MATCHED listing only — never a blind first result. */
   place: PlaceResult | null
   match: PlaceMatch | null
-  /** The website the pass judged (the matched listing's, else the row's). */
+  /** The website the pass judged (the matched listing's, else the row's —
+   *  null once a no-match took a listing's website with it). */
   websiteUrl: string | null
+  /** Where that website came from: `places` for a matched listing's, null
+   *  once a listing's was cleared, undefined = the row's own stands. */
+  websiteSource?: ProspectWebsiteSource | null
   liveness: SiteLiveness | null
   /** What happens to the row's listing columns (place id, rating, review
    *  count, business status, maps link): `matched` writes the listing's,
@@ -162,18 +176,30 @@ export interface VerifyOutcome {
   listing: 'matched' | 'cleared' | 'kept'
 }
 
+/** Pure: did the row's website come from a Google listing? The source
+ *  column says so; a legacy row (no source) got it from the blind Places
+ *  copy exactly when it was discovered from the registry (an NPI) — the
+ *  hand-added rows (no NPI) typed theirs. */
+export function websiteCameFromPlaces(p: Pick<VerifiableProspect, 'websiteSource' | 'npiNumber'>): boolean {
+  if (p.websiteSource) return p.websiteSource === 'places'
+  return Boolean(p.npiNumber)
+}
+
 /**
  * The listing columns a verification outcome writes — ONE answer for the
  * enrich pass and the standalone verify. A no-match clears the old
  * listing's rating, review count, business status, place id and maps link
- * (they were the stranger's); a pass that could not look the listing up
- * leaves them as they are. The website is the one column with its own
- * rule: a matched listing that states one replaces it, nothing else ever
- * overwrites a website someone typed.
+ * (they were the stranger's) — and the listing's WEBSITE with them, since
+ * it was the stranger's too; a pass that could not look the listing up
+ * leaves them as they are. A matched listing that states a website
+ * replaces the row's (source: places); nothing ever overwrites a website
+ * someone typed.
  */
 export function listingColumns(
-  out: Pick<VerifyOutcome, 'place' | 'listing' | 'websiteUrl'>,
-): Partial<Pick<ProspectRow, 'googlePlaceId' | 'googleRatingTenths' | 'reviewCount' | 'businessStatus' | 'googleMapsUri' | 'websiteUrl'>> {
+  out: Pick<VerifyOutcome, 'place' | 'listing' | 'websiteUrl' | 'websiteSource'>,
+): Partial<Pick<ProspectRow, 'googlePlaceId' | 'googleRatingTenths' | 'reviewCount' | 'businessStatus' | 'googleMapsUri' | 'websiteUrl' | 'websiteSource'>> {
+  const website: Partial<Pick<ProspectRow, 'websiteUrl' | 'websiteSource'>> =
+    out.websiteSource === undefined ? { websiteUrl: out.websiteUrl } : { websiteUrl: out.websiteUrl, websiteSource: out.websiteSource }
   if (out.place) {
     return {
       googlePlaceId: out.place.placeId,
@@ -181,7 +207,7 @@ export function listingColumns(
       reviewCount: out.place.reviewCount,
       businessStatus: out.place.businessStatus,
       googleMapsUri: out.place.googleMapsUri,
-      websiteUrl: out.websiteUrl,
+      ...website,
     }
   }
   if (out.listing === 'cleared') {
@@ -191,28 +217,66 @@ export function listingColumns(
       reviewCount: null,
       businessStatus: null,
       googleMapsUri: null,
-      websiteUrl: out.websiteUrl,
+      ...website,
     }
   }
-  return { websiteUrl: out.websiteUrl }
+  return website
 }
 
 /**
- * Why a verification pass stops an active outreach sequence — the same
- * stop a logged `closed` call makes. A disqualified practice (retired NPI,
- * permanently closed) is gone; a park on a retired-practice signal
- * (temporarily closed, a dead or parked website) says the practice may be.
- * A phone verdict alone never stops the drip — the email is a different
- * door, and the toast promised "off every DIAL queue". Null = keep going.
+ * Why a verification pass STOPS an active outreach sequence for good — the
+ * same stop a logged `closed` call makes: a disqualified practice (retired
+ * NPI, permanently closed) is gone. Null = not a stop.
  */
-export function outreachStopReason(
-  patch: Pick<VerifyPatch, 'status' | 'suppressedReason' | 'verification'>,
-): string | null {
+export function outreachStopReason(patch: Pick<VerifyPatch, 'status' | 'suppressedReason'>): string | null {
   if (patch.status === 'disqualified') return `verify_${patch.suppressedReason ?? 'disqualified'}`
+  return null
+}
+
+/**
+ * Why a verification pass PAUSES an active outreach sequence — a park on a
+ * reversible retired-practice signal (temporarily closed, a dead or parked
+ * website). A 503 at sweep time is not the end of a drip: the park is
+ * re-checked in PARKED_RECHECK_DAYS, and the pass that finds the site back
+ * resumes the sequence. A phone verdict alone never touches the drip — the
+ * email is a different door. Null = not a pause.
+ */
+export function outreachPauseReason(patch: Pick<VerifyPatch, 'verification'>): string | null {
   const v = patch.verification
   if (v.business?.status === 'temporarily_closed') return 'verify_temporarily_closed'
   if (v.website?.status === 'dead' || v.website?.status === 'parked') return `verify_site_${v.website.status}`
   return null
+}
+
+/**
+ * THE ONE HOLD a verification outcome puts on a prospect's outreach — the
+ * standalone verify, the sweep and the enrich pass all call it:
+ *   stop    gone for good (disqualified) — the drip stops, as a closed call does
+ *   pause   a reversible park — the drip pauses with the reason
+ *   resume  no park any more — a drip this pass paused earlier resumes
+ * A stop or a pause also clears the SYSTEM-scheduled follow-up (a no-answer
+ * or voicemail nudge), so the follow-up bucket never dials a parked
+ * practice; a callback a human promised is kept.
+ */
+export async function applyOutreachHold(
+  prospectId: string,
+  patch: Pick<VerifyPatch, 'status' | 'suppressedReason' | 'verification'>,
+  now: Date,
+): Promise<'stop' | 'pause' | 'resume'> {
+  const stop = outreachStopReason(patch)
+  if (stop) {
+    await stopActiveEnrollments(prospectId, stop, now)
+    await clearSystemFollowUp(prospectId, now)
+    return 'stop'
+  }
+  const pause = outreachPauseReason(patch)
+  if (pause) {
+    await pauseActiveEnrollments(prospectId, pause, now)
+    await clearSystemFollowUp(prospectId, now)
+    return 'pause'
+  }
+  await resumeVerifyPausedEnrollments(prospectId, now)
+  return 'resume'
 }
 
 function sig(status: string, detail: string | null, source: string, now: Date): VerificationSignal {
@@ -384,9 +448,22 @@ export async function verifyProspectSignals(
   const reviewCount = place ? place.reviewCount : listing === 'cleared' ? null : (p.reviewCount ?? null)
 
   // ── Website liveness ─────────────────────────────────────────────────────
-  // A matched listing that states a website replaces the row's; nothing
-  // else ever overwrites a website someone typed.
-  const websiteUrl = place?.websiteUri ?? p.websiteUrl ?? null
+  // A matched listing that states a website replaces the row's (source:
+  // places). A listing Google no longer stands behind takes ITS website
+  // with it — the stranger's site is neither probed, credited nor shown.
+  // Nothing ever overwrites a website someone typed.
+  let websiteUrl: string | null
+  let websiteSource: ProspectWebsiteSource | null | undefined
+  if (place?.websiteUri) {
+    websiteUrl = place.websiteUri
+    websiteSource = 'places'
+  } else if (listing === 'cleared' && p.websiteUrl && websiteCameFromPlaces(p)) {
+    websiteUrl = null
+    websiteSource = null
+  } else {
+    websiteUrl = p.websiteUrl ?? null
+    websiteSource = undefined
+  }
   let liveness: SiteLiveness | null = null
   if (!websiteUrl) {
     v.website =
@@ -496,7 +573,7 @@ export async function verifyProspectSignals(
   patch.qualityBand = q.band
   patch.qualityReasons = q.reasons
 
-  return { patch, place, match, websiteUrl, liveness, listing }
+  return { patch, place, match, websiteUrl, websiteSource, liveness, listing }
 }
 
 /** The crawl-blocked strike: a run whose every liveness check died at the
@@ -556,10 +633,9 @@ export async function verifyProspect(
 
   const out = await verifyProspectSignals(p, places, ctx)
   await writePatch(p.id, out.patch, listingColumns(out))
-  // A practice the pass set aside leaves the drip too — the same stop a
-  // logged "closed" call makes.
-  const stop = outreachStopReason(out.patch)
-  if (stop) await stopActiveEnrollments(p.id, stop, ctx.now)
+  // The hold on its outreach: gone stops the drip (as a logged "closed"
+  // call does), a reversible park pauses it, a recovered signal resumes it.
+  await applyOutreachHold(p.id, out.patch, ctx.now)
   if (!opts.ctx) await closeVerifyRun(ctx)
   return { ok: true, qualityScore: out.patch.qualityScore, qualityBand: out.patch.qualityBand, placesLookedUp }
 }

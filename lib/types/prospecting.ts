@@ -564,8 +564,10 @@ export interface ProspectListRow {
 
 /** Live-pool quality counts for the hunt tiles, the table chips and the
  *  floor slider. `unverified` = enriched but never verified (the sweep is
- *  still getting to them). `scoreBuckets[i]` counts live prospects whose
- *  quality_score sits in [5i, 5i+5) (the last bucket holds 100). */
+ *  still getting to them). `scoreBuckets[i]` counts the live prospects a
+ *  floor COULD serve (never a parked band, never a hard zero — the floor
+ *  predicate's own legs) whose quality_score sits in [5i, 5i+5) (the last
+ *  bucket holds 100); the parked rows are `parked`, never in a bucket. */
 export interface ProspectQualityCounts {
   best: number
   good: number

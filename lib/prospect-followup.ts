@@ -12,6 +12,21 @@ const FOLLOWUP_CADENCE: Record<string, { days: number; reason: string }> = {
   gatekeeper: { days: 3, reason: 'Reached the desk — try for the decision maker' },
 }
 
+/**
+ * The follow-ups the SYSTEM schedules (a no-answer, a voicemail, a desk
+ * reached) — the ones a retired-practice park clears so the follow-up
+ * bucket never dials a parked practice. A callback a human promised is
+ * not on this list: a person said "call me", and a person keeps it.
+ */
+export const SYSTEM_FOLLOWUP_REASONS: readonly string[] = ['voicemail', 'no_answer', 'gatekeeper'].map(
+  (k) => FOLLOWUP_CADENCE[k].reason,
+)
+
+/** Pure: did a human promise this follow-up (a callback they asked for)? */
+export function isHumanPromisedFollowUp(reason: string | null | undefined): boolean {
+  return Boolean(reason) && !SYSTEM_FOLLOWUP_REASONS.includes(reason as string)
+}
+
 export interface FollowUpPlan {
   /** When to nudge next; null clears any pending follow-up (terminal outcome). */
   at: Date | null

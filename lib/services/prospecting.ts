@@ -27,7 +27,7 @@ import { computeQualityScore } from '@/lib/prospect-quality'
 import { nanpDigits, validateNanp } from '@/lib/phone-nanp'
 import { SEGMENT_LABELS, type OutreachSegment } from '@/lib/types/prospecting'
 import { stateZip3Prefixes, stateTimeZone } from '@/lib/types/us-geo'
-import { followUpForOutcome } from '@/lib/prospect-followup'
+import { SYSTEM_FOLLOWUP_REASONS, followUpForOutcome } from '@/lib/prospect-followup'
 import { domainMatchesWebsite, isDisposableDomain, isFreeProvider, parseEmail } from '@/lib/prospect-email'
 import { lossReasonForSuppression } from '@/lib/prospect-learnings'
 import { relativeDayTime, callWindowScore, communicatedNextStep, type CallWindow } from '@/lib/prospect-when'
@@ -90,6 +90,8 @@ export async function addManualProspect(input: {
     // Prospect-facing times (demo confirmation, reminders) render in this tz.
     timezone: stateTimeZone(state),
     websiteUrl,
+    // Typed by a human — no listing ever clears it.
+    websiteSource: websiteUrl ? 'manual' : null,
     status: 'call_list',
     scoreBand: 'warm',
     intentSignal: 'demo_request',
@@ -143,6 +145,8 @@ export async function addGraderProspect(input: {
     state,
     timezone: stateTimeZone(state),
     websiteUrl,
+    // The practice typed its own site — no listing ever clears it.
+    websiteSource: websiteUrl ? 'manual' : null,
     status: 'call_list',
     scoreBand: 'warm',
     intentSignal: intent.signal,
@@ -170,9 +174,15 @@ export async function findExistingProspect(input: {
     city: schema.prospect.city,
     status: schema.prospect.status,
   }
-  const phone = input.phone ? input.phone.replace(/\D/g, '') : ''
+  // The same NANP ten digits the writers store (a typed "+1 (404) 555-1212"
+  // is '4045551212' on the row) — and the eleven a legacy row still carries.
+  const phone = nanpDigits(input.phone)
   if (phone.length >= 7) {
-    const [byPhone] = await db.select(cols).from(schema.prospect).where(eq(schema.prospect.phone, phone)).limit(1)
+    const [byPhone] = await db
+      .select(cols)
+      .from(schema.prospect)
+      .where(phone.length === 10 ? inArray(schema.prospect.phone, [phone, `1${phone}`]) : eq(schema.prospect.phone, phone))
+      .limit(1)
     if (byPhone) return byPhone
   }
   const name = input.name.trim().toLowerCase()
@@ -684,8 +694,11 @@ export async function listProspects(
     // A quality band only means something for the pool the floor applies
     // to — the same statuses getQualityCounts tallies, so a chip's count is
     // the rows it filters to (a disqualified row's "parked" is just gone).
+    // With an explicit status the band filters WITHIN that status instead:
+    // "converted + best" lists the converted practices whose band is best,
+    // never an always-empty page.
     conds.push(eq(schema.prospect.qualityBand, filters.qualityBand))
-    conds.push(inArray(schema.prospect.status, [...SERVABLE_STATUSES]))
+    if (!filters.status) conds.push(inArray(schema.prospect.status, [...SERVABLE_STATUSES]))
   }
   if (filters.hasWebsite === true) conds.push(isNotNull(schema.prospect.websiteUrl))
   if (filters.hasWebsite === false) conds.push(isNull(schema.prospect.websiteUrl))
@@ -797,14 +810,18 @@ export async function getQualityCounts(): Promise<ProspectQualityCounts> {
     .select({ n: sql<number>`count(*)::int` })
     .from(schema.prospect)
     .where(and(live, eq(schema.prospect.qualityBand, 'best'), isNotNull(schema.prospect.phone), phoneOk()))
+  // The histogram counts only rows a floor COULD serve — the same two legs
+  // the floor predicate carries beyond "≥ floor" (never a parked band, never
+  // a hard zero) — so the slider's "N at or above" is exactly what
+  // servableAboveFloor(N) serves; the parked rows are their own count.
   const scoreRows = await db
     .select({ score: schema.prospect.qualityScore, n: sql<number>`count(*)::int` })
     .from(schema.prospect)
-    .where(and(live, isNotNull(schema.prospect.qualityScore)))
+    .where(and(live, isNotNull(schema.prospect.qualityScore), gt(schema.prospect.qualityScore, 0), ne(schema.prospect.qualityBand, 'parked')))
     .groupBy(schema.prospect.qualityScore)
   const scoreBuckets = Array.from({ length: 21 }, () => 0)
   for (const r of scoreRows) {
-    if (r.score == null) continue
+    if (r.score == null || r.score <= 0) continue
     const i = Math.max(0, Math.min(20, Math.floor(r.score / 5)))
     scoreBuckets[i] += r.n
   }
@@ -1752,6 +1769,70 @@ export async function stopActiveEnrollments(prospectId: string, stopReason: stri
     )
 }
 
+/** The reasons a verification pass pauses a drip with — the prefix the
+ *  resume reads, so an out-of-office pause is never mistaken for ours. */
+export const VERIFY_PAUSE_PREFIX = 'verify_'
+
+/**
+ * THE ONE PAUSE for a prospect's live outreach on a REVERSIBLE park
+ * (temporarily closed, a dead or parked website): the enrollment keeps its
+ * step and rides the existing pause mechanism (`paused_ooo`, the status
+ * every live-enrollment read already honours) with `stop_reason` carrying
+ * WHY — and no `next_send_at`, so the out-of-office auto-resume never
+ * wakes it; only a verify pass that finds the signal recovered does
+ * (resumeVerifyPausedEnrollments). Idempotent.
+ */
+export async function pauseActiveEnrollments(prospectId: string, reason: string, now = new Date()): Promise<void> {
+  const pauseReason = reason.startsWith(VERIFY_PAUSE_PREFIX) ? reason : `${VERIFY_PAUSE_PREFIX}${reason}`
+  await db
+    .update(schema.outreachEnrollment)
+    .set({ status: 'paused_ooo', nextSendAt: null, stoppedAt: now, stopReason: pauseReason })
+    .where(
+      and(
+        eq(schema.outreachEnrollment.prospectId, prospectId),
+        inArray(schema.outreachEnrollment.status, ['active', 'paused_ooo']),
+      ),
+    )
+}
+
+/**
+ * The other direction: a verify pass that no longer sees a park RESUMES
+ * the enrollment this pass paused (and only that one — an out-of-office
+ * pause keeps its own clock). The next touch goes out on the next outreach
+ * run. Idempotent: nothing paused by us, nothing changes.
+ */
+export async function resumeVerifyPausedEnrollments(prospectId: string, now = new Date()): Promise<void> {
+  await db
+    .update(schema.outreachEnrollment)
+    .set({ status: 'active', nextSendAt: now, stoppedAt: null, stopReason: null })
+    .where(
+      and(
+        eq(schema.outreachEnrollment.prospectId, prospectId),
+        eq(schema.outreachEnrollment.status, 'paused_ooo'),
+        ilike(schema.outreachEnrollment.stopReason, `${VERIFY_PAUSE_PREFIX}%`),
+      ),
+    )
+}
+
+/**
+ * A park on a retired-practice signal clears the SYSTEM-scheduled
+ * follow-up (a no-answer / voicemail / desk-reached nudge), so the
+ * follow-up bucket and the briefing never dial a parked practice. A
+ * callback a human promised is kept — a person said "call me". Idempotent.
+ */
+export async function clearSystemFollowUp(prospectId: string, now = new Date()): Promise<void> {
+  await db
+    .update(schema.prospect)
+    .set({ nextFollowUpAt: null, followUpReason: null, updatedAt: now })
+    .where(
+      and(
+        eq(schema.prospect.id, prospectId),
+        isNotNull(schema.prospect.nextFollowUpAt),
+        inArray(schema.prospect.followUpReason, [...SYSTEM_FOLLOWUP_REASONS]),
+      ),
+    )
+}
+
 /**
  * The verification half of a logged call (P-01). Reads the row, applies
  * what the caller heard to the stored signals, recomputes the quality
@@ -1908,6 +1989,15 @@ export async function updateProspectPhone(
     patch.qualityScore = q.score
     patch.qualityBand = q.band
     patch.qualityReasons = q.reasons
+  } else if (row.status !== 'disqualified') {
+    // A never-verified row's only score is a caller's verdict on the OLD
+    // number (the honest zero applyCallerFeedback wrote). That verdict is
+    // gone with the number: the row reads "not verified yet" again — never
+    // "Parked · 0 — number disconnected" beside a number that rings, and
+    // never a score invented from signals the pass has not read.
+    patch.qualityScore = null
+    patch.qualityBand = null
+    patch.qualityReasons = null
   }
   await db.update(schema.prospect).set(patch).where(eq(schema.prospect.id, prospectId))
   return { ok: true, phone: digits }
@@ -2032,7 +2122,9 @@ export async function isKnownContact(input: {
 }): Promise<boolean> {
   const email = input.email?.toLowerCase().trim() || null
   const domain = input.websiteDomain?.toLowerCase().replace(/^www\./, '') || null
-  const phone = input.phone?.replace(/\D/g, '') || null
+  // NANP ten digits, exactly as the prospect writers store a number — and a
+  // clinic profile's "+1 …" is read the same way below.
+  const phone = nanpDigits(input.phone) || null
 
   if (email) {
     const [sup] = await db
@@ -2074,7 +2166,11 @@ export async function isKnownContact(input: {
     const [clinic] = await db
       .select({ organizationId: schema.clinicProfile.organizationId })
       .from(schema.clinicProfile)
-      .where(sql`regexp_replace(coalesce(${schema.clinicProfile.phone}, ''), '\\D', '', 'g') = ${phone}`)
+      .where(
+        // The profile's digits, with a leading country code dropped from an
+        // eleven-digit "+1 …" — the same ten the prospect side carries.
+        sql`regexp_replace(regexp_replace(coalesce(${schema.clinicProfile.phone}, ''), '\\D', '', 'g'), '^1(\\d{10})$', '\\1') = ${phone}::text`,
+      )
       .limit(1)
     if (clinic) return true
   }

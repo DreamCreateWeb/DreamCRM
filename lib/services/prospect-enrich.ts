@@ -8,23 +8,29 @@ import { extractCrawlSignals, extractSiteEmails, findContactPath, findTeamPaths 
 import { detectVendors, type DetectedVendor } from '@/lib/prospect-vendors'
 import { computeOpportunityScore, heuristicVerdict } from '@/lib/prospect-scoring'
 import { syncProspectContacts } from './prospect-contacts'
-import { CRAWL_UA, robotsAllows } from './prospect-crawl-policy'
+import { robotsAllows } from './prospect-crawl-policy'
 import {
+  applyOutreachHold,
   closeVerifyRun,
   listingColumns,
   newVerifyRunCtx,
-  outreachStopReason,
   verifyProspectSignals,
   type VerifyRunCtx,
 } from './prospect-verify'
-import { readBodyCapped } from './prospect-site-liveness'
+import {
+  MAX_REDIRECTS,
+  fetchGuarded,
+  guardedSession,
+  readBodyCapped,
+  type GuardedFetchDeps,
+  type GuardedSession,
+} from './prospect-site-liveness'
 import type { ProspectAiVerdict, ProspectCrawlSignals } from '@/lib/types/prospecting'
 import {
   getProspectingConfig,
   bumpProspectingCounter,
   getProspectingCounter,
   counterMonth,
-  stopActiveEnrollments,
 } from './prospecting'
 
 /**
@@ -45,27 +51,52 @@ const CRAWL_MAX_BYTES = 1_000_000
 
 // ── Crawl ───────────────────────────────────────────────────────────────────
 
-async function fetchPage(url: string): Promise<{ html: string; finalUrl: string; bytes: number } | null> {
-  const res = await fetch(url, {
-    headers: { 'user-agent': CRAWL_UA, accept: 'text/html' },
-    redirect: 'follow',
-    signal: AbortSignal.timeout(CRAWL_TIMEOUT_MS),
+/**
+ * One page through THE ONE GUARDED FETCH (prospect-site-liveness): every
+ * target and every redirect hop is resolved and judged before it is
+ * fetched (a private address, a non-standard port, a non-web scheme stop
+ * the walk), the connect is bound to the judged addresses, nothing of a
+ * redirect's body is read, and the body is streamed and cut at the byte
+ * cap — never the whole body in memory first. Null = unreachable / refused.
+ */
+async function fetchPage(
+  session: GuardedSession,
+  url: string,
+): Promise<{ html: string; finalUrl: string; bytes: number } | null> {
+  const r = await fetchGuarded(session, new URL(url), {
+    method: 'GET',
+    timeoutMs: CRAWL_TIMEOUT_MS,
+    maxRedirects: MAX_REDIRECTS,
   })
-  if (!res.ok) return null
-  // Streamed and cut at the byte cap — never the whole body in memory first.
-  const html = await readBodyCapped(res, CRAWL_MAX_BYTES)
-  return { html, finalUrl: res.url || url, bytes: html.length }
+  if (r.kind !== 'ok') return null
+  if (!r.res.ok) {
+    try {
+      await r.res.body?.cancel?.()
+    } catch {
+      /* nothing to drain */
+    }
+    return null
+  }
+  const html = await readBodyCapped(r.res, CRAWL_MAX_BYTES)
+  return { html, finalUrl: r.url.toString(), bytes: html.length }
 }
 
 /**
  * Crawl a prospect's site: homepage signals + (when the homepage has no
  * mailto) one contact-page hop for email discovery. Null = unreachable.
+ * The crawler is not a proxy either: it rides the probe's guarded session
+ * (`deps` inject the network edges for the tests).
  */
-export async function crawlProspectSite(url: string): Promise<ProspectCrawlSignals | null> {
+export async function crawlProspectSite(url: string, deps: GuardedFetchDeps = {}): Promise<ProspectCrawlSignals | null> {
+  let session: GuardedSession | null = null
   try {
     const normalized = /^https?:\/\//i.test(url) ? url : `https://${url}`
-    const origin = new URL(normalized).origin
-    if (!(await robotsAllows(origin))) {
+    const base = new URL(normalized)
+    const origin = base.origin
+    session = guardedSession(base, deps)
+    // robots.txt through the same guarded fetch: judged, pinned, never
+    // followed, read through the capped stream.
+    if (!(await robotsAllows(origin, session.fetch))) {
       return {
         ssl: normalized.startsWith('https://'),
         mobileViewport: false,
@@ -81,7 +112,7 @@ export async function crawlProspectSite(url: string): Promise<ProspectCrawlSigna
         error: 'robots_disallow',
       }
     }
-    const page = await fetchPage(normalized)
+    const page = await fetchPage(session, normalized)
     if (!page) return null
     const signals = extractCrawlSignals({ ...page, fetchedAt: new Date() })
 
@@ -103,7 +134,7 @@ export async function crawlProspectSite(url: string): Promise<ProspectCrawlSigna
     for (const path of hops.slice(0, 3)) {
       if (emails.size >= 6 && vendorByName.size >= 4) break
       try {
-        const sub = await fetchPage(`${pageOrigin}${path}`)
+        const sub = await fetchPage(session, `${pageOrigin}${path}`)
         if (sub) {
           for (const e of extractSiteEmails(sub.html)) emails.add(e)
           for (const v of detectVendors(sub.html)) vendorByName.set(v.name, v)
@@ -118,6 +149,8 @@ export async function crawlProspectSite(url: string): Promise<ProspectCrawlSigna
   } catch (err) {
     console.warn('[prospect-enrich] crawl failed', url, err instanceof Error ? err.message : err)
     return null
+  } finally {
+    session?.close()
   }
 }
 
@@ -274,7 +307,7 @@ async function enrichOneProspect(
         .where(eq(schema.prospect.id, p.id))
       // A practice that is gone leaves the drip too (a re-enrich can land
       // here on a row a human enrolled).
-      await stopActiveEnrollments(p.id, outreachStopReason(verified.patch) ?? 'verify_disqualified')
+      await applyOutreachHold(p.id, verified.patch, verifyCtx.now)
       out.disqualified++
       return
     }
@@ -284,12 +317,16 @@ async function enrichOneProspect(
 
     // 2) Crawl (budget-gated; skipped = heuristic verdict still works). A
     //    dead or parked site is not crawled — there is nothing to read and
-    //    the quality score already parks the record.
+    //    the quality score already parks the record. A URL the probe
+    //    REFUSED on policy (a private address, an odd port, a redirect into
+    //    one) is never handed to the crawler either — whatever the stored
+    //    signal says.
     let signals: ProspectCrawlSignals | null = null
     if (
       websiteUrl &&
       websiteStatus !== 'dead' &&
       websiteStatus !== 'parked' &&
+      verified.liveness?.cause !== 'policy' &&
       budget.crawlsUsed < budget.budgets.crawlsPerMonth
     ) {
       signals = await crawlProspectSite(websiteUrl)
@@ -354,10 +391,10 @@ async function enrichOneProspect(
       })
       .where(eq(schema.prospect.id, p.id))
 
-    // A retired-practice signal (temporarily closed, a dead or parked site)
-    // stops a live drip the way a logged "closed" call does.
-    const stop = outreachStopReason(verified.patch)
-    if (stop) await stopActiveEnrollments(p.id, stop)
+    // The hold on its outreach: a reversible retired-practice signal
+    // (temporarily closed, a dead or parked site) PAUSES a live drip; a
+    // pass that finds the signal recovered resumes it.
+    await applyOutreachHold(p.id, verified.patch, verifyCtx.now)
 
     // Reachability: classify + MX-verify + rank every discovered address into
     // prospect_contact, and point prospect.email at the best deliverable one

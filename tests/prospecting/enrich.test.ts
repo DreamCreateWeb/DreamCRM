@@ -86,15 +86,21 @@ const { verifyMock } = vi.hoisted(() => ({
   }),
 }))
 vi.mock('@/lib/services/prospect-verify', async (importOriginal) => ({
-  // listingColumns + outreachStopReason are the real (pure) ones — the
-  // enrich write and the drip stop ride them.
+  // listingColumns + applyOutreachHold are the real (pure / thin) ones —
+  // the enrich write and the drip hold ride them.
   ...(await importOriginal<typeof import('@/lib/services/prospect-verify')>()),
   verifyProspectSignals: verifyMock,
-  newVerifyRunCtx: vi.fn(async () => ({})),
+  newVerifyRunCtx: vi.fn(async () => ({ now: new Date('2026-07-07T00:00:00Z') })),
   closeVerifyRun: vi.fn(async () => {}),
 }))
+// The crawler rides the guarded session: every host is resolved and judged
+// before it is fetched. A public answer for every name, so no test touches DNS.
+vi.mock('node:dns/promises', () => {
+  const lookup = async () => [{ address: '93.184.216.34', family: 4 }]
+  return { default: { lookup }, lookup }
+})
 
-const { configMock, counterMock, bumpMock, placeMock, placesConfiguredMock, aiMock, aiConfiguredMock, fetchMock, stopMock } =
+const { configMock, counterMock, bumpMock, placeMock, placesConfiguredMock, aiMock, aiConfiguredMock, fetchMock, stopMock, pauseMock, resumeMock, clearFollowUpMock } =
   vi.hoisted(() => ({
     configMock: vi.fn(),
     counterMock: vi.fn(async () => 0),
@@ -106,7 +112,10 @@ const { configMock, counterMock, bumpMock, placeMock, placesConfiguredMock, aiMo
     aiMock: vi.fn(),
     aiConfiguredMock: vi.fn(() => true),
     fetchMock: vi.fn(),
-    stopMock: vi.fn(async (_id: string, _reason: string) => {}),
+    stopMock: vi.fn(async (_id: string, _reason: string, _now?: Date) => {}),
+    pauseMock: vi.fn(async (_id: string, _reason: string, _now?: Date) => {}),
+    resumeMock: vi.fn(async (_id: string, _now?: Date) => {}),
+    clearFollowUpMock: vi.fn(async (_id: string, _now?: Date) => {}),
   }))
 
 vi.mock('@/lib/services/prospecting', () => ({
@@ -115,6 +124,9 @@ vi.mock('@/lib/services/prospecting', () => ({
   bumpProspectingCounter: bumpMock,
   counterMonth: () => '2026-07',
   stopActiveEnrollments: stopMock,
+  pauseActiveEnrollments: pauseMock,
+  resumeVerifyPausedEnrollments: resumeMock,
+  clearSystemFollowUp: clearFollowUpMock,
 }))
 vi.mock('@/lib/google-places', () => ({
   findDentalPlaceCandidates: placeMock,
@@ -127,6 +139,8 @@ vi.mock('@/lib/ai', () => ({
 
 import { runEnrichment, reEnrichProspect } from '@/lib/services/prospect-enrich'
 import { PROSPECTING_DEFAULTS } from '@/lib/types/prospecting'
+
+const NOW = new Date('2026-07-07T00:00:00Z')
 
 const LIVE = { ...PROSPECTING_DEFAULTS, killSwitch: false, enabledStates: ['GA'] }
 
@@ -352,35 +366,67 @@ describe('P-01 fixes: the listing columns + the drip stop ride the verify outcom
     phoneValidatedAt: null,
   }
 
-  it('a permanently closed practice stops its active enrollment (C7)', async () => {
+  it('a permanently closed practice STOPS its active enrollment and clears the system follow-up (C7)', async () => {
     stopMock.mockClear()
     state.selectQueue.push([PROSPECT])
     placeMock.mockResolvedValue(found({ ...PLACE, businessStatus: 'CLOSED_PERMANENTLY' }))
     await runEnrichment()
-    expect(stopMock).toHaveBeenCalledWith('pros_1', 'verify_closed')
+    expect(stopMock).toHaveBeenCalledWith('pros_1', 'verify_closed', NOW)
+    expect(clearFollowUpMock).toHaveBeenCalledWith('pros_1', NOW)
+    expect(pauseMock).not.toHaveBeenCalled()
   })
 
-  it('a dead website parks the record AND stops the drip; a healthy pass stops nothing', async () => {
+  it('a dead website parks the record AND PAUSES the drip (never a permanent stop); a healthy pass resumes', async () => {
     stopMock.mockClear()
     state.selectQueue.push([PROSPECT])
     placeMock.mockResolvedValue(found(PLACE))
     verifyMock.mockImplementationOnce(async () => ({
       patch: {
         ...basePatch,
-        verification: { website: { status: 'dead', detail: 'smiledental.com no longer resolves (DNS)', checkedAt: '2026-07-07T00:00:00.000Z', source: 'crawl' } },
+        verification: { website: { status: 'dead', detail: 'smiledental.com answers with a server error (503)', checkedAt: '2026-07-07T00:00:00.000Z', source: 'crawl' } },
         qualityScore: 0,
         qualityBand: 'parked',
       },
       place: PLACE, match: null, websiteUrl: PLACE.websiteUri, liveness: null, listing: 'matched',
     }))
     await runEnrichment()
-    expect(stopMock).toHaveBeenCalledWith('pros_1', 'verify_site_dead')
+    expect(pauseMock).toHaveBeenCalledWith('pros_1', 'verify_site_dead', NOW)
+    expect(clearFollowUpMock).toHaveBeenCalledWith('pros_1', NOW)
+    expect(stopMock).not.toHaveBeenCalled()
 
     stopMock.mockClear()
+    pauseMock.mockClear()
+    resumeMock.mockClear()
+    clearFollowUpMock.mockClear()
     state.selectQueue.push([PROSPECT])
     mockPageFetches()
     await runEnrichment()
     expect(stopMock).not.toHaveBeenCalled()
+    expect(pauseMock).not.toHaveBeenCalled()
+    expect(clearFollowUpMock).not.toHaveBeenCalled()
+    expect(resumeMock).toHaveBeenCalledWith('pros_1', NOW)
+  })
+
+  it('a URL the probe refused on policy is never handed to the crawler, whatever the stored signal says (C13)', async () => {
+    state.selectQueue.push([PROSPECT])
+    const hostile = 'http://169.254.170.2/v2/credentials/'
+    placeMock.mockResolvedValue(found({ ...PLACE, websiteUri: hostile }))
+    verifyMock.mockImplementationOnce(async () => ({
+      patch: {
+        ...basePatch,
+        // The prior signal stood (a private address is "unknown", not news).
+        verification: { website: { status: 'alive', detail: 'smiledental.com is up (200)', checkedAt: '2026-07-01T00:00:00.000Z', source: 'crawl' } },
+      },
+      place: { ...PLACE, websiteUri: hostile },
+      match: null,
+      websiteUrl: hostile,
+      liveness: { status: 'unknown', detail: 'smiledental.com points at a private network address — not checked', finalUrl: null, httpStatus: null, cause: 'policy' },
+      listing: 'matched',
+    }))
+    mockPageFetches()
+    const r = await runEnrichment()
+    expect(r).toMatchObject({ enriched: 1, crawls: 0 })
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('a pass with no lookup keeps the listing columns; a no-match clears them (C1/C4)', async () => {

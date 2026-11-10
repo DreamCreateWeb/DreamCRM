@@ -239,12 +239,37 @@ describe('the right number, from the drawer (C11)', () => {
     expect(prospectUpdates()).toHaveLength(0)
   })
 
-  it('a never-verified row takes the number but no invented score', async () => {
-    state.selectQueue.push([{ ...VERIFIED_ROW, verification: null, verifiedAt: null }])
+  it('a never-verified row takes the number and sheds the caller’s hard zero on the OLD number — "not verified yet" again, never an invented score (C11)', async () => {
+    // The hand-raiser: addManualProspect (status call_list, verifiedAt null)
+    // → dialed from the queue → 'disconnected' logged → 0 / parked / the
+    // disconnected reason written → the owner types the right number.
+    state.selectQueue.push([
+      {
+        ...VERIFIED_ROW,
+        status: 'call_list',
+        verifiedAt: null,
+        verification: { phone: { status: 'disconnected', detail: 'Number disconnected on 2026-11-09 (heard on a call)', checkedAt: '2026-11-09T00:00:00.000Z', source: 'caller' } },
+        phoneStatus: 'disconnected',
+        qualityScore: 0,
+        qualityBand: 'parked',
+        qualityReasons: ['Number disconnected on 2026-11-09 (heard on a call)'],
+      },
+    ])
     const r = await updateProspectPhone('pros_1', '4045559999')
     expect(r).toEqual({ ok: true, phone: '4045559999' })
     const w = prospectUpdates().at(-1)!.values
-    expect(w).toMatchObject({ phone: '4045559999', phoneSource: 'caller' })
+    expect(w).toMatchObject({ phone: '4045559999', phoneSource: 'caller', phoneStatus: 'unknown', phoneLineType: null })
+    expect((w.verification as { phone: { status: string; source: string } }).phone).toMatchObject({ status: 'well_formed', source: 'caller' })
+    // The stale verdict's zero and reason are gone with the number.
+    expect(w).toMatchObject({ qualityScore: null, qualityBand: null, qualityReasons: null })
+  })
+
+  it('a never-verified row a call CLOSED keeps its disqualification — a new number does not resurrect a retired practice', async () => {
+    state.selectQueue.push([{ ...VERIFIED_ROW, status: 'disqualified', verifiedAt: null, verification: null, qualityScore: 0, qualityBand: 'parked' }])
+    await updateProspectPhone('pros_1', '4045559999')
+    const w = prospectUpdates().at(-1)!.values
+    expect(w).toMatchObject({ phone: '4045559999' })
     expect(w).not.toHaveProperty('qualityScore')
+    expect(w).not.toHaveProperty('qualityBand')
   })
 })

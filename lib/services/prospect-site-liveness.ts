@@ -1,7 +1,11 @@
 import 'server-only'
 import { lookup as dnsLookup } from 'node:dns/promises'
 import { isIP } from 'node:net'
-import { CRAWL_UA, robotsAllows } from './prospect-crawl-policy'
+import { BODY_LIMIT, CRAWL_UA, readBodyCapped, robotsAllows } from './prospect-crawl-policy'
+
+// The capped reader + its limit moved to the crawl policy (robots.txt rides
+// it too); re-exported so every existing import keeps working.
+export { BODY_LIMIT, readBodyCapped }
 
 /**
  * Website liveness (P-01) — is the practice's site still a practice's site?
@@ -20,20 +24,32 @@ import { CRAWL_UA, robotsAllows } from './prospect-crawl-policy'
  *               most often a redirect to the registrar's own host)
  *   redirected  the final host is a different, real site — recorded, not judged
  *   unknown     we could not tell (a transient resolver error, a redirect
- *               loop, a private address) — the caller keeps the prior signal
+ *               loop, a private address) — the caller keeps the prior signal;
+ *               `cause` says which, and `policy` means NEVER crawl this URL
  *
  * Six-second timeout, DreamCreateBot UA, robots honoured as the crawler does.
  *
- * THE PROBE IS NOT A PROXY. The URL is attacker-influenceable (whoever
- * claims a Google listing sets its websiteUri; a hand-added prospect has
- * whatever was typed), so every target — the first and every redirect hop —
- * is resolved FIRST and refused when it points at a loopback, private,
- * link-local, metadata or otherwise non-public address; only ports 80/443;
- * redirects are followed by hand (capped at 5) so each hop is re-checked;
- * the body is read as a stream and cut at BODY_LIMIT bytes.
+ * THE PROBE IS NOT A PROXY — AND NEITHER IS THE CRAWLER. The URL is
+ * attacker-influenceable (whoever claims a Google listing sets its
+ * websiteUri; a hand-added prospect has whatever was typed), so both ride
+ * ONE guarded fetch (`fetchGuarded` over a `guardedSession`): every target —
+ * the first and every redirect hop — is resolved FIRST and refused when it
+ * points at a loopback, private, link-local, metadata or otherwise
+ * non-public address; only ports 80/443; redirects are walked by hand
+ * (capped at 5) so each hop is re-checked; the connection is BOUND to the
+ * addresses the policy judged (the runtime never re-resolves the name, so a
+ * rebinding DNS answer cannot swap a public address for a private one
+ * between the check and the connect); the body is read as a stream and cut
+ * at BODY_LIMIT bytes.
  */
 
 export type SiteLivenessStatus = 'alive' | 'dead' | 'parked' | 'redirected' | 'unknown'
+
+/** Why an `unknown` could not tell. `policy`: we refused to connect (a
+ *  private address, a non-standard port, a non-web scheme, or a redirect
+ *  into one) — the crawler must refuse the same URL. `resolver`: DNS could
+ *  not answer right now. `redirects`: a loop, or a Location we could not read. */
+export type SiteUnknownCause = 'policy' | 'resolver' | 'redirects'
 
 export interface SiteLiveness {
   status: SiteLivenessStatus
@@ -41,19 +57,19 @@ export interface SiteLiveness {
   detail: string
   finalUrl: string | null
   httpStatus: number | null
+  /** Set only on `unknown` — see SiteUnknownCause. */
+  cause?: SiteUnknownCause
 }
 
 const TIMEOUT_MS = 6_000
 /** The whole probe (every hop, both passes, the retries) stays inside this. */
 const PROBE_DEADLINE_MS = 30_000
-export const BODY_LIMIT = 200_000
 export const MAX_REDIRECTS = 5
 const ALLOWED_PORTS = new Set(['', '80', '443'])
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
 
-/** Registrar parking + server-default fingerprints (lowercase substrings).
- *  Matched against the final page's body AND its URL — a sale page is most
- *  often a redirect to the registrar's own host. */
+/** Registrar parking + server-default PHRASES (lowercase substrings),
+ *  matched against the final page's body. */
 export const PARKING_FINGERPRINTS: ReadonlyArray<[needle: string, label: string]> = [
   ['domain is for sale', 'a "domain for sale" page'],
   ['domain name is for sale', 'a "domain for sale" page'],
@@ -65,14 +81,7 @@ export const PARKING_FINGERPRINTS: ReadonlyArray<[needle: string, label: string]
   ['courtesy of godaddy', 'a GoDaddy parking page'],
   ['godaddy.com/forsale', 'a GoDaddy sale page'],
   ['sedoparking', 'a Sedo parking page'],
-  ['sedo.com', 'a Sedo parking page'],
-  ['hugedomains', 'a HugeDomains sale page'],
-  ['parkingcrew', 'a ParkingCrew page'],
-  ['afternic', 'an Afternic sale page'],
-  ['dan.com', 'a Dan.com sale page'],
-  ['bodis.com', 'a Bodis parking page'],
   ['namecheap parking', 'a Namecheap parking page'],
-  ['undeveloped.com', 'an Undeveloped sale page'],
   ['domain default page', 'a server default page'],
   ['apache2 ubuntu default page', 'a server default page'],
   ['welcome to nginx!', 'a server default page'],
@@ -80,11 +89,57 @@ export const PARKING_FINGERPRINTS: ReadonlyArray<[needle: string, label: string]
   ['future home of something quite cool', 'a cPanel placeholder page'],
 ]
 
-/** Pure: a parking fingerprint's label when the body (or a URL) is a parking page. */
+/**
+ * Registrar HOSTS — matched by exact hostname (the host itself or a
+ * subdomain of it), never as a substring: `smilesbydan.com` is a dentist,
+ * not Dan.com. An optional path prefix narrows a registrar whose main site
+ * is not a sale page (godaddy.com/forsale).
+ */
+export const PARKING_HOSTS: ReadonlyArray<[host: string, label: string, pathPrefix?: string]> = [
+  ['sedoparking.com', 'a Sedo parking page'],
+  ['sedo.com', 'a Sedo parking page'],
+  ['hugedomains.com', 'a HugeDomains sale page'],
+  ['parkingcrew.net', 'a ParkingCrew page'],
+  ['afternic.com', 'an Afternic sale page'],
+  ['dan.com', 'a Dan.com sale page'],
+  ['bodis.com', 'a Bodis parking page'],
+  ['undeveloped.com', 'an Undeveloped sale page'],
+  ['godaddy.com', 'a GoDaddy sale page', '/forsale'],
+]
+
+/** Pure: `hostname` is `host` itself or a subdomain of it. */
+export function hostMatches(hostname: string, host: string): boolean {
+  const h = hostname.toLowerCase().replace(/\.$/, '')
+  return h === host || h.endsWith(`.${host}`)
+}
+
+/** Pure: the registrar's label when the URL we landed on is a parking /
+ *  sale host — by hostname, never by substring. */
+export function parkedHost(url: URL): string | null {
+  for (const [host, label, pathPrefix] of PARKING_HOSTS) {
+    if (!hostMatches(url.hostname, host)) continue
+    if (pathPrefix && !url.pathname.toLowerCase().startsWith(pathPrefix)) continue
+    return label
+  }
+  return null
+}
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+/** A registrar host as a hostname TOKEN in page text: bounded on both
+ *  sides by something that cannot be part of a hostname label. */
+const HOST_TOKENS: ReadonlyArray<[re: RegExp, label: string]> = PARKING_HOSTS.filter(([, , p]) => !p).map(
+  ([host, label]) => [new RegExp(`(^|[^a-z0-9-])${escapeRe(host)}(?![a-z0-9-])`), label],
+)
+
+/** Pure: a parking fingerprint's label when the body is a parking page —
+ *  a phrase, or a registrar host named as a host (not inside another one). */
 export function parkingFingerprint(html: string): string | null {
   const body = html.toLowerCase()
   for (const [needle, label] of PARKING_FINGERPRINTS) {
     if (body.includes(needle)) return label
+  }
+  for (const [re, label] of HOST_TOKENS) {
+    if (re.test(body)) return label
   }
   return null
 }
@@ -189,10 +244,13 @@ export function isPrivateAddress(address: string): boolean {
 
 // ── Dependencies (injected by the tests) ────────────────────────────────────
 
-export interface LivenessDeps {
+export interface GuardedFetchDeps {
   fetchImpl?: typeof fetch
   /** Resolve a hostname to its addresses (every record — all of them are checked). */
   lookup?: (host: string) => Promise<unknown>
+}
+
+export interface LivenessDeps extends GuardedFetchDeps {
   robots?: (origin: string) => Promise<boolean>
 }
 
@@ -216,47 +274,6 @@ export function dnsSaysGone(err: unknown): boolean {
   return /ENOTFOUND|NXDOMAIN/i.test(text)
 }
 
-/**
- * Read a response body as a stream and stop at `limit` BYTES — the body is
- * never buffered whole first (a multi-hundred-MB page, or a small gzip that
- * inflates to GBs, would otherwise sit in memory inside the timeout). A
- * body-less response reads as ''.
- */
-export async function readBodyCapped(res: Response, limit = BODY_LIMIT): Promise<string> {
-  const body = res.body
-  if (!body || typeof body.getReader !== 'function') return ''
-  const reader = body.getReader()
-  const chunks: Uint8Array[] = []
-  let total = 0
-  try {
-    while (total < limit) {
-      const { done, value } = await reader.read()
-      if (done) break
-      if (value) {
-        chunks.push(value)
-        total += value.byteLength
-      }
-    }
-  } catch {
-    /* a partial body is still a body */
-  } finally {
-    try {
-      await reader.cancel()
-    } catch {
-      /* already closed */
-    }
-  }
-  const merged = new Uint8Array(Math.min(total, limit))
-  let offset = 0
-  for (const c of chunks) {
-    if (offset >= merged.length) break
-    const slice = c.subarray(0, Math.min(c.byteLength, merged.length - offset))
-    merged.set(slice, offset)
-    offset += slice.byteLength
-  }
-  return new TextDecoder('utf-8', { fatal: false }).decode(merged)
-}
-
 function isTimeout(err: unknown): boolean {
   return (
     err instanceof Error &&
@@ -264,65 +281,130 @@ function isTimeout(err: unknown): boolean {
   )
 }
 
-type Guard = { ok: true } | { ok: false; status: 'dead' | 'unknown'; detail: string }
+// ── The guarded session: judge, pin, request ────────────────────────────────
 
-export async function checkSiteLiveness(url: string, deps: LivenessDeps = {}): Promise<SiteLiveness> {
+/** Why a target was refused: `gone` (DNS says the name no longer exists —
+ *  the one refusal that is "dead"), `policy` (we will not connect there),
+ *  `resolver` (DNS could not answer right now). */
+export type GuardRefusal = 'gone' | 'policy' | 'resolver'
+
+export type GuardVerdict =
+  | { ok: true }
+  | { ok: false; status: 'dead' | 'unknown'; cause: GuardRefusal; detail: string }
+
+export type GuardedWalk =
+  | { kind: 'ok'; res: Response; url: URL }
+  | { kind: 'refused'; status: 'dead' | 'unknown'; cause: GuardRefusal | 'redirects'; detail: string }
+  | { kind: 'timeout' }
+  | { kind: 'error' }
+
+export interface GuardedSession {
+  /** The host the detail sentences speak about (www. dropped). */
+  readonly baseHost: string
+  /** Judge a target (scheme, port, hostname, every resolved address); the
+   *  verdict is cached per hostname and its addresses are PINNED for the
+   *  connect. `hop` only shapes the sentence. */
+  judge(target: URL, hop: number): Promise<GuardVerdict>
+  /** One request to a judged target: redirect 'manual', the connect bound
+   *  to the pinned addresses. Throws when the target was never judged OK. */
+  request(target: URL, init: { method: 'GET' | 'HEAD'; headers: Record<string, string>; signal: AbortSignal }): Promise<Response>
+  /** A `typeof fetch` for the policy helpers (robots.txt): judges the
+   *  target, refuses by throwing, never follows a redirect. */
+  fetch: typeof fetch
+  /** The addresses pinned so far — what the connect may dial. */
+  pinned(hostname: string): string[] | undefined
+  /** Release the pinned connection pool. */
+  close(): void
+}
+
+type LookupCallback = (err: NodeJS.ErrnoException | null, address?: unknown, family?: number) => void
+type PinnedAgent = { dispatcher: unknown; destroy: () => void }
+
+/**
+ * An undici Agent whose connect resolves ONLY through the pin map — the
+ * address the policy judged is the address the socket opens to. Built from
+ * the runtime's own global dispatcher class (Node's fetch is undici; the
+ * package itself is not a dependency), so a runtime that does not expose it
+ * falls back to the unpinned connect — still judged per hop, not bound.
+ */
+function pinnedAgent(pins: Map<string, string[]>): PinnedAgent | null {
+  try {
+    const global = (globalThis as unknown as Record<symbol, unknown>)[Symbol.for('undici.globalDispatcher.1')] as
+      | { constructor?: unknown }
+      | undefined
+    const Agent = global?.constructor as (new (opts: unknown) => { destroy(): Promise<void> }) | undefined
+    if (typeof Agent !== 'function') return null
+    const lookup = (hostname: string, options: unknown, callback: unknown) => {
+      const cb = (typeof options === 'function' ? options : callback) as LookupCallback
+      const all = typeof options === 'object' && options !== null && (options as { all?: boolean }).all === true
+      const addresses = pins.get(hostname.toLowerCase())
+      if (!addresses || addresses.length === 0) {
+        cb(Object.assign(new Error(`${hostname} was never vetted by the address policy`), { code: 'ENOTVETTED' }))
+        return
+      }
+      const entries = addresses.map((address) => ({ address, family: isIP(address) === 6 ? 6 : 4 }))
+      if (all) cb(null, entries)
+      else cb(null, entries[0].address, entries[0].family)
+    }
+    const agent = new Agent({ connect: { lookup } })
+    return {
+      dispatcher: agent,
+      destroy: () => {
+        void agent.destroy().catch(() => {})
+      },
+    }
+  } catch {
+    return null
+  }
+}
+
+export function guardedSession(base: URL, deps: GuardedFetchDeps = {}): GuardedSession {
   const fetchImpl = deps.fetchImpl ?? fetch
   const lookup = deps.lookup ?? ((host: string) => dnsLookup(host, { all: true }))
-  // robots.txt rides the same policy: no redirect is ever followed for it.
-  const robots =
-    deps.robots ??
-    ((origin: string) => robotsAllows(origin, (input, init) => fetchImpl(input, { ...init, redirect: 'manual' })))
-  const started = Date.now()
-  const timeLeft = () => Math.max(0, PROBE_DEADLINE_MS - (Date.now() - started))
+  const baseHost = normalizeHost(base.hostname)
+  const judged = new Map<string, GuardVerdict>()
+  const pins = new Map<string, string[]>()
+  // The pinned connect only matters for the real fetch; an injected one
+  // (the tests) never opens a socket.
+  let agent: PinnedAgent | null | undefined = deps.fetchImpl ? null : undefined
 
-  let parsed: URL
-  try {
-    parsed = new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`)
-  } catch {
-    return { status: 'dead', detail: 'Website address is not a valid URL', finalUrl: null, httpStatus: null }
-  }
-  const host = normalizeHost(parsed.hostname)
-  const none = { finalUrl: null, httpStatus: null }
-
-  // The address policy, once per host in this probe (the HEAD pass and the
-  // GET pass walk the same hops).
-  const judged = new Map<string, Guard>()
-  const guard = async (target: URL, hop: number): Promise<Guard> => {
-    const where = hop === 0 ? host : `${host} redirects to ${normalizeHost(target.hostname)}, which`
+  const judge = async (target: URL, hop: number): Promise<GuardVerdict> => {
+    const where = hop === 0 ? baseHost : `${baseHost} redirects to ${normalizeHost(target.hostname)}, which`
     if (target.protocol !== 'http:' && target.protocol !== 'https:') {
-      return { ok: false, status: 'unknown', detail: `${where} is not a web address (${target.protocol.replace(':', '')}) — not checked` }
+      return { ok: false, status: 'unknown', cause: 'policy', detail: `${where} is not a web address (${target.protocol.replace(':', '')}) — not checked` }
     }
     if (!ALLOWED_PORTS.has(target.port)) {
-      return { ok: false, status: 'unknown', detail: `${where} uses a non-standard port (${target.port}) — not checked` }
+      return { ok: false, status: 'unknown', cause: 'policy', detail: `${where} uses a non-standard port (${target.port}) — not checked` }
     }
     const hostname = target.hostname.replace(/^\[|\]$/g, '').toLowerCase()
     const cached = judged.get(hostname)
     if (cached) return cached
-    let verdict: Guard
+    let verdict: GuardVerdict
+    const refuse = (): GuardVerdict => ({ ok: false, status: 'unknown', cause: 'policy', detail: `${where} points at a private network address — not checked` })
     if (hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.local')) {
-      verdict = { ok: false, status: 'unknown', detail: `${where} points at a private network address — not checked` }
+      verdict = refuse()
     } else if (isIP(hostname)) {
-      verdict = isPrivateAddress(hostname)
-        ? { ok: false, status: 'unknown', detail: `${where} points at a private network address — not checked` }
-        : { ok: true }
+      verdict = isPrivateAddress(hostname) ? refuse() : { ok: true }
+      if (verdict.ok) pins.set(hostname, [hostname])
     } else {
+      const name = hop === 0 ? baseHost : normalizeHost(target.hostname)
       try {
         const addresses = addressesOf(await lookup(hostname))
         if (addresses.length === 0) {
-          verdict = { ok: false, status: 'dead', detail: `${where === host ? host : normalizeHost(target.hostname)} no longer resolves (DNS)` }
+          verdict = { ok: false, status: 'dead', cause: 'gone', detail: `${name} no longer resolves (DNS)` }
         } else if (addresses.some(isPrivateAddress)) {
-          verdict = { ok: false, status: 'unknown', detail: `${where} points at a private network address — not checked` }
+          verdict = refuse()
         } else {
           verdict = { ok: true }
+          pins.set(hostname, addresses)
         }
       } catch (err) {
-        const name = hop === 0 ? host : normalizeHost(target.hostname)
         verdict = dnsSaysGone(err)
-          ? { ok: false, status: 'dead', detail: `${name} no longer resolves (DNS)` }
+          ? { ok: false, status: 'dead', cause: 'gone', detail: `${name} no longer resolves (DNS)` }
           : {
               ok: false,
               status: 'unknown',
+              cause: 'resolver',
               detail: `${name} could not be resolved right now (${(err as { code?: string })?.code ?? 'DNS error'}) — will check again`,
             }
       }
@@ -331,10 +413,127 @@ export async function checkSiteLiveness(url: string, deps: LivenessDeps = {}): P
     return verdict
   }
 
+  const request: GuardedSession['request'] = async (target, init) => {
+    const hostname = target.hostname.replace(/^\[|\]$/g, '').toLowerCase()
+    const verdict = judged.get(hostname)
+    if (!verdict?.ok) throw new Error(`${hostname} was never vetted by the address policy`)
+    if (agent === undefined) agent = pinnedAgent(pins)
+    const opts: RequestInit & { dispatcher?: unknown } = { ...init, redirect: 'manual' }
+    if (agent) opts.dispatcher = agent.dispatcher
+    return fetchImpl(target.toString(), opts)
+  }
+
+  const guardedFetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url)
+    const hop = normalizeHost(url.hostname) === baseHost ? 0 : 1
+    const verdict = await judge(url, hop)
+    if (!verdict.ok) throw new Error(verdict.detail)
+    return request(url, {
+      method: (init?.method as 'GET' | 'HEAD') ?? 'GET',
+      headers: { 'user-agent': CRAWL_UA, ...((init?.headers as Record<string, string>) ?? {}) },
+      signal: init?.signal ?? AbortSignal.timeout(TIMEOUT_MS),
+    })
+  }) as typeof fetch
+
+  return {
+    baseHost,
+    judge,
+    request,
+    fetch: guardedFetch,
+    pinned: (hostname) => pins.get(hostname.toLowerCase()),
+    close: () => {
+      if (agent) agent.destroy()
+      agent = null
+    },
+  }
+}
+
+/**
+ * THE ONE GUARDED FETCH — the probe and the crawler both ride it. Judges
+ * the target, requests it with the connect bound to the judged addresses,
+ * walks redirects BY HAND (each hop judged before it is fetched; nothing of
+ * a redirect's body is ever read), capped at `maxRedirects`. `deadline`
+ * (ms left) shortens every request's budget; at zero it is a timeout.
+ */
+export async function fetchGuarded(
+  session: GuardedSession,
+  from: URL,
+  opts: { method: 'GET' | 'HEAD'; timeoutMs?: number; maxRedirects?: number; deadline?: () => number; accept?: string },
+): Promise<GuardedWalk> {
+  const timeoutMs = opts.timeoutMs ?? TIMEOUT_MS
+  const maxRedirects = opts.maxRedirects ?? MAX_REDIRECTS
+  const headers = { 'user-agent': CRAWL_UA, accept: opts.accept ?? 'text/html' }
+  let current = from
+  for (let hop = 0; ; hop++) {
+    const g = await session.judge(current, hop)
+    if (!g.ok) return { kind: 'refused', status: g.status, cause: g.cause, detail: g.detail }
+    const budget = Math.min(timeoutMs, opts.deadline ? opts.deadline() : timeoutMs)
+    if (budget <= 0) return { kind: 'timeout' }
+    let res: Response
+    try {
+      res = await session.request(current, { method: opts.method, headers, signal: AbortSignal.timeout(budget) })
+    } catch (err) {
+      return isTimeout(err) ? { kind: 'timeout' } : { kind: 'error' }
+    }
+    const location = REDIRECT_STATUSES.has(res.status) ? res.headers?.get?.('location') : null
+    if (!location) return { kind: 'ok', res, url: current }
+    // Nothing of a redirect's body is ever read.
+    try {
+      await res.body?.cancel?.()
+    } catch {
+      /* nothing to drain */
+    }
+    if (hop >= maxRedirects) {
+      return {
+        kind: 'refused',
+        status: 'unknown',
+        cause: 'redirects',
+        detail: `${session.baseHost} redirects more than ${maxRedirects} times — not followed`,
+      }
+    }
+    try {
+      current = new URL(location, current)
+    } catch {
+      return { kind: 'refused', status: 'unknown', cause: 'redirects', detail: `${session.baseHost} redirects to an address we could not read` }
+    }
+  }
+}
+
+// ── The probe ───────────────────────────────────────────────────────────────
+
+export async function checkSiteLiveness(url: string, deps: LivenessDeps = {}): Promise<SiteLiveness> {
+  let parsed: URL
+  try {
+    parsed = new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`)
+  } catch {
+    return { status: 'dead', detail: 'Website address is not a valid URL', finalUrl: null, httpStatus: null }
+  }
+  const session = guardedSession(parsed, deps)
+  try {
+    return await probe(parsed, session, deps)
+  } finally {
+    session.close()
+  }
+}
+
+function refused(w: Extract<GuardedWalk, { kind: 'refused' }> | Extract<GuardVerdict, { ok: false }>): SiteLiveness {
+  const out: SiteLiveness = { status: w.status, detail: w.detail, finalUrl: null, httpStatus: null }
+  if (w.status === 'unknown' && w.cause !== 'gone') out.cause = w.cause
+  return out
+}
+
+async function probe(parsed: URL, session: GuardedSession, deps: LivenessDeps): Promise<SiteLiveness> {
+  const host = session.baseHost
+  // robots.txt rides the same policy: judged, pinned, no redirect ever followed.
+  const robots = deps.robots ?? ((origin: string) => robotsAllows(origin, session.fetch))
+  const started = Date.now()
+  const deadline = () => Math.max(0, PROBE_DEADLINE_MS - (Date.now() - started))
+  const none = { finalUrl: null, httpStatus: null }
+
   // 1) DNS + the address policy — a name that is gone is the clearest "dead";
   //    a resolver that could not answer is nothing of the kind.
-  const first = await guard(parsed, 0)
-  if (!first.ok) return { status: first.status, detail: first.detail, ...none }
+  const first = await session.judge(parsed, 0)
+  if (!first.ok) return refused(first)
 
   // 2) robots — the server answered; we do not read a page it asked us not to.
   if (!(await robots(parsed.origin))) {
@@ -346,61 +545,9 @@ export async function checkSiteLiveness(url: string, deps: LivenessDeps = {}): P
     }
   }
 
-  // 3) One request, redirects NOT followed by the runtime — each hop is
-  //    re-checked against the address policy before it is fetched.
-  const request = async (method: 'HEAD' | 'GET', target: URL): Promise<Response | 'timeout' | 'error'> => {
-    const budget = Math.min(TIMEOUT_MS, timeLeft())
-    if (budget <= 0) return 'timeout'
-    try {
-      return await fetchImpl(target.toString(), {
-        method,
-        headers: { 'user-agent': CRAWL_UA, accept: 'text/html' },
-        redirect: 'manual',
-        signal: AbortSignal.timeout(budget),
-      })
-    } catch (err) {
-      return isTimeout(err) ? 'timeout' : 'error'
-    }
-  }
-
-  type Walk =
-    | { kind: 'ok'; res: Response; url: URL }
-    | { kind: 'timeout' }
-    | { kind: 'error' }
-    | { kind: 'stopped'; result: SiteLiveness }
-  const walk = async (method: 'HEAD' | 'GET', from: URL): Promise<Walk> => {
-    let current = from
-    for (let hop = 0; ; hop++) {
-      if (hop > 0) {
-        const g = await guard(current, hop)
-        if (!g.ok) return { kind: 'stopped', result: { status: g.status, detail: g.detail, ...none } }
-      }
-      const res = await request(method, current)
-      if (res === 'timeout') return { kind: 'timeout' }
-      if (res === 'error') return { kind: 'error' }
-      const location = REDIRECT_STATUSES.has(res.status) ? res.headers?.get?.('location') : null
-      if (!location) return { kind: 'ok', res, url: current }
-      // Nothing of a redirect's body is ever read.
-      try {
-        await res.body?.cancel?.()
-      } catch {
-        /* nothing to drain */
-      }
-      if (hop >= MAX_REDIRECTS) {
-        return {
-          kind: 'stopped',
-          result: { status: 'unknown', detail: `${host} redirects more than ${MAX_REDIRECTS} times — not followed`, ...none },
-        }
-      }
-      try {
-        current = new URL(location, current)
-      } catch {
-        return { kind: 'stopped', result: { status: 'unknown', detail: `${host} redirects to an address we could not read`, ...none } }
-      }
-    }
-  }
-
-  // HEAD, then GET — a timeout gets one retry; two timeouts are "dead".
+  // 3) HEAD, then GET — each a guarded walk; a timeout gets one retry; two
+  //    timeouts are "dead".
+  const walk = (method: 'HEAD' | 'GET', from: URL) => fetchGuarded(session, from, { method, timeoutMs: TIMEOUT_MS, deadline })
   let head = await walk('HEAD', parsed)
   if (head.kind === 'timeout') head = await walk('HEAD', parsed)
   if (head.kind === 'timeout') {
@@ -409,20 +556,24 @@ export async function checkSiteLiveness(url: string, deps: LivenessDeps = {}): P
   if (head.kind === 'error') {
     return { status: 'dead', detail: `${host} refused the connection`, ...none }
   }
-  if (head.kind === 'stopped') return head.result
+  if (head.kind === 'refused') return refused(head)
 
-  let final = head
+  let final: Extract<GuardedWalk, { kind: 'ok' }> = head
   // Some servers reject HEAD outright; GET decides — and GET is the only
   // pass whose body is read, so the parking fingerprint runs on it.
   const s = head.res.status
+  let bodyRead = false
   if (s === 405 || s === 501 || s === 403 || s === 401 || s === 429 || head.res.ok) {
     let got = await walk('GET', head.url)
     if (got.kind === 'timeout') got = await walk('GET', head.url)
     if (got.kind === 'timeout') {
       return { status: 'dead', detail: `${host} timed out twice (${TIMEOUT_MS / 1000}s)`, ...none }
     }
-    if (got.kind === 'stopped') return got.result
-    if (got.kind === 'ok') final = got
+    if (got.kind === 'refused') return refused(got)
+    if (got.kind === 'ok') {
+      final = got
+      bodyRead = true
+    }
   }
 
   const res = final.res
@@ -436,13 +587,13 @@ export async function checkSiteLiveness(url: string, deps: LivenessDeps = {}): P
   if (res.status === 404 || res.status === 410) {
     return { status: 'dead', detail: `${host}'s homepage is gone (${res.status})`, finalUrl, httpStatus: res.status }
   }
-  // Parking is judged on the FINAL response: the registrar's host in the
-  // URL we landed on, then the body we were served there.
-  const urlParked = finalHost !== host ? parkingFingerprint(finalUrl) : null
+  // Parking is judged on the FINAL response: the registrar's HOST we landed
+  // on (exact hostname, never a substring), then the body we were served there.
+  const urlParked = finalHost !== host ? parkedHost(final.url) : null
   if (urlParked) {
     return { status: 'parked', detail: `${landed} — ${urlParked}`, finalUrl, httpStatus: res.status }
   }
-  if (res.ok && final.kind === 'ok' && res.body !== undefined) {
+  if (res.ok && bodyRead && res.body !== undefined) {
     const html = await readBodyCapped(res)
     const parked = parkingFingerprint(html)
     if (parked) {

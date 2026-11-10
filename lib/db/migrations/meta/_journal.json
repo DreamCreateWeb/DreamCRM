@@ -1345,6 +1345,13 @@
       "when": 1794293649373,
       "tag": "0191_p01_prospect_quality",
       "breakpoints": true
+    },
+    {
+      "idx": 192,
+      "version": "7",
+      "when": 1794304526781,
+      "tag": "0192_p01_prospect_quality_2",
+      "breakpoints": true
     }
   ]
 }

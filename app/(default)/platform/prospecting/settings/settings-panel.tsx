@@ -63,8 +63,12 @@ type BattleCard = { competitor: string; angle: string }
 /**
  * THE QUALITY FLOOR (P-01). A slider the queues and the hunter obey: only
  * prospects whose quality score reaches it are served. The counts beside it
- * are LIVE from the histogram, so dragging says what the floor would do
- * before it is saved; the save is debounced and rides runAction.
+ * are LIVE from the histogram — which counts only the rows a floor could
+ * serve (never a parked band, never a hard zero: the same predicate the
+ * queues read), so "N at or above" IS what the queues serve at that floor.
+ * The save is debounced and rides runAction, and saves are SERIALIZED:
+ * one in flight at a time, the latest value queued behind it, so an older
+ * value can never land after a newer one — on the server or in "Saved ✓".
  */
 export function QualityFloor({ floor, quality }: { floor: number; quality: ProspectQualityCounts }) {
   const [value, setValue] = useState(floor)
@@ -72,17 +76,33 @@ export function QualityFloor({ floor, quality }: { floor: number; quality: Prosp
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // The one in-flight save, and the value waiting behind it (only the
+  // latest — a value overtaken before it was sent is never sent).
+  const inFlight = useRef(false)
+  const queued = useRef<number | null>(null)
   const split = splitAtFloor(quality.scoreBuckets, value)
 
-  const commit = (next: number) => {
-    if (timer.current) clearTimeout(timer.current)
-    timer.current = setTimeout(() => {
-      startTransition(async () => {
-        setError(null)
+  const send = (next: number) => {
+    inFlight.current = true
+    startTransition(async () => {
+      setError(null)
+      try {
         const r = await runAction(() => setQualityFloorAction(next))
         if (!r.ok) setError('error' in r ? r.error : 'Could not save the floor.')
         else setSaved(next)
-      })
+      } finally {
+        inFlight.current = false
+        const waiting = queued.current
+        queued.current = null
+        if (waiting != null && waiting !== next) send(waiting)
+      }
+    })
+  }
+  const commit = (next: number) => {
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = setTimeout(() => {
+      if (inFlight.current) queued.current = next
+      else send(next)
     }, 400)
   }
   useEffect(() => () => {
@@ -95,8 +115,9 @@ export function QualityFloor({ floor, quality }: { floor: number; quality: Prosp
       <p className={SECTION_SUB}>
         Every prospect gets a quality score — can we actually reach them? A matched Google listing, a number
         a carrier says is live, an active NPI, a website that answers. The phone queues, Call Mode and the
-        hunter serve only prospects at or above this floor; the rest are parked until a re-verify (or you)
-        says otherwise. Hand-raisers always get through — but never on a disconnected number.
+        hunter serve only prospects at or above this floor — and never a parked one (a dead number, a
+        retired NPI, a closed or parked site), whatever the floor says. Everyone else waits for a re-verify
+        (or you) to say otherwise. Hand-raisers always get through — but never on a disconnected number.
       </p>
       <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
         Serve prospects scoring at least{' '}
@@ -110,7 +131,7 @@ export function QualityFloor({ floor, quality }: { floor: number; quality: Prosp
           // Never disabled mid-adjust: a disabled range drops keyboard focus
           // and freezes a drag; the pending state lives on the save note.
           aria-busy={pending || undefined}
-          aria-valuetext={`${value} — ${split.above} prospects at or above, ${split.below} below`}
+          aria-valuetext={`${value} — ${split.above} prospects served at or above, ${split.below} below the floor, ${quality.parked} parked`}
           className="mt-2 block w-full accent-teal-600"
           onChange={(e) => {
             const next = Number(e.target.value)
@@ -121,10 +142,13 @@ export function QualityFloor({ floor, quality }: { floor: number; quality: Prosp
       </label>
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-gray-300 tabular-nums">
         <span>
-          <span className="font-semibold text-gray-900 dark:text-gray-100">{split.above.toLocaleString()}</span> at or above
+          <span className="font-semibold text-gray-900 dark:text-gray-100">{split.above.toLocaleString()}</span> served at or above
         </span>
         <span>
-          <span className="font-semibold text-gray-900 dark:text-gray-100">{split.below.toLocaleString()}</span> below
+          <span className="font-semibold text-gray-900 dark:text-gray-100">{split.below.toLocaleString()}</span> below the floor
+        </span>
+        <span>
+          <span className="font-semibold text-gray-900 dark:text-gray-100">{quality.parked.toLocaleString()}</span> parked — never served
         </span>
         <span>
           <span className="font-semibold text-gray-900 dark:text-gray-100">{quality.unverified.toLocaleString()}</span> not verified yet

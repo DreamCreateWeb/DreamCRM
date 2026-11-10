@@ -66,6 +66,7 @@ import {
   servableAboveFloor,
 } from '@/lib/services/prospecting'
 import { BAD_PHONE_STATUSES } from '@/lib/db/schema/prospecting'
+import { splitAtFloor } from '@/lib/types/prospecting'
 
 const BAD = ['invalid', 'disconnected', 'wrong_number']
 const SERVABLE = ['enriched', 'queued', 'contacted', 'engaged', 'call_list']
@@ -138,6 +139,20 @@ describe('the predicates', () => {
     expect(spies.inArray).not.toHaveBeenCalledWith('prospect.status', SERVABLE)
   })
 
+  it('with an explicit status the band filters WITHIN that status — "converted + best" is never an always-empty page (C18)', async () => {
+    state.selectQueue.push([{ total: 0 }])
+    state.selectQueue.push([])
+    await listProspects({ status: 'converted', qualityBand: 'best' })
+    expect(spies.inArray).not.toHaveBeenCalledWith('prospect.status', SERVABLE)
+    for (const status of ['disqualified', 'not_interested', 'suppressed', 'discovered', 'enriching'] as const) {
+      spies.inArray.mockClear()
+      state.selectQueue.push([{ total: 0 }])
+      state.selectQueue.push([])
+      await listProspects({ status, qualityBand: 'parked' })
+      expect(spies.inArray).not.toHaveBeenCalledWith('prospect.status', SERVABLE)
+    }
+  })
+
   it('the call list (hand-raisers) never applies the floor — the card refuses the dial instead', async () => {
     await getCallList()
     expect(spies.gte).not.toHaveBeenCalled()
@@ -151,7 +166,7 @@ describe('the predicates', () => {
 })
 
 describe('getQualityCounts', () => {
-  it('reads the bands, the never-verified backlog, the dialable best, and buckets the histogram by 5', async () => {
+  it('reads the bands, the never-verified backlog, the dialable best, and buckets the histogram by 5 — SERVABLE rows only (C6)', async () => {
     state.selectQueue.push([{ band: 'best', n: 3 }, { band: 'parked', n: 2 }])
     state.selectQueue.push([{ n: 7 }])
     state.selectQueue.push([{ n: 2 }])
@@ -161,7 +176,16 @@ describe('getQualityCounts', () => {
     expect(q.scoreBuckets).toHaveLength(21)
     expect(q.scoreBuckets[16]).toBe(2) // 80–84
     expect(q.scoreBuckets[19]).toBe(1) // 95–99
-    expect(q.scoreBuckets[0]).toBe(2)
+    // The histogram carries the floor predicate's other two legs, so the
+    // slider's "N at or above" is what servableAboveFloor(N) serves: never a
+    // parked-band row (a no_match 37), never a hard zero.
+    expect(spies.gt).toHaveBeenCalledWith('prospect.qualityScore', 0)
+    expect(spies.ne).toHaveBeenCalledWith('prospect.qualityBand', 'parked')
+    expect(q.scoreBuckets[0]).toBe(0)
     expect(q.scoreBuckets[20]).toBe(1) // 100
+    // At floor 0 and floor 20 the split says exactly what is served: 4, not 6.
+    expect(splitAtFloor(q.scoreBuckets, 0)).toEqual({ above: 4, below: 0 })
+    expect(splitAtFloor(q.scoreBuckets, 20)).toEqual({ above: 4, below: 0 })
+    expect(splitAtFloor(q.scoreBuckets, 90)).toEqual({ above: 2, below: 2 })
   })
 })

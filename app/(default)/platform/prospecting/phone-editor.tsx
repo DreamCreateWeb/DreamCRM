@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { ActionButton } from '@/components/ui/action-button'
+import { TextInput } from '@/components/ui/form-fields'
 import { useToast } from '@/components/ui/toast'
 import { runAction } from '@/lib/run-action'
 import { NANP_FAILURE_LABELS, type NanpFailure } from '@/lib/phone-nanp'
@@ -69,14 +70,14 @@ export default function PhoneEditor({ prospectId, phone }: { prospectId: string;
         <label htmlFor={id} className="sr-only">
           Phone number
         </label>
-        <input
+        <TextInput
           ref={input}
           id={id}
           type="tel"
           inputMode="tel"
           autoComplete="off"
           placeholder="(404) 555-1212"
-          className="form-input w-40 py-1 text-sm tabular-nums"
+          className="w-40 tabular-nums"
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {

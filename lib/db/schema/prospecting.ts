@@ -58,6 +58,12 @@ export type ProspectPhoneLineType = (typeof PROSPECT_PHONE_LINE_TYPES)[number]
 export const PROSPECT_PHONE_SOURCES = ['nppes', 'places', 'caller'] as const
 export type ProspectPhoneSource = (typeof PROSPECT_PHONE_SOURCES)[number]
 
+/** Where the website on the row came from — a matched Google listing, the
+ *  registry, a human's typing, a crawl. A listing Google no longer stands
+ *  behind takes ITS website with it; a typed one is never cleared. */
+export const PROSPECT_WEBSITE_SOURCES = ['places', 'nppes', 'manual', 'crawl'] as const
+export type ProspectWebsiteSource = (typeof PROSPECT_WEBSITE_SOURCES)[number]
+
 /** A phone in one of these states is never a dial target. */
 export const BAD_PHONE_STATUSES: readonly ProspectPhoneStatus[] = [
   'invalid',
@@ -108,6 +114,7 @@ export const prospect = pgTable(
 
     // Enrichment: Google Places
     websiteUrl: text('website_url'),
+    websiteSource: text('website_source'), // places|nppes|manual|crawl — null on legacy rows (an NPI row's came from Places)
     googlePlaceId: text('google_place_id'),
     googleRatingTenths: integer('google_rating_tenths'), // 4.7 → 47 (no float drift)
     reviewCount: integer('review_count'),

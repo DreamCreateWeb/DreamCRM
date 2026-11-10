@@ -4,12 +4,16 @@ import {
   dnsSaysGone,
   isPrivateAddress,
   parkingFingerprint,
+  parkedHost,
+  hostMatches,
   normalizeHost,
   readBodyCapped,
+  guardedSession,
+  fetchGuarded,
   BODY_LIMIT,
   MAX_REDIRECTS,
 } from '@/lib/services/prospect-site-liveness'
-import { robotsDisallowsAll } from '@/lib/services/prospect-crawl-policy'
+import { robotsAllows, robotsDisallowsAll, ROBOTS_LIMIT } from '@/lib/services/prospect-crawl-policy'
 
 /**
  * Website liveness (P-01) — dead / parked / redirected / alive / unknown,
@@ -356,5 +360,144 @@ describe('checkSiteLiveness', () => {
     await checkSiteLiveness('https://smiledental.com', deps({ fetchImpl }))
     const init = fetchImpl.mock.calls[0]?.[1]
     expect((init?.headers as Record<string, string>)['user-agent']).toMatch(/DreamCreateBot/)
+  })
+})
+
+describe('parking is judged by HOST, never by substring (C22)', () => {
+  it('parkedHost: a registrar host or a subdomain of it; a dentist whose name ends in one is not', () => {
+    expect(parkedHost(new URL('https://www.smilesbydan.com/'))).toBeNull()
+    expect(parkedHost(new URL('https://drjordan.com/'))).toBeNull()
+    expect(parkedHost(new URL('https://torsedo.com/'))).toBeNull()
+    expect(parkedHost(new URL('https://afternicdental.com/'))).toBeNull()
+    expect(parkedHost(new URL('https://dan.com/buy-domain/smiledental.com'))).toBe('a Dan.com sale page')
+    expect(parkedHost(new URL('https://www.dan.com/buy-domain/x'))).toBe('a Dan.com sale page')
+    expect(parkedHost(new URL('https://sedo.com/search/details/?domain=x'))).toBe('a Sedo parking page')
+    expect(parkedHost(new URL('https://www.hugedomains.com/domain_profile.cfm?d=x'))).toBe('a HugeDomains sale page')
+    expect(parkedHost(new URL('https://www.afternic.com/forsale/x'))).toBe('an Afternic sale page')
+    // GoDaddy's main site is not a sale page; its forsale path is.
+    expect(parkedHost(new URL('https://www.godaddy.com/forsale/smiledental.com'))).toBe('a GoDaddy sale page')
+    expect(parkedHost(new URL('https://www.godaddy.com/'))).toBeNull()
+    expect(hostMatches('WWW.Dan.com', 'dan.com')).toBe(true)
+    expect(hostMatches('smilesbydan.com', 'dan.com')).toBe(false)
+  })
+
+  it('a practice whose old domain 301s to its new one (smilesbydan.com) is REDIRECTED, not parked — the drip keeps going', async () => {
+    const fetchImpl = byUrl({
+      'https://olddomain.com/': () => redirect('https://www.smilesbydan.com/', 301),
+      // Served with relative links — the body has no needle either way.
+      'https://www.smilesbydan.com/': () => res(200, 'https://www.smilesbydan.com/', '<html><body><a href="/contact">Book with Dr Dan</a></body></html>'),
+    })
+    const r = await checkSiteLiveness('https://olddomain.com', deps({ fetchImpl }))
+    expect(r.status).toBe('redirected')
+    expect(r.detail).toBe('olddomain.com now lands on smilesbydan.com')
+  })
+
+  it('the body check names a registrar only as a HOST token — a site linking to itself at smilesbydan.com is not a Dan.com page', () => {
+    expect(parkingFingerprint('<a href="https://www.smilesbydan.com/contact">Contact</a>')).toBeNull()
+    expect(parkingFingerprint('<a href="https://drjordan.com/">Home</a> sedo.community')).toBeNull()
+    expect(parkingFingerprint('This domain is listed at <a href="https://www.dan.com/buy-domain/x">Dan.com</a>')).toBe('a Dan.com sale page')
+    expect(parkingFingerprint('<iframe src="https://sedoparking.com/x">')).toBe('a Sedo parking page')
+    expect(parkingFingerprint('see hugedomains.com for pricing')).toBe('a HugeDomains sale page')
+  })
+})
+
+describe('robots.txt rides the same streaming byte cap (C14)', () => {
+  it('a multi-hundred-MB robots.txt is read as a stream and cut at ROBOTS_LIMIT — never buffered whole', async () => {
+    const CHUNK = 4_096
+    let pulled = 0
+    const endless = new ReadableStream<Uint8Array>({
+      pull(c) {
+        pulled++
+        c.enqueue(new Uint8Array(CHUNK).fill(0x61)) // 'a' forever
+      },
+    })
+    const fetchImpl = vi.fn(async () => ({ ok: true, status: 200, body: endless, text: async () => 'x'.repeat(50_000_000) }) as unknown as Response)
+    const allowed = await robotsAllows('https://smiledental.com', fetchImpl as unknown as typeof fetch)
+    expect(allowed).toBe(true)
+    expect(pulled).toBeLessThanOrEqual(Math.ceil(ROBOTS_LIMIT / CHUNK) + 2)
+  })
+
+  it('a blanket Disallow inside the first 20 000 bytes still closes the door; a non-OK answer is "no robots"', async () => {
+    const stream = (text: string) =>
+      new ReadableStream<Uint8Array>({
+        start(c) {
+          c.enqueue(new TextEncoder().encode(text))
+          c.close()
+        },
+      })
+    const closed = vi.fn(async () => ({ ok: true, status: 200, body: stream('User-agent: *\nDisallow: /') }) as unknown as Response)
+    expect(await robotsAllows('https://smiledental.com', closed as unknown as typeof fetch)).toBe(false)
+    const missing = vi.fn(async () => ({ ok: false, status: 404, body: stream('') }) as unknown as Response)
+    expect(await robotsAllows('https://smiledental.com', missing as unknown as typeof fetch)).toBe(true)
+  })
+})
+
+describe('the guarded session binds the connect to the judged addresses (C13 — DNS rebinding)', () => {
+  it('judge() resolves once, judges every record, and PINS the addresses the connect may dial; a redirect hop is judged and pinned on its own', async () => {
+    const lookups: string[] = []
+    const session = guardedSession(new URL('https://evil-dental.example/'), {
+      fetchImpl: (async () => res(200)) as unknown as typeof fetch,
+      lookup: async (h) => {
+        lookups.push(h)
+        return h === 'evil-dental.example' ? [{ address: '93.184.216.34' }, { address: '2606:2800:220:1:248:1893:25c8:1946' }] : [{ address: '8.8.8.8' }]
+      },
+    })
+    expect(await session.judge(new URL('https://evil-dental.example/'), 0)).toEqual({ ok: true })
+    expect(session.pinned('evil-dental.example')).toEqual(['93.184.216.34', '2606:2800:220:1:248:1893:25c8:1946'])
+    // The verdict is cached: a second judge of the same host never re-resolves
+    // (a TTL-0 answer that now says 169.254.169.254 is never consulted).
+    expect(await session.judge(new URL('https://evil-dental.example/robots.txt'), 0)).toEqual({ ok: true })
+    expect(lookups).toEqual(['evil-dental.example'])
+    expect(await session.judge(new URL('https://www.other.example/'), 1)).toEqual({ ok: true })
+    expect(session.pinned('www.other.example')).toEqual(['8.8.8.8'])
+    expect(session.pinned('169.254.169.254')).toBeUndefined()
+    session.close()
+  })
+
+  it('request() refuses a host that was never judged OK — nothing is ever dialed unpinned', async () => {
+    const fetchImpl = vi.fn(async () => res(200))
+    const session = guardedSession(new URL('https://smiledental.com/'), { fetchImpl: fetchImpl as unknown as typeof fetch, lookup: async () => [{ address: '10.0.1.12' }] })
+    await expect(
+      session.request(new URL('https://smiledental.com/'), { method: 'GET', headers: {}, signal: AbortSignal.timeout(1000) }),
+    ).rejects.toThrow(/never vetted/)
+    expect(fetchImpl).not.toHaveBeenCalled()
+    // A judged-private host stays refused, with the policy cause.
+    const v = await session.judge(new URL('https://smiledental.com/'), 0)
+    expect(v).toMatchObject({ ok: false, status: 'unknown', cause: 'policy' })
+    session.close()
+  })
+
+  it('fetchGuarded: every hop judged before it is fetched, the refusal carries its cause', async () => {
+    const fetchImpl = byUrl({
+      'https://smiledental.com/': () => redirect('http://10.0.1.12/admin'),
+    })
+    const session = guardedSession(new URL('https://smiledental.com/'), deps({ fetchImpl }))
+    const r = await fetchGuarded(session, new URL('https://smiledental.com/'), { method: 'GET' })
+    expect(r).toMatchObject({ kind: 'refused', status: 'unknown', cause: 'policy' })
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    const loop = guardedSession(new URL('https://smiledental.com/'), deps({ fetchImpl: vi.fn(async () => redirect('https://smiledental.com/')) }))
+    expect(await fetchGuarded(loop, new URL('https://smiledental.com/'), { method: 'GET', maxRedirects: 2 })).toMatchObject({ kind: 'refused', cause: 'redirects' })
+  })
+
+  it('the probe exposes WHY an unknown could not tell: policy / resolver / redirects — and a gone name is dead with no cause', async () => {
+    const policy = await checkSiteLiveness('http://169.254.170.2/v2/credentials/', deps({ lookup: async () => [{ address: '169.254.170.2' }] }))
+    expect(policy).toMatchObject({ status: 'unknown', cause: 'policy' })
+    const port = await checkSiteLiveness('http://10.0.1.12:8080/admin', deps({}))
+    expect(port).toMatchObject({ status: 'unknown', cause: 'policy' })
+    const into = await checkSiteLiveness(
+      'https://smiledental.com',
+      deps({ fetchImpl: byUrl({ 'https://smiledental.com/': () => redirect('http://localhost:3000/api/admin/migrate') }) }),
+    )
+    expect(into).toMatchObject({ status: 'unknown', cause: 'policy' })
+    const resolver = await checkSiteLiveness('https://smiledental.com', deps({ lookup: async () => { throw dnsErr('EAI_AGAIN') } }))
+    expect(resolver).toMatchObject({ status: 'unknown', cause: 'resolver' })
+    const loop = await checkSiteLiveness('https://smiledental.com', deps({ fetchImpl: vi.fn(async () => redirect('https://smiledental.com/')) }))
+    expect(loop).toMatchObject({ status: 'unknown', cause: 'redirects' })
+    const gone = await checkSiteLiveness('https://smiledental.com', deps({ lookup: async () => { throw dnsErr('ENOTFOUND') } }))
+    expect(gone.status).toBe('dead')
+    expect(gone).not.toHaveProperty('cause')
+    const alive = await checkSiteLiveness('https://smiledental.com', deps({}))
+    expect(alive.status).toBe('alive')
+    expect(alive).not.toHaveProperty('cause')
   })
 })
