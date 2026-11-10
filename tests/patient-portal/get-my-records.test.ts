@@ -12,6 +12,8 @@ const state = {
   patient: null as Record<string, unknown> | null,
   forms: [] as Array<Record<string, unknown>>,
   visits: [] as Array<Record<string, unknown>>,
+  // ML-50b: the primary slot in patient_insurance (what getPatientInsurance returns).
+  card: null as { provider: string | null; policyNumber: string | null; groupNumber: string | null } | null,
 }
 
 vi.mock('@/lib/db', () => {
@@ -37,7 +39,7 @@ vi.mock('@/lib/db', () => {
     db: {
       select: (sel?: Record<string, unknown>) => {
         const keys = sel ? Object.keys(sel) : []
-        if (keys.includes('insuranceProvider')) {
+        if (keys.includes('postalCode')) {
           return chain(state.patient ? [state.patient] : [])
         }
         if (keys.includes('formTitle')) {
@@ -66,6 +68,9 @@ vi.mock('@/lib/db/schema/clinic', () => ({
   clinicProvider: { id: 'cp.id', displayName: 'cp.dn' },
   patientBalancePayment: {},
 }))
+vi.mock('@/lib/services/insurance-eligibility/plans', () => ({
+  getPatientInsurance: vi.fn(async () => state.card),
+}))
 vi.mock('@/lib/db/schema/platform', () => ({ clinicProfile: {} }))
 vi.mock('@/lib/services/patient-messaging', () => ({
   getOrCreatePatientThread: vi.fn(),
@@ -91,6 +96,7 @@ beforeEach(() => {
   state.patient = null
   state.forms = []
   state.visits = []
+  state.card = null
 })
 
 async function callGetMyRecords() {
@@ -115,9 +121,6 @@ describe('getMyRecords', () => {
       city: 'Brooklyn',
       state: 'NY',
       postalCode: '11201',
-      insuranceProvider: null,
-      insurancePolicyNumber: null,
-      insuranceGroupNumber: null,
     }
     const r = await callGetMyRecords()
     expect(r).not.toBeNull()
@@ -128,7 +131,8 @@ describe('getMyRecords', () => {
   })
 
   it('includes form submissions joined to the template title', async () => {
-    state.patient = { firstName: 'M', lastName: 'H', email: null, phone: null, dateOfBirth: null, addressLine1: null, city: null, state: null, postalCode: null, insuranceProvider: 'Delta', insurancePolicyNumber: 'POL-1', insuranceGroupNumber: null }
+    state.patient = { firstName: 'M', lastName: 'H', email: null, phone: null, dateOfBirth: null, addressLine1: null, city: null, state: null, postalCode: null }
+    state.card = { provider: 'Delta', policyNumber: 'POL-1', groupNumber: null }
     state.forms = [
       { submissionId: 'sub_1', formTitle: 'New Patient Intake', submittedAt: new Date('2026-04-01T00:00:00Z') },
       { submissionId: 'sub_2', formTitle: 'Health History Update', submittedAt: new Date('2026-05-01T00:00:00Z') },
@@ -142,7 +146,7 @@ describe('getMyRecords', () => {
   it('only includes completed visits in the visit history', async () => {
     // The SQL filters status='completed' at query time, so the mock just
     // simulates what the DB would have returned.
-    state.patient = { firstName: 'M', lastName: 'H', email: null, phone: null, dateOfBirth: null, addressLine1: null, city: null, state: null, postalCode: null, insuranceProvider: null, insurancePolicyNumber: null, insuranceGroupNumber: null }
+    state.patient = { firstName: 'M', lastName: 'H', email: null, phone: null, dateOfBirth: null, addressLine1: null, city: null, state: null, postalCode: null }
     state.visits = [
       { id: 'apt_1', type: 'cleaning', startTime: new Date('2026-03-15T09:00:00Z'), notes: null, providerName: 'Dr. Reyes' },
       { id: 'apt_2', type: 'checkup', startTime: new Date('2025-10-12T09:00:00Z'), notes: 'Sealants placed' },

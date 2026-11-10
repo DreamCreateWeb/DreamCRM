@@ -95,6 +95,20 @@ vi.mock('@/lib/db', async () => {
   }
 })
 
+// ML-50b: each persona's primary card is written through upsertPatientInsurance
+// (the real one selects an ownership row, which would consume the hand-ordered
+// selectQueue above; its own writes are pinned in tests/insurance/ml50-plans.test.ts).
+// Recorded here so the seeder's half of the contract — persona card -> primary slot — is asserted.
+const primaryWrites: Array<{ orgId: string; patientId: string; rank: string; card: Record<string, unknown> }> = []
+vi.mock('@/lib/services/insurance-eligibility/plans', () => ({
+  upsertPatientInsurance: vi.fn(async (orgId: string, patientId: string, rank: string, card: Record<string, unknown>) => {
+    primaryWrites.push({ orgId, patientId, rank, card })
+    return true
+  }),
+  getPatientInsurance: vi.fn(async () => null),
+  rememberSlotCard: vi.fn(async () => true),
+}))
+
 // The canonical service-library seed runs at the very top of createDemoClinic.
 // It has its own dedicated test (tests/services/service-library.test.ts); here
 // we no-op it so it doesn't consume from the staged selectQueue or add
@@ -118,6 +132,7 @@ beforeEach(() => {
   state.selectQueue.length = 0
   state.inserts.length = 0
   state.updates.length = 0
+  primaryWrites.length = 0
 })
 
 describe('createDemoClinic', () => {
@@ -638,6 +653,16 @@ describe('createDemoClinic', () => {
     expect(counts.clinic_profile).toBe(1)
     expect(counts.clinic_location).toBe(1)
     expect(counts.patient).toBe(15)
+    // ML-50b: every persona that carries a card gets it in the primary slot, keyed by the
+    // persona's own patient id and the new org (never a position or a stray id).
+    const personaIds = new Set(state.inserts.filter((i) => i.table === 'patient').flatMap((i) => (Array.isArray(i.values) ? i.values : [i.values]) as Array<{ id: string }>).map((v) => v.id))
+    expect(primaryWrites.length).toBeGreaterThan(0)
+    for (const w of primaryWrites) {
+      expect(w.rank).toBe('primary')
+      expect(w.orgId).toBe(out.organizationId)
+      expect(personaIds.has(w.patientId)).toBe(true)
+      expect(w.card.provider || w.card.policyNumber).toBeTruthy()
+    }
     expect(counts.appointment).toBe(18)
     expect(counts.clinic_provider).toBe(2)
     expect(counts.appointment_reminder_log).toBe(4)

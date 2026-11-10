@@ -17,6 +17,9 @@ function thenable(resolve: () => unknown) {
     from: (t: unknown) => {
       // The patient read resolves immediately; appointment reads pull from the queue.
       if (t === 'patient') return chainFor(() => (patientRow ? [patientRow] : []))
+      // ML-50b: the card read (getPatientInsurance) hits patient_insurance — no slot row here,
+      // so it falls back to the patient row (which carries no flat card) and the card is null.
+      if (t === 'patient_insurance') return chainFor(() => [])
       return chainFor(() => apptResults[apptCall++] ?? [])
     },
   }
@@ -34,7 +37,7 @@ function thenable(resolve: () => unknown) {
 
 vi.mock('@/lib/db', () => ({
   db: { select: () => thenable(() => []) },
-  schema: { patient: 'patient', appointment: 'appointment' },
+  schema: { patient: 'patient', appointment: 'appointment', patientInsurance: 'patient_insurance' },
 }))
 vi.mock('drizzle-orm', () => ({
   and: (...a: unknown[]) => ({ a }), asc: (x: unknown) => x, desc: (x: unknown) => x,

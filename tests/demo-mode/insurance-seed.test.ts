@@ -47,6 +47,18 @@ vi.mock('@/lib/services/insurance-eligibility/payer-notebook', () => ({
   savePayerNote: (...a: unknown[]) => savePayerNote(...(a as [])),
 }))
 
+// ML-50b: Mia's card is the primary slot in patient_insurance, read through
+// getPatientInsurance and stamped through rememberSlotCard (both pinned in
+// tests/insurance/ml50-plans.test.ts) — mocked here so the select queue below
+// stays the seeder's own reads.
+const miaCard = { current: null as null | { policyNumber: string | null; detail: unknown } }
+const getPatientInsurance = vi.fn(async () => miaCard.current)
+const rememberSlotCard = vi.fn(async () => true)
+vi.mock('@/lib/services/insurance-eligibility/plans', () => ({
+  getPatientInsurance: (...a: unknown[]) => getPatientInsurance(...(a as [])),
+  rememberSlotCard: (...a: unknown[]) => rememberSlotCard(...(a as [])),
+}))
+
 import { seedDemoInsuranceChecks } from '@/lib/services/demo-clinic/seed-insurance'
 
 const NOW = new Date('2026-09-30T15:00:00Z')
@@ -57,6 +69,9 @@ beforeEach(() => {
   state.inserts.length = 0
   state.updates.length = 0
   savePayerNote.mockClear()
+  miaCard.current = null
+  getPatientInsurance.mockClear()
+  rememberSlotCard.mockClear()
 })
 
 describe('seedDemoInsuranceChecks', () => {
@@ -84,10 +99,14 @@ describe('seedDemoInsuranceChecks', () => {
     expect(mia.asOf).toBe(new Date(NOW.getTime() - 12 * 86_400_000).toISOString())
     // The record remembers the card: Mia's detail is stamped once, keyed on the
     // member id her seeded checks carry, and it touches ONLY the detail column.
-    expect(state.updates).toHaveLength(1)
-    expect(state.updates[0].table).toBe('patient')
-    expect(Object.keys(state.updates[0].values)).toEqual(['insuranceDetail'])
-    expect(state.updates[0].values.insuranceDetail).toMatchObject({ memberId: 'DD-100-2231', planName: 'Delta Dental PPO', source: 'check' })
+    expect(state.updates).toHaveLength(0)
+    expect(rememberSlotCard).toHaveBeenCalledTimes(1)
+    expect(rememberSlotCard).toHaveBeenCalledWith(
+      'org_demo',
+      'pat_0',
+      'primary',
+      expect.objectContaining({ memberId: 'DD-100-2231', planName: 'Delta Dental PPO', source: 'check' }),
+    )
 
     state.inserts.length = 0
     state.selectQueue.push([{ id: 'pat_0' }])
@@ -119,12 +138,13 @@ describe('seedDemoInsuranceChecks', () => {
   })
 
   it('Mia’s seeded checks carry HER on-file policy number, and an existing detail is left alone', async () => {
-    state.selectQueue.push([{ id: 'pat_0', policy: 'POL-4455667', detail: { memberId: 'POL-4455667' } }])
+    miaCard.current = { policyNumber: 'POL-4455667', detail: { memberId: 'POL-4455667' } }
+    state.selectQueue.push([{ id: 'pat_0' }])
     state.selectQueue.push([])
     await seedDemoInsuranceChecks('org_demo', NOW, IDS)
     const mia = state.inserts.find((i) => i.values.id === 'ins_demo_mia_2')!
     expect((mia.values.input as { memberId: string }).memberId).toBe('POL-4455667')
-    expect(state.updates).toHaveLength(0)
+    expect(rememberSlotCard).not.toHaveBeenCalled()
   })
 
   it('skips entirely when Mia is missing — never falls back to a real patient', async () => {

@@ -53,6 +53,17 @@ config, that looks harmless can turn a PR red:
   `<Group> · <clinic name>` eyebrow, the hub way-back), directly or one relative
   import away. A dated allowlist may only shrink; redirect stubs are exempt.
   Registered in `INTAKE_RULES` as a tree-walk class (ML-54).
+- `insurance-flat-readers.test.ts` — **the primary insurance plan is
+  authoritative in `patient_insurance`** (ML-50b). The flat
+  `patient.insurance_*` columns are a one-release MIRROR: written, never read.
+  Two walkers over `lib/` and `app/`: every file the writer grep finds is a
+  registered WRITER (and must call `upsertPatientInsurance` /
+  `patchPrimaryInsurance` / `seedPrimaryInsuranceBulk`) or a registered
+  non-DB file, and a drizzle column reference `patient.insurance{Provider,
+  PolicyNumber,GroupNumber,Detail}` may appear only in a dated allowlist
+  that may only shrink. The one read is `getPatientInsurance`
+  (`lib/services/insurance-eligibility/plans.ts`). Registered in
+  `INTAKE_RULES` as a tree-walk class.
 - `review-gate.test.ts` — the gate list in `scripts/review-gate.mjs` must keep
   matching the tree. Four directions, and the two that bite are the ones that
   fail as the repo grows: `MUST_BE_GATED` (a curated list of files that must
