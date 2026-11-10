@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ActionButton } from '@/components/ui/action-button'
+import { TextInput, Textarea } from '@/components/ui/form-fields'
 import Modal from '@/components/ui/modal'
 import { isStaleFailure, runAction } from '@/lib/run-action'
 import { US_STATES } from '@/lib/types/us-geo'
@@ -123,9 +124,9 @@ export default function InviteCallerModal() {
                     <label className="mb-1 block text-sm font-medium" htmlFor="ic-name">
                       Name <span className="text-rose-500">*</span>
                     </label>
-                    <input
+                    <TextInput
                       id="ic-name"
-                      className="form-input w-full"
+                      className="w-full"
                       required
                       value={name}
                       onChange={(e) => setName(e.target.value)}
@@ -136,9 +137,9 @@ export default function InviteCallerModal() {
                     <label className="mb-1 block text-sm font-medium" htmlFor="ic-email">
                       Email <span className="text-rose-500">*</span>
                     </label>
-                    <input
+                    <TextInput
                       id="ic-email"
-                      className="form-input w-full"
+                      className="w-full"
                       type="email"
                       required
                       value={email}
@@ -152,9 +153,9 @@ export default function InviteCallerModal() {
                     <label className="mb-1 block text-sm font-medium" htmlFor="ic-target">
                       Daily target
                     </label>
-                    <input
+                    <TextInput
                       id="ic-target"
-                      className="form-input w-full"
+                      className="w-full"
                       type="number"
                       min={1}
                       max={500}
@@ -167,9 +168,9 @@ export default function InviteCallerModal() {
                     <label className="mb-1 block text-sm font-medium" htmlFor="ic-states">
                       States (optional)
                     </label>
-                    <input
+                    <TextInput
                       id="ic-states"
-                      className="form-input w-full"
+                      className="w-full"
                       value={states}
                       onChange={(e) => setStates(e.target.value)}
                       placeholder="TX, OK, LA"
@@ -183,9 +184,9 @@ export default function InviteCallerModal() {
                   <label className="mb-1 block text-sm font-medium" htmlFor="ic-notes">
                     Notes (yours only)
                   </label>
-                  <textarea
+                  <Textarea
                     id="ic-notes"
-                    className="form-textarea w-full"
+                    className="w-full"
                     rows={2}
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}

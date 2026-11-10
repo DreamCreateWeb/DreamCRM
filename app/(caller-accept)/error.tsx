@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { ActionButton } from '@/components/ui/action-button'
 import { DreamCreateLogo } from '@/components/brand/dream-create-logo'
 
 /**
@@ -38,7 +39,7 @@ export default function CallerAcceptError({
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
             We may have just shipped an update. Refreshing usually fixes it — your invite link still works.
           </p>
-          <button
+          <ActionButton variant="primary"
             onClick={() => {
               try {
                 reset()
@@ -47,10 +48,10 @@ export default function CallerAcceptError({
               }
               window.location.reload()
             }}
-            className="btn w-full bg-teal-600 text-white hover:bg-teal-700 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300"
+            className="w-full"
           >
             Refresh
-          </button>
+          </ActionButton>
         </div>
       </main>
     </div>

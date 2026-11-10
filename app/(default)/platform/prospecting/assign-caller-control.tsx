@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ActionButton } from '@/components/ui/action-button'
+import { Select } from '@/components/ui/form-fields'
 import { useToast } from '@/components/ui/toast'
 import { isStaleFailure, runAction } from '@/lib/run-action'
 import { assignProspectToCallerAction } from './admin-actions'
@@ -67,9 +68,9 @@ export default function AssignCallerControl({
         <>
           {callers.length > 0 && (
             <>
-              <select
+              <Select
                 aria-label="Caller"
-                className="form-select text-sm"
+                className="text-sm"
                 value={pick}
                 onChange={(e) => setPick(e.target.value)}
                 disabled={pending}
@@ -80,7 +81,7 @@ export default function AssignCallerControl({
                     {c.name}
                   </option>
                 ))}
-              </select>
+              </Select>
               <ActionButton
                 size="sm"
                 variant="secondary"

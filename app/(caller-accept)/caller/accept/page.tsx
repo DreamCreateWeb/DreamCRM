@@ -7,6 +7,7 @@ import { DreamCreateLogo } from '@/components/brand/dream-create-logo'
 import { isDeploymentSkewError } from '@/lib/auth/submit-guard'
 import { TONE_PILL } from '@/lib/ui/encodings'
 import { ActionButton } from '@/components/ui/action-button'
+import { TextInput } from '@/components/ui/form-fields'
 import { getCallerInviteDetailsAction, completeCallerAcceptAction } from './accept-actions'
 import type { CallerInviteDetails } from '@/lib/services/prospect-callers'
 
@@ -246,12 +247,13 @@ function AcceptInner() {
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
           Your calling account is ready. Your page lists the practices to call, one at a time.
         </p>
-        <button
+        <ActionButton
+          variant="primary"
           onClick={() => window.location.assign('/calls')}
-          className="btn bg-teal-600 hover:bg-teal-700 text-white w-full"
+          className="w-full"
         >
           Start calling
-        </button>
+        </ActionButton>
       </Shell>
     )
   }
@@ -288,12 +290,13 @@ function AcceptInner() {
         {formError && (
           <p className={`mb-4 text-sm ${TONE_PILL.urgent} px-3 py-2 rounded-lg`}>{formError}</p>
         )}
-        <button
+        <ActionButton
+          variant="primary"
           onClick={() => accept(details)}
-          className="btn w-full bg-teal-600 hover:bg-teal-700 text-white"
+          className="w-full"
         >
           Accept &amp; continue
-        </button>
+        </ActionButton>
       </Shell>
     )
   }
@@ -339,7 +342,7 @@ function AcceptInner() {
           <form onSubmit={handleMagicLink} className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-1" htmlFor="pa-email-magic">Email</label>
-              <input id="pa-email-magic" type="email" value={details.email} disabled className="form-input w-full opacity-60 cursor-not-allowed" />
+              <TextInput id="pa-email-magic" type="email" value={details.email} disabled className="w-full opacity-60 cursor-not-allowed" />
             </div>
             <p className="text-sm text-gray-600 dark:text-gray-400">
               We’ll email a one-time sign-in link to this address. No password needed.
@@ -361,25 +364,25 @@ function AcceptInner() {
           <form onSubmit={mode === 'signin' ? handleSignin : handleSignup} className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-1" htmlFor="pa-email">Email</label>
-              <input id="pa-email" type="email" value={details.email} disabled className="form-input w-full opacity-60 cursor-not-allowed" />
+              <TextInput id="pa-email" type="email" value={details.email} disabled className="w-full opacity-60 cursor-not-allowed" />
             </div>
             {mode === 'signup' && (
               <div>
                 <label className="block text-sm font-medium mb-1" htmlFor="pa-name">
                   Your name <span className="text-rose-500">*</span>
                 </label>
-                <input id="pa-name" type="text" required value={name} onChange={(e) => setName(e.target.value)}
-                  placeholder="Jordan Reyes" className="form-input w-full" autoComplete="name" />
+                <TextInput id="pa-name" type="text" required value={name} onChange={(e) => setName(e.target.value)}
+                  placeholder="Jordan Reyes" className="w-full" autoComplete="name" />
               </div>
             )}
             <div>
               <label className="block text-sm font-medium mb-1" htmlFor="pa-pass">
                 Password <span className="text-rose-500">*</span>
               </label>
-              <input id="pa-pass" type="password" required minLength={8} value={password}
+              <TextInput id="pa-pass" type="password" required minLength={8} value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={mode === 'signin' ? 'Your password' : 'Choose a password (8+ chars)'}
-                className="form-input w-full" autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} />
+                className="w-full" autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} />
             </div>
             {formError && (
               <p className={`text-sm ${TONE_PILL.urgent} px-3 py-2 rounded-lg`}>{formError}</p>
@@ -441,9 +444,9 @@ function AcceptInner() {
         {step.expired ? 'Invite expired' : 'Invite error'}
       </h1>
       <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">{step.message}</p>
-      <button onClick={() => router.push('/signin')} className="btn w-full bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900">
+      <ActionButton variant="primary" onClick={() => router.push('/signin')} className="w-full">
         Back to sign in
-      </button>
+      </ActionButton>
     </Shell>
   )
 }

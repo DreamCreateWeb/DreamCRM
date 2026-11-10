@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ActionButton } from '@/components/ui/action-button'
+import { TextInput } from '@/components/ui/form-fields'
 import { StatusPill } from '@/components/ui/status-pill'
 import { runAction } from '@/lib/run-action'
 import type { CallerQueueItem } from '@/lib/services/prospect-callers'
@@ -506,14 +507,14 @@ export default function CallerSession({ items, hostTimeZone }: { items: CallerQu
               🎉 Lock the time while they’re on the phone — on Dream Create’s clock ({hostTimeZone.replace(/_/g, ' ')})
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <input type="date" value={demoDay} onChange={(e) => setDemoDay(e.target.value)} className="form-input text-sm" aria-label="Demo day" autoFocus />
-              <input type="time" value={demoTime} onChange={(e) => setDemoTime(e.target.value)} className="form-input text-sm" aria-label="Demo time" />
-              <input
+              <TextInput type="date" value={demoDay} onChange={(e) => setDemoDay(e.target.value)} className="text-sm" aria-label="Demo day" autoFocus />
+              <TextInput type="time" value={demoTime} onChange={(e) => setDemoTime(e.target.value)} className="text-sm" aria-label="Demo time" />
+              <TextInput
                 type="email"
                 value={attendeeEmail}
                 onChange={(e) => setAttendeeEmail(e.target.value)}
                 placeholder="their email (optional)"
-                className="form-input w-52 text-sm"
+                className="w-52 text-sm"
                 aria-label="Their email"
               />
               <ActionButton
@@ -557,8 +558,8 @@ export default function CallerSession({ items, hostTimeZone }: { items: CallerQu
               🔁 When did they ask you to call back? Their time{theirZone ? ` (${theirZone})` : ''}.
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <input type="date" value={callbackDay} onChange={(e) => setCallbackDay(e.target.value)} className="form-input text-sm" aria-label="Callback day" autoFocus />
-              <input type="time" value={callbackTime} onChange={(e) => setCallbackTime(e.target.value)} className="form-input text-sm" aria-label="Callback time" />
+              <TextInput type="date" value={callbackDay} onChange={(e) => setCallbackDay(e.target.value)} className="text-sm" aria-label="Callback day" autoFocus />
+              <TextInput type="time" value={callbackTime} onChange={(e) => setCallbackTime(e.target.value)} className="text-sm" aria-label="Callback time" />
               <ActionButton
                 size="sm"
                 variant="primary"
@@ -599,12 +600,12 @@ export default function CallerSession({ items, hostTimeZone }: { items: CallerQu
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-2">
-            <input
+            <TextInput
               type="text"
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="Anything to remember? (optional)"
-              className="form-input min-w-[200px] flex-1 rounded-full text-sm"
+              className="min-w-[200px] flex-1 rounded-full text-sm"
               maxLength={500}
               aria-label="Note"
             />

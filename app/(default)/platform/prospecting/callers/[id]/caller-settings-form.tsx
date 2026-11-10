@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ActionButton } from '@/components/ui/action-button'
+import { TextInput, Textarea } from '@/components/ui/form-fields'
 import { useToast } from '@/components/ui/toast'
 import { isStaleFailure, runAction } from '@/lib/run-action'
 import { US_STATES } from '@/lib/types/us-geo'
@@ -60,19 +61,19 @@ export default function CallerSettingsForm({
         <label className="mb-1 block text-sm font-medium" htmlFor="cs-target">
           Daily target
         </label>
-        <input id="cs-target" type="number" min={1} max={500} className="form-input w-full" value={target} onChange={(e) => setTarget(e.target.value)} />
+        <TextInput id="cs-target" type="number" min={1} max={500} className="w-full" value={target} onChange={(e) => setTarget(e.target.value)} />
       </div>
       <div>
         <label className="mb-1 block text-sm font-medium" htmlFor="cs-states">
           States
         </label>
-        <input id="cs-states" className="form-input w-full" value={stateText} onChange={(e) => setStateText(e.target.value)} placeholder="any" />
+        <TextInput id="cs-states" className="w-full" value={stateText} onChange={(e) => setStateText(e.target.value)} placeholder="any" />
       </div>
       <div>
         <label className="mb-1 block text-sm font-medium" htmlFor="cs-notes">
           Notes (yours only)
         </label>
-        <textarea id="cs-notes" rows={3} className="form-textarea w-full" value={noteText} onChange={(e) => setNoteText(e.target.value)} />
+        <Textarea id="cs-notes" rows={3} className="w-full" value={noteText} onChange={(e) => setNoteText(e.target.value)} />
       </div>
       {error && (
         <p role="alert" className="text-sm text-rose-600 dark:text-rose-400">
