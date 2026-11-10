@@ -196,6 +196,7 @@ const OWNER_CAPABILITY_NAME: Record<string, string> = {
   guardian_note: 'Flagging things for them to look at',
   staff_alert: 'Getting alert emails to their inbox',
   inbox_sync: 'Keeping their email inbox in step',
+  metric_snapshot: 'Keeping the trend lines on their tiles up to date',
 }
 
 export async function recentFailureSummaries(

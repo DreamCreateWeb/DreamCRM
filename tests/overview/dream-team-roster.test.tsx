@@ -41,6 +41,7 @@ describe('the roster ↔ capability registry parity', () => {
       // that only reports to staff, not a job on any specialist's desk.
       'staff_alert',
       'inbox_sync',
+      'metric_snapshot',
       ...SETUP_CAPABILITIES,
     ])
     for (const c of CAPABILITIES) {

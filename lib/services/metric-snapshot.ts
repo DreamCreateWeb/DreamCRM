@@ -5,6 +5,7 @@ import { metricsFor, type MetricKey } from '@/lib/metrics-registry'
 import { clinicYesterdayWindow, utcYesterdayWindow, utcPreviousHourWindow, type BucketWindow } from '@/lib/services/metric-series-read'
 import { ORG_READERS, PLATFORM_READERS } from '@/lib/services/metric-readers'
 import { listShutDownOrgIds } from '@/lib/services/billing-state'
+import { reportAutomationFailure } from '@/lib/services/engine-failures'
 import { sweepClinics } from '@/lib/services/cron-sweep'
 import type { SweepProgress } from '@/lib/cron-budget'
 
@@ -100,7 +101,9 @@ export async function captureOrgDay(organizationId: string, timeZone: string | n
       value = await reader({ organizationId, from: win.from, to: win.to })
     } catch (e) {
       // One broken reader never takes the others down; it retries next tick.
-      console.warn(`[metric-snapshot] ${metric} unreadable for ${organizationId}`, e)
+      // The clinic pays ONE strike a day (deduped by the registry).
+      void e
+      await reportAutomationFailure(organizationId, 'metric_snapshot', now)
       continue
     }
     if (value === null || !Number.isFinite(value)) continue
@@ -169,7 +172,8 @@ export async function runMetricSnapshots(now: Date = new Date()): Promise<Snapsh
         rowsWritten += n
       }
     },
-    { onError: (c, err) => console.warn(`[metric-snapshot] ${c.organizationId} failed`, err) },
+    // A clinic whose pass throws costs ONE strike a day; the walk goes on.
+    { onError: (c) => void reportAutomationFailure(c.organizationId, 'metric_snapshot', now) },
   )
 
   const platformDay = await capturePlatform(utcYesterdayWindow(now), 'day').catch((e) => {

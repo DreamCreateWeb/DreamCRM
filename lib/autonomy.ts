@@ -79,6 +79,10 @@ export const CAPABILITIES: readonly CapabilityDef[] = [
   // behind the page; it only REPORTS (a ledger strike when a mailbox will not
   // sync). Meta like staff_alert: not grantable, off the roster.
   { key: 'inbox_sync', label: 'Keep your email inbox in step', defaultTrust: 'auto' },
+  // THE METRICS SNAPSHOT (ML-38b). Plumbing that records each clinic's day for
+  // the tiles' sparks; it only REPORTS (a ledger strike when a clinic's pass
+  // throws). Meta like inbox_sync: not grantable, off the roster.
+  { key: 'metric_snapshot', label: 'Keep your trend lines up to date', defaultTrust: 'auto' },
   // THE PROPOSAL ENGINE itself (Phase 4 observability). Not a job the clinic
   // grants — it is how every ask-first job REACHES them. It earns a key so
   // that "I couldn't bring you any work at all today" has somewhere honest
