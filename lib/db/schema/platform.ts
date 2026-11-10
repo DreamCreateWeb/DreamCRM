@@ -341,6 +341,8 @@ export const clinicProfile = pgTable('clinic_profile', {
   emailDomainRecords: jsonb('email_domain_records'),
   emailDomainCheckedAt: timestamp('email_domain_checked_at'),
   emailDomainVerifiedAt: timestamp('email_domain_verified_at'),
+  /** ML-63b: consecutive checks Resend answered 'failed' (3+ -> the sweep goes daily). */
+  emailDomainFailedChecks: integer('email_domain_failed_checks').notNull().default(0),
 
   // Opaque token for the subscribable read-only .ics calendar feed
   // (/api/calendar/<token>). The token IS the auth (calendar apps can't carry a

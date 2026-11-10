@@ -84,7 +84,7 @@ beforeEach(() => {
   h.verify.mockClear()
   h.get.mockReset()
   h.create.mockResolvedValue({ data: { id: 'dom_1', status: 'not_started', records: RESEND_RECORDS }, error: null })
-  __setResendDomainsClient(() => ({ domains: { create: h.create, verify: h.verify, get: h.get } }))
+  __setResendDomainsClient(() => ({ domains: { create: h.create, verify: h.verify, get: h.get, remove: vi.fn() } }))
 })
 
 describe('pure helpers', () => {
