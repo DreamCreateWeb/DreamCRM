@@ -219,8 +219,10 @@ test.describe('the dashboard shell is usable at phone width', () => {
     await expect(dialog).toBeVisible()
     const box = (await dialog.boundingBox())!
     expect(Math.round(box.x), 'the dialog starts inside the left edge').toBeGreaterThanOrEqual(0)
-    expect(Math.round(box.x + box.width), 'the dialog ends inside the right edge').toBeLessThanOrEqual(390)
-    expect(Math.round(box.y + box.height), 'the dialog ends inside the bottom edge').toBeLessThanOrEqual(844)
+    // Far edges round DOWN: a sheet whose bottom lands at 844.8 ends inside pixel row 844
+    // (sub-pixel layout), while a real 845 overshoot still fails.
+    expect(Math.floor(box.x + box.width), 'the dialog ends inside the right edge').toBeLessThanOrEqual(390)
+    expect(Math.floor(box.y + box.height), 'the dialog ends inside the bottom edge').toBeLessThanOrEqual(844)
     expect(await page.evaluate(() => document.documentElement.scrollWidth), 'no horizontal document scroll').toBeLessThanOrEqual(390)
 
     const primary = dialog.getByRole('button', { name: /^Save & open$/ })
