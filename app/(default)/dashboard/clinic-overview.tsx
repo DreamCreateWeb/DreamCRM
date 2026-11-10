@@ -26,6 +26,8 @@ import { TagChip } from '@/components/ui/tag-chip'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
 import { KpiStat } from '@/components/ui/kpi-stat'
+import { HeartbeatLine } from '@/components/ui/heartbeat-line'
+import { getOrgHeartbeats, readOrgSeriesMany } from '@/lib/services/metric-series-read'
 import { patientFlagGlyphs, type Tone, type GlyphId, type PillLegendRow } from '@/lib/ui/encodings'
 import { leadAgeLabel } from '@/lib/lead-age'
 import { balanceSourceCopy, scheduleSourceCopy, todayCountLabel } from '@/lib/pms-link'
@@ -165,6 +167,16 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
       ? Math.round(((site.total - site.totalPrev) / site.totalPrev) * 100)
       : null
 
+  // Visits completed (ML-38b): the Overview loads no such number, so the
+  // tile's headline is the snapshot's own latest recorded clinic-local day,
+  // and the tile exists only once a day is recorded (nothing zero-filled).
+  const visitTz = data.timeZone
+  const [visitSeries, visitBeats] = await Promise.all([
+    readOrgSeriesMany(ctx.organizationId, ['visits'], 14, { timeZone: visitTz }).then((r) => r.visits).catch(() => []),
+    getOrgHeartbeats(ctx.organizationId, visitTz, ['visits'], { nouns: { visits: 'completed' } }).catch(() => null),
+  ])
+  const visitLast = visitSeries.length > 0 ? visitSeries[visitSeries.length - 1] : null
+
   const busiestUpcoming = data.trends.upcomingPerDay7.reduce<{ bucket: string; value: number } | null>(
     (best, d) => (d.value > 0 && (!best || d.value > best.value) ? d : best),
     null,
@@ -184,6 +196,28 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
         />
       ),
     },
+    ...(visitLast
+      ? [
+          {
+            key: 'visits',
+            node: (
+              <KpiStat
+                label="Visits completed"
+                value={visitLast.value}
+                sub={
+                  <>
+                    {visitLast.bucket}
+                    <HeartbeatLine line={visitBeats?.visits.line} />
+                  </>
+                }
+                href="/appointments?window=past_30d"
+                countUp
+                spark={visitBeats?.visits.spark ?? undefined}
+              />
+            ),
+          },
+        ]
+      : []),
     {
       key: 'new-patients',
       node: (

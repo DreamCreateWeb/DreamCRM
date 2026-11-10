@@ -690,6 +690,15 @@ export async function requestCustomDomain(
     }
   }
 
+  // A swapped domain starts fresh: drop a Resend domain registered for another apex.
+  try {
+    const { removeEmailDomain } = await import('./email-domain')
+    const { emailDomainFor } = await import('@/lib/email-identity')
+    await removeEmailDomain(orgId, { keepIfName: emailDomainFor(host) })
+  } catch (err) {
+    console.warn('[custom-domain] email domain cleanup failed:', (err as Error).message)
+  }
+
   const manualStatus: CustomDomainStatus = {
     state: 'pending_dns',
     domain: host,
@@ -908,6 +917,13 @@ export async function checkCustomDomainStatus(orgId: string): Promise<CustomDoma
  * and clear `websiteDomain` + status so the site falls back to its subdomain.
  */
 export async function removeCustomDomain(orgId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  // ML-63b: the Resend domain goes with the custom domain (fail-open inside).
+  try {
+    const { removeEmailDomain } = await import('./email-domain')
+    await removeEmailDomain(orgId)
+  } catch (err) {
+    console.warn('[custom-domain] email domain cleanup failed:', (err as Error).message)
+  }
   const current = await getStatus(orgId)
   // Even with no stored status, clear the columns so a half-set domain is removed.
   if (current?.driver === 'cloudfront') {

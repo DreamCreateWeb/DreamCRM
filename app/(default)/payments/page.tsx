@@ -11,7 +11,7 @@ import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { HeartbeatLine } from '@/components/ui/heartbeat-line'
-import { getOrgHeartbeats } from '@/lib/services/metric-series-read'
+import { getOrgHeartbeats, readOrgSeriesMany } from '@/lib/services/metric-series-read'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { StatusPill } from '@/components/ui/status-pill'
 import { toReconcileSub } from '@/lib/payments-reconcile'
@@ -49,9 +49,18 @@ export default async function PaymentsHubPage() {
   ])
   // The Outstanding tile's heartbeat (ML-38): the daily snapshot of PMS
   // balances — only ever recorded for a practice with a connected PMS.
-  const beats = await getOrgHeartbeats(ctx.organizationId, await getClinicTimeZone(ctx.organizationId), ['outstanding_balance'], {
+  const payTz = await getClinicTimeZone(ctx.organizationId)
+  const beats = await getOrgHeartbeats(ctx.organizationId, payTz, ['outstanding_balance', 'revenue_collected'], {
     fmt: (n) => formatCents(n),
+    nouns: { revenue_collected: 'collected' },
   }).catch(() => null)
+  // Collected online, net of refunds (ML-38b): the page loads no such number,
+  // so the tile's headline is the snapshot's own latest recorded day. Only
+  // drawn once something is recorded; the spark is the snapshot's.
+  const collectedSeries = await readOrgSeriesMany(ctx.organizationId, ['revenue_collected'], 14, { timeZone: payTz })
+    .then((r) => r.revenue_collected)
+    .catch(() => [])
+  const collectedLast = collectedSeries.length > 0 ? collectedSeries[collectedSeries.length - 1] : null
   const openPlans = plans.filter((p) => p.status === 'active' || p.status === 'proposed' || p.status === 'past_due')
   const balanceSource = balanceSourceCopy(pmsLink)
 
@@ -109,6 +118,20 @@ export default async function PaymentsHubPage() {
             spark={beats?.outstanding_balance.spark ?? undefined}
           />
         )}
+        {collectedLast ? (
+          <KpiStat
+            label="Collected online"
+            value={formatCents(collectedLast.value)}
+            href="/payments/online"
+            sub={
+              <>
+                {collectedLast.bucket}, after refunds
+                <HeartbeatLine line={beats?.revenue_collected.line} />
+              </>
+            }
+            spark={beats?.revenue_collected.spark ?? undefined}
+          />
+        ) : null}
         <KpiStat
           label="To reconcile"
           value={toReconcileCount}

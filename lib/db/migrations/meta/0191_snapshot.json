@@ -1,5 +1,5 @@
 {
-  "id": "76f9c616-b9ac-4636-9c78-f4e02f3bd4c5",
+  "id": "be0d0bcb-28b8-4ef3-b554-1f39f2a4f388",
   "prevId": "fb3a9e8e-c738-4f13-9ac3-4e8a4b51cea3",
   "version": "7",
   "dialect": "postgresql",
@@ -10594,12 +10594,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "tracking_url": {
-          "name": "tracking_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "notes": {
           "name": "notes",
           "type": "text",
@@ -17430,6 +17424,13 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false
+        },
+        "email_domain_failed_checks": {
+          "name": "email_domain_failed_checks",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         },
         "calendar_feed_token": {
           "name": "calendar_feed_token",

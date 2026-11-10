@@ -1,0 +1,1 @@
+ALTER TABLE "clinic_profile" ADD COLUMN "email_domain_failed_checks" integer DEFAULT 0 NOT NULL;
