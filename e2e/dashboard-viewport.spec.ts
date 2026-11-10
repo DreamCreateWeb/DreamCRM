@@ -195,4 +195,43 @@ test.describe('the dashboard shell is usable at phone width', () => {
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
     expect(overflow, 'no horizontal document scroll with the bar mounted').toBe(0)
   })
+
+  // ML-56b — the one measurement a source test cannot take: the shared Modal
+  // (a bottom sheet below `sm`) opens INSIDE a real 390x844 viewport, its
+  // primary action is reachable with no horizontal scroll, and Escape hands
+  // focus back to the control that opened it.
+  test('at 390 the Add patient modal opens inside the viewport and Escape returns focus to its opener', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto(`${BASE}/patients`, { waitUntil: 'domcontentloaded' })
+
+    // Same welcome-dialog recipe as the shell test above: the first-visit
+    // fixture may open it, and it would hold focus.
+    const letsGo = page.getByRole('button', { name: /let.s go/i })
+    if (await letsGo.isVisible().catch(() => false)) {
+      await letsGo.click()
+      await expect(page.getByRole('dialog', { name: /welcome/i })).toBeHidden()
+    }
+
+    const opener = page.getByRole('button', { name: /^\+ Add patient$/ }).first()
+    await expect(opener).toBeVisible({ timeout: 30_000 })
+    await opener.click()
+
+    const dialog = page.getByRole('dialog', { name: 'Add patient' })
+    await expect(dialog).toBeVisible()
+    const box = (await dialog.boundingBox())!
+    expect(Math.round(box.x), 'the dialog starts inside the left edge').toBeGreaterThanOrEqual(0)
+    expect(Math.round(box.x + box.width), 'the dialog ends inside the right edge').toBeLessThanOrEqual(390)
+    expect(Math.round(box.y + box.height), 'the dialog ends inside the bottom edge').toBeLessThanOrEqual(844)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth), 'no horizontal document scroll').toBeLessThanOrEqual(390)
+
+    const primary = dialog.getByRole('button', { name: /^Save & open$/ })
+    await expect(primary).toBeVisible()
+    const p = (await primary.boundingBox())!
+    expect(Math.round(p.x)).toBeGreaterThanOrEqual(0)
+    expect(Math.round(p.x + p.width)).toBeLessThanOrEqual(390)
+
+    await page.keyboard.press('Escape')
+    await expect(dialog).toBeHidden()
+    await expect(opener, 'focus returns to the opener').toBeFocused()
+  })
 })
