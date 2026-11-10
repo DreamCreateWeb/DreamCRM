@@ -7332,3 +7332,24 @@ the custom domain deletes the Resend domain (fail-open, one `custom_domain`
 strike) and clears every `email_domain_*` column (`removeEmailDomain`), so a
 practice never keeps sending from a domain it no longer owns. The runbook
 section is in `docs/custom-domains.md`.
+
+## 2026-11-10 — ML-55b: the last Mosaic bones, part two (tabs, Settings on the frame, the legacy form classes, the platform inbox)
+
+ML-55's stated follow-ups. `components/ui/tabs.tsx` is the one tab row
+(`Tabs` / `TabLink` / `Tab`: role=tablist, arrow + Home/End focus movement,
+40px tabs, the active tab in `text-ink-900`, the row scrolls inside
+itself); `settings-tabs`, `clinic-settings-nav` and `prospecting-nav` render
+through it. `components/ui/form-fields.tsx` holds `TextInput` / `Select` /
+`Textarea` / `Checkbox` / `Radio` / `Field` (+ `FIELD_BOX_CLASSES`) and
+`buttonClasses()` lives in `action-button.tsx` for the anchors that must stay
+anchors (the Gmail OAuth doors). `SettingsPage` (settings-kit) renders
+through `PageFrame`; fourteen settings pages adopt it and the Settings home
+carries the `Settings · <clinic>` eyebrow. Twenty-two files lost the legacy
+`form-*` / `btn*` classes (Settings and Messages held at ZERO by the new
+grader `tests/design-system/legacy-form-classes.test.ts`, a tree-walk census
+class in `INTAKE_RULES`; the dated allowlist starts at 125 files with its
+ceiling at 125 and may only shrink). The platform inbox's sidebar and stats
+use `Tabs`, `StatusPill` and the ink ramp; its composer, broadcast and
+thread panels use the shared fields. Left: `surface-tabs.tsx` (clinic-only)
+is not on the primitive; the two-pane Messages/Inbox pages stay off
+`PageFrame` by design.
