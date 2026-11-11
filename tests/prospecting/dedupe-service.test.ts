@@ -942,6 +942,60 @@ describe('mergeProspects — the merge', () => {
     expect(out.patch.verification.phone?.detail).not.toMatch(/the registry had/)
   })
 
+  it('Z1: the union runs whenever the numbers are the same, whichever row carries the caller — the typed row as the LOSER (discovery twin the survivor, no verdict, a verification of its own): the loser’s caller voice, column and alt land on the survivor’s kept signal, and the REAL verify pass keeps the typed digits', async () => {
+    const AT = '2026-11-09T00:00:00.000Z'
+    const registry = { status: 'valid', detail: 'Carrier database: landline', checkedAt: AT, source: 'aws_pinpoint', sources: ['nppes'], standing: 'single_source', lineCheck: 'done' }
+    const alt = { number: '4045559999', source: 'places', at: AT }
+    const typed = { status: 'well_formed', detail: `Number entered by hand on Nov 8, 2026 — line not checked yet; Google lists (404) 555-9999 — kept the number you typed`, checkedAt: AT, source: 'caller', sources: ['caller'], standing: 'single_source', alt }
+    const survivorVerification = { places: { status: 'matched', detail: null, checkedAt: AT, source: 'places' }, phone: registry }
+    const survivor = prospect({ id: 'a', name: 'Smile Dental PC', addressLine1: '123 Main St', phone: '4045550000', phoneStatus: 'valid', phoneLineType: 'landline', phoneSource: 'single_source', phoneValidatedAt: new Date(AT), npiNumber: null, qualityScore: 80, qualityBand: 'best', verifiedAt: new Date(AT), verification: survivorVerification })
+    const loser = prospect({ id: 'b', phone: '4045550000', phoneStatus: 'unknown', phoneLineType: null, phoneSource: 'caller', phoneValidatedAt: null, qualityScore: 40, qualityBand: 'weak', verification: { phone: typed } })
+    state.selectQueue.push([survivor, loser], [], [], [])
+    await mergeProspects('a', 'b', { now: NOW, config: CONFIG })
+    const fill = updates('prospect')[0].values!
+    // The survivor's own signal is kept (status, detail, line facts) — with the loser's voice, its alt and its sentence.
+    expect(fill).not.toHaveProperty('phoneStatus')
+    expect(fill.phoneSource).toBe('caller')
+    expect((fill.verification as { phone: Record<string, unknown> }).phone).toEqual({
+      ...registry,
+      sources: ['nppes', 'caller'],
+      standing: 'corroborated',
+      alt,
+      detail: 'Carrier database: landline; Google lists (404) 555-9999 — kept the number you typed',
+    })
+    expect((fill.verification as { places: unknown }).places).toEqual(survivorVerification.places)
+    // Then the next verify pass, for real, against a listing stating the other number: the typed digits stay.
+    const merged = { ...survivor, ...fill, verification: parseVerification(fill.verification) }
+    const listing = { placeId: 'place_1', displayName: 'Smile Dental', formattedAddress: '123 Main St, Atlanta, GA 30309, USA', nationalPhoneNumber: '4045559999', websiteUri: null, ratingTenths: 47, reviewCount: 22, businessStatus: 'OPERATIONAL', googleMapsUri: 'https://maps.google.com/x', latestReviewAt: null, hasOpeningHours: true }
+    const out = await verifyProspectSignals(merged as never, { ok: true, places: [listing] }, await newVerifyRunCtx({ ...PROSPECTING_DEFAULTS, killSwitch: false }, NOW))
+    expect(out.patch.phone).toBe('4045550000')
+    expect(out.patch.verification.phone).toMatchObject({ sources: ['nppes', 'caller'], alt: { number: '4045559999', source: 'places' } })
+    expect(out.patch.verification.phone?.detail).toMatch(/Google lists \(404\) 555-9999 — kept the number you typed/)
+    expect(out.patch.verification.phone?.detail).not.toMatch(/the registry had/)
+
+    // The standing shape of the same loser (column single_source, sources [caller]): the column becomes the recomputed standing, the voice still lands.
+    state.ops = []
+    state.selectQueue.push([survivor, prospect({ ...loser, phoneSource: 'single_source', verification: { phone: { ...typed, alt: undefined, detail: 'Number entered by hand on Nov 8, 2026 — line not checked yet' } } })], [], [], [])
+    await mergeProspects('a', 'b', { now: NOW, config: CONFIG })
+    const standing = updates('prospect')[0].values!
+    expect(standing.phoneSource).toBe('corroborated')
+    expect((standing.verification as { phone: Record<string, unknown> }).phone).toEqual({ ...registry, sources: ['nppes', 'caller'], standing: 'corroborated' })
+    const again = await verifyProspectSignals({ ...survivor, ...standing, verification: parseVerification(standing.verification) } as never, { ok: true, places: [listing] }, await newVerifyRunCtx({ ...PROSPECTING_DEFAULTS, killSwitch: false }, NOW))
+    expect(again.patch.phone).toBe('4045550000')
+
+    // A loser that adds no voice (the same registry source, no alt) writes nothing — the survivor's signal and column stand untouched.
+    state.ops = []
+    state.selectQueue.push([survivor, prospect({ ...loser, phoneSource: 'single_source', verification: { phone: { ...registry, standing: 'single_source' } } })], [], [], [])
+    await mergeProspects('a', 'b', { now: NOW, config: CONFIG })
+    expect(updates('prospect')[0].values).not.toHaveProperty('verification')
+    expect(updates('prospect')[0].values).not.toHaveProperty('phoneSource')
+
+    // The CONTROL — the survivor as the pre-fix merge left it (sources [nppes], column single_source): the typed number is REPLACED.
+    const lost = { ...survivor, verification: parseVerification(survivorVerification) }
+    const replaced = await verifyProspectSignals(lost as never, { ok: true, places: [listing] }, await newVerifyRunCtx({ ...PROSPECTING_DEFAULTS, killSwitch: false }, NOW))
+    expect(replaced.patch.phone).toBe('4045559999')
+  })
+
   it('V1: a `reach` heard on the same line is kept, and rescores only a row the pass has looked at', async () => {
     const reach = { status: 'reached', detail: 'Someone picked up on Nov 9, 2026 (gatekeeper)', checkedAt: '2026-11-09T00:00:00.000Z', source: 'caller' }
     state.selectQueue.push(

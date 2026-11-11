@@ -500,41 +500,53 @@ export async function mergeProspects(
         reachTaken = true
         changed = true
       }
-      // A MERGE NEVER LOSES PROVENANCE (fix pass IV, Y2). Wherever the
-      // loser's phone signal lands on the survivor — the verdict take, the
-      // fill of a verification-less survivor — and both rows hold the SAME
-      // number, the signal keeps the loser's status / detail / line facts
+      // A MERGE NEVER LOSES PROVENANCE (fix pass IV, Y2; fix pass V, Z1).
+      // Whenever both rows hold the SAME number — whichever row carries
+      // the caller, whatever landed — the survivor's kept phone signal (its
+      // own; the loser's when the verdict take or the fill brought it, or
+      // when the survivor had none) keeps its status / detail / line facts
       // but its `sources` become the union of both rows' voices (each
-      // row's signal sources AND its legacy column: a survivor's typed
-      // 'caller' statement about this very line survives the merge, so the
-      // next verify pass never replaces the typed number), the standing is
-      // recomputed from the union, the survivor's `alt` is kept (the
-      // loser's when it has none), and the phone_source column stays
+      // row's signal sources AND its legacy column: a typed 'caller'
+      // statement about this very line survives the merge on EITHER side,
+      // so the next verify pass never replaces the typed number), the
+      // standing is recomputed from the union (a bad status stays
+      // single_source), the survivor's `alt` is kept (the loser's when it
+      // has none) with its sentence, and the phone_source column becomes
       // 'caller' when EITHER side's column was 'caller' (pre-standing
-      // rows), else the recomputed standing. A loser's signal about ANOTHER
-      // number never lands on a survivor that holds its own: it describes a
-      // line this row does not have.
+      // rows), else the recomputed standing. Nothing is written when the
+      // union adds nothing. A loser's signal about ANOTHER number never
+      // lands on a survivor that holds its own: it describes a line this
+      // row does not have.
       const loserSignalLanded = theirs.phone != null && (phoneVerdictTaken || verificationFilled)
-      if (loserSignalLanded && mine.phone) {
-        if (sameNumber) {
-          const survivorSig = parseVerification(survivor.verification).phone
-          const voices = unionPhoneVoices(phoneVoices(survivorSig?.sources, survivor.phoneSource), phoneVoices(theirs.phone!.sources, loser.phoneSource))
-          const status = (patch.phoneStatus ?? survivor.phoneStatus) as string | null
-          const standing = phoneStanding(voices, status)
-          const alt = survivorSig?.alt ?? mine.phone.alt ?? null
-          const base = withoutListingAltNote(mine.phone.detail)
-          mine.phone = {
-            ...mine.phone,
-            sources: voices,
-            standing,
-            ...(alt ? { alt, detail: base ? `${base}; ${listingAltNote(alt.number)}` : listingAltNote(alt.number) } : {}),
+      if (sameNumber) {
+        const survivorSig = parseVerification(survivor.verification).phone
+        const tookLosers = mine.phone == null && theirs.phone != null
+        const kept = mine.phone ?? theirs.phone
+        if (kept) {
+          const before = kept.sources ?? []
+          const voices = unionPhoneVoices(phoneVoices(survivorSig?.sources, survivor.phoneSource), phoneVoices(theirs.phone?.sources, loser.phoneSource))
+          const sourcesMoved = voices.length !== before.length || voices.some((s, i) => before[i] !== s)
+          const alt = survivorSig?.alt ?? kept.alt ?? theirs.phone?.alt ?? null
+          const altAdded = alt != null && kept.alt?.number !== alt.number
+          if (loserSignalLanded || tookLosers || sourcesMoved || altAdded) {
+            const status = (patch.phoneStatus ?? survivor.phoneStatus) as string | null
+            const standing = phoneStanding(voices, status)
+            const base = withoutListingAltNote(kept.detail)
+            mine.phone = {
+              ...kept,
+              sources: voices,
+              standing,
+              ...(alt ? { alt, detail: base ? `${base}; ${listingAltNote(alt.number)}` : listingAltNote(alt.number) } : {}),
+            }
+            patch.phoneSource = survivor.phoneSource === 'caller' || loser.phoneSource === 'caller' ? 'caller' : standing
+            changed = true
+          } else if (loser.phoneSource === 'caller' && survivor.phoneSource !== 'caller') {
+            patch.phoneSource = 'caller'
           }
-          patch.phoneSource = survivor.phoneSource === 'caller' || loser.phoneSource === 'caller' ? 'caller' : standing
-          changed = true
-        } else if (verificationFilled && survivor.phone != null) {
-          delete mine.phone
-          changed = true
         }
+      } else if (loserSignalLanded && verificationFilled && survivor.phone != null) {
+        delete mine.phone
+        changed = true
       }
       if (changed) patch.verification = mine
     }

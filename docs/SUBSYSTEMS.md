@@ -629,15 +629,18 @@ transaction under `FOR UPDATE` and guards both writes on `status <>
 — the unique index never holds it twice); the phone travels WITH its verdict
 (`PHONE_GROUP` + the verification's phone signal — a disconnected number
 never lands as `unknown`; A MERGE NEVER LOSES PROVENANCE, P-04 fix pass IV
-Y2: wherever the loser's phone signal lands on a survivor holding the SAME
-number — the same-number verdict take, the fill of a verification-less
-survivor — its `sources` become the union of both rows' voices, each row's
-signal sources AND its legacy `phone_source` column (`phoneVoices` /
-`unionPhoneVoices`), the standing is recomputed from the union
-(`phoneStanding`, now in lib/types/prospecting.ts), the survivor's `alt`
-is kept (the loser's when it has none) with its sentence, and the column
-stays `caller` when EITHER side's was, else the recomputed standing — so
-a survivor's typed-number statement survives the merge and the next verify
+Y2 + fix pass V Z1: whenever both rows hold the SAME number — whichever
+row carries the caller, whatever landed (the same-number verdict take,
+the fill of a verification-less survivor, or the survivor's own signal
+kept) — the survivor's kept phone signal takes `sources` = the union of
+both rows' voices, each row's signal sources AND its legacy
+`phone_source` column (`phoneVoices` / `unionPhoneVoices`), the standing
+recomputed from the union (`phoneStanding`, now in
+lib/types/prospecting.ts; a bad status stays single_source), the
+survivor's `alt` kept (the loser's when it has none) with its sentence,
+and the column `caller` when EITHER side's was, else the recomputed
+standing; nothing is written when the union adds nothing — so a typed-
+number statement survives the merge on either side and the next verify
 pass never replaces it; a loser's signal about ANOTHER number never lands
 on a survivor that holds its own); a loser's LIVE drip is stopped, never re-pointed,
 onto a terminal survivor (not_interested / disqualified / suppressed /
@@ -871,7 +874,10 @@ IV, Y1) a liveness `dead` whose cause is a TIMEOUT (`siteGoneWasRead`
 reads `verification.website.cause`: a dead by dns / refused / http /
 invalid, a parked page and a dead stored before the cause was kept WERE
 read and keep the no-website / parked verdict; a double timeout read
-nothing) — gets an
+nothing — and so did a cause-less legacy dead whose detail is the probe's
+own "timed out twice", which survives wherever a later probe does not
+re-stamp it (site checks paused, a probe answering unknown) — fix pass V,
+Z2) — gets an
 honest UNREAD verdict from `heuristicVerdict` (`{hasWebsite: true,
 websiteRead: false, websiteQuality: 0, …, summary: 'Website not read.'}`;
 `websiteRead` is absent — read — on every AI verdict and every heuristic
@@ -957,12 +963,14 @@ verdict branch (wrong number / disconnected) writes `sources:
 union(prior, 'caller')` exactly as its reach branch does,
 `updateProspectPhone` writes `['caller']` (a retyped number is a fresh
 statement), the verify pass carries the prior sources while the number is
-unchanged, and the dedupe merge (fix pass IV, Y2) writes the loser's
-same-number signal with the UNION of both rows' voices — signal sources
-and legacy columns — keeping the column `caller` when either side's was —
-so neither a verdict logged after the column has turned to
-`single_source` nor a merge with the discovery's twin can turn the guard
-off and let the listing's number replace the typed one. When the matched
+unchanged, and the dedupe merge (fix pass IV Y2, fix pass V Z1) gives the
+survivor's kept same-number signal the UNION of both rows' voices —
+signal sources and legacy columns, whichever row carried the caller and
+whichever signal was kept — keeping the column `caller` when either
+side's was — so neither a verdict logged after the column has turned to
+`single_source` nor a merge with the discovery's twin, in either
+direction, can turn the guard off and let the listing's number replace
+the typed one. When the matched
 listing lists a DIFFERENT number for such a row, that number is kept on
 the signal (`verification.phone.alt = {number, source: 'places', at}`)
 and the detail says "Google lists (404) 555-9999 — kept the number you

@@ -380,12 +380,25 @@ describe('reEnrichProspect (manual refresh)', () => {
     verifyMock.mockImplementationOnce(deadWith({ status: 'parked', cause: 'parked' }, 'smiledental.com shows a parked-domain page'))
     await runEnrichment()
     expect(state.updates.at(-1)!.values.aiVerdict).toMatchObject({ hasWebsite: false, summary: 'No website found.' })
-    // A dead stored before the cause was kept reads as gone, as it did.
+    // A dead stored before the cause was kept (Z2): one whose detail is the
+    // probe's own "timed out twice" read nothing — the unread verdict, never
+    // 92; any other legacy detail (a DNS gone, a server error) stays gone.
     state.updates.length = 0
     state.selectQueue.push([PROSPECT])
-    verifyMock.mockImplementationOnce(deadWith({}, 'smiledental.com answers with a server error (503)'))
+    verifyMock.mockImplementationOnce(deadWith({}, 'smiledental.com timed out twice (6s)'))
     await runEnrichment()
-    expect(state.updates.at(-1)!.values.aiVerdict).toMatchObject({ hasWebsite: false, summary: 'No website found.' })
+    const legacyTimeout = state.updates.at(-1)!.values
+    expect(legacyTimeout.aiVerdict).toMatchObject({ hasWebsite: true, websiteRead: false, weaknesses: [], summary: 'Website not read.' })
+    expect(legacyTimeout.scoreReasons as string[]).toContain('Website not read — quality unknown')
+    expect(legacyTimeout.scoreReasons as string[]).not.toContain('No website at all — needs everything we sell')
+    expect(legacyTimeout.opportunityScore).toBeLessThan(90)
+    for (const detail of ['smiledental.com no longer resolves (DNS)', 'smiledental.com answers with a server error (503)']) {
+      state.updates.length = 0
+      state.selectQueue.push([PROSPECT])
+      verifyMock.mockImplementationOnce(deadWith({}, detail))
+      await runEnrichment()
+      expect(state.updates.at(-1)!.values.aiVerdict, detail).toMatchObject({ hasWebsite: false, summary: 'No website found.' })
+    }
   })
 
   it('fails soft on budget exhaustion and unknown ids', async () => {

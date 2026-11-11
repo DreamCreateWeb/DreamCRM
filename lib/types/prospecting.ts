@@ -371,16 +371,26 @@ export interface WebsiteVerificationSignal extends VerificationSignal {
   cause?: string | null
 }
 
+/** The probe's own wording for a double timeout (lib/services/
+ *  prospect-site-liveness.ts) — the one thing a cause-less legacy `dead`
+ *  can say that proves nothing was read (fix pass V, Z2). */
+const LEGACY_TIMEOUT_DETAIL = /timed out twice/i
+
 /** Did the probe READ that the site is gone? True for a dead by DNS /
  *  refused / an HTTP answer / an invalid address and for a parked page
  *  (those were observed — the no-website / parked verdicts stand); false
  *  for a dead by TIMEOUT (nothing was read — the unread verdict) and for
- *  every other status. A stored `dead` from before the cause was kept
- *  (no `cause`) reads as gone, as it did. */
+ *  every other status. A stored `dead` from before the cause was kept (no
+ *  `cause`) reads as gone — EXCEPT one whose detail is the probe's own
+ *  "timed out twice" (Z2): that row read nothing either, and the stamp
+ *  survives wherever a later probe does not replace it (site checks
+ *  paused, a probe answering unknown). */
 export function siteGoneWasRead(website: WebsiteVerificationSignal | null | undefined): boolean {
   if (!website) return false
   if (website.status === 'parked') return true
-  return website.status === 'dead' && website.cause !== 'timeout'
+  if (website.status !== 'dead') return false
+  if (website.cause) return website.cause !== 'timeout'
+  return !LEGACY_TIMEOUT_DETAIL.test(website.detail ?? '')
 }
 
 export type ProspectVerification = Partial<Record<VerificationSignalId, VerificationSignal>> & {
