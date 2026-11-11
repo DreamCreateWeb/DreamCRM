@@ -2,22 +2,25 @@ import { StatusPill } from '@/components/ui/status-pill'
 import type { Tone } from '@/lib/ui/encodings'
 import {
   PHONE_SOURCE_LABELS,
+  PHONE_SOURCE_NAME_LABELS,
   VERIFICATION_SIGNALS,
   VERIFICATION_SIGNAL_LABELS,
   VERIFY_STALE_DAYS,
   formatUtcStamp,
   parseVerification,
+  type PhoneVerificationSignal,
   type ProspectPhoneSource,
   type VerificationSignalId,
 } from '@/lib/types/prospecting'
-import { isFullyVerified } from '@/lib/prospect-quality'
+import { SINGLE_SOURCE_TURN_ON, isFullyVerified } from '@/lib/prospect-quality'
 import { QualityPill } from './quality-pills'
 
 /**
  * The drawer's Verification card (P-01) — every signal with its status, its
  * source and WHEN it was checked (UTC, marked: the platform runs in UTC and
  * the owner may be anywhere). Honest by construction: a signal that never
- * ran says so; "Verified" means every core signal inside 60 days.
+ * ran says so; "Verified" means every core signal inside 60 days. The phone
+ * line names who states the number (the two-source rule, P-04).
  */
 
 const STATUS_TONE: Record<string, Tone> = {
@@ -27,9 +30,12 @@ const STATUS_TONE: Record<string, Tone> = {
   alive: 'ok',
   valid: 'ok',
   reached: 'ok',
+  recent: 'ok',
   well_formed: 'info',
+  quiet: 'info',
   temporarily_closed: 'warn',
   redirected: 'warn',
+  stale: 'warn',
   retired: 'urgent',
   closed: 'urgent',
   dead: 'urgent',
@@ -62,6 +68,30 @@ const STATUS_LABEL: Record<string, string> = {
   wrong_number: 'Wrong number',
   missing: 'Missing',
   reached: 'Reached',
+  recent: 'Current',
+  quiet: 'Quiet',
+  stale: 'Stale',
+}
+
+/** The phone line's "who says so" (P-04): the sources that state the
+ *  number and its standing — or, on a row the P-04 pass has not seen, the
+ *  legacy "Number from …". */
+export function phoneSourcesLine(phone: PhoneVerificationSignal | undefined, phoneSource: string | null): string | null {
+  const sources = phone?.sources
+  if (sources && sources.length > 0) {
+    const named = sources.map((s) => PHONE_SOURCE_NAME_LABELS[s]).join(', ')
+    if (phone?.standing === 'corroborated') return `Stated by ${named} — corroborated`
+    if (sources.length === 1 && phone?.lineCheck === 'off') return `${SINGLE_SOURCE_TURN_ON} (${named})`
+    return `Only one source lists this number (${named})`
+  }
+  if (phone?.standing === 'single_source') return phone.lineCheck === 'off' ? SINGLE_SOURCE_TURN_ON : 'Only one source lists this number'
+  if (phoneSource && phoneSource in PHONE_SOURCE_LABELS) {
+    const label = PHONE_SOURCE_LABELS[phoneSource as ProspectPhoneSource]
+    if (phoneSource === 'corroborated') return 'Two sources agree on this number'
+    if (phoneSource === 'single_source') return 'Only one source lists this number'
+    return `Number from ${label}`
+  }
+  return null
 }
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -117,10 +147,7 @@ export function VerificationCard({
       : staleDays != null && staleDays > window
         ? `Last pass ${staleDays} days ago — due for another look`
         : `Partly checked · ${stamp}`
-  const phoneSourceLabel =
-    phoneSource && phoneSource in PHONE_SOURCE_LABELS
-      ? PHONE_SOURCE_LABELS[phoneSource as ProspectPhoneSource]
-      : null
+  const phoneLine = phoneSourcesLine(v.phone, phoneSource)
 
   return (
     <div data-verification-card>
@@ -137,7 +164,9 @@ export function VerificationCard({
       <ul className="mt-3 space-y-2">
         {VERIFICATION_SIGNALS.map((id) => {
           const sig = v[id]
-          if (!sig && id === 'reach') return null
+          // The bonus signals only show once something wrote them: a call
+          // (reach), a listing with review dates (reviews — P-04).
+          if (!sig && (id === 'reach' || id === 'reviews')) return null
           return (
             <li key={id} className="text-sm" data-signal={id}>
               <div className="flex items-center justify-between gap-2">
@@ -156,8 +185,8 @@ export function VerificationCard({
                   </span>
                 </div>
               )}
-              {id === 'phone' && phone && phoneSourceLabel && (
-                <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Number from {phoneSourceLabel}</div>
+              {id === 'phone' && phone && phoneLine && (
+                <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400" data-phone-sources>{phoneLine}</div>
               )}
             </li>
           )

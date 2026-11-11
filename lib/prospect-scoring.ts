@@ -1,23 +1,67 @@
-import type { ProspectAiVerdict, ProspectCrawlSignals } from '@/lib/types/prospecting'
+import type { ProspectAiVerdict, ProspectCrawlSignals, PracticeSize } from '@/lib/types/prospecting'
+import { BUILDER_LABELS, DIY_BUILDERS, TEMPLATE_VENDOR_BUILDERS } from '@/lib/types/prospecting'
 import type { ProspectScoreBand } from '@/lib/db/schema/prospecting'
+import { newPracticeSentence, formatMonthYear } from '@/lib/prospect-fit'
 
 /**
  * Deterministic opportunity scoring — pure math over the (AI or heuristic)
- * verdict + Places data. The AI judges the WEBSITE; this function decides
- * the SCORE, so the ranking logic is unit-testable and never drifts with a
- * model change.
+ * verdict + Places data + what the crawl and the registry already told us.
+ * The AI judges the WEBSITE; this function decides the SCORE, so the
+ * ranking logic is unit-testable and never drifts with a model change.
  *
  * The ladder mirrors what Dream Create sells (websites + CRM + social):
- *   no website at all   → 90–100 (hot)   — they need everything
+ *   no website at all   → 92–100 (hot)   — they need everything
  *   bad website (<40)   → 65–89  (warm+) — replace it
- *   decent site, gaps   → 40–64          — booking/social/reviews upsell
+ *   decent site, gaps   → 30–89          — booking/social/reviews upsell
  *   dialed-in practice  → <40   (low)
+ *
+ * THE P-04 WEIGHTS ("needs us" gets what we already fetch — never a new
+ * request), applied after the ladder, website branches capped at 89 so a
+ * practice with no website is always the hottest kind:
+ *
+ *   new practice (NPPES enumerated < 18 months)   +8   (+4 with no website)
+ *   no booking widget and no review engine on
+ *     the site AND the verdict says no booking    +6   "a phone number is
+ *                                                       their only door"
+ *   each competitor stack tool fingerprinted      −5   floor −15
+ *   DIY builder (Wix / Squarespace / GoDaddy /
+ *     Weebly)                                     +5
+ *   dental template vendor (ProSites / PBHS /
+ *     Officite / TNT Dental)                      +4
+ *   a group practice (≥5 dentists, registry)     −10   deprioritised, never
+ *                                                       excluded (owner ruling)
+ *
+ * The stack is only judged when the crawl LOOKED (`stack` is an array);
+ * an older crawl without it moves nothing.
  */
+
+export const OPPORTUNITY_WEIGHTS = {
+  newPractice: 8,
+  newPracticeNoSite: 4,
+  noStack: 6,
+  stackTool: -5,
+  stackFloor: -15,
+  diyBuilder: 5,
+  templateVendor: 4,
+  groupPractice: -10,
+  /** A practice with a website never beats one without. */
+  websiteCap: 89,
+} as const
 
 export interface ScoreInput {
   verdict: ProspectAiVerdict
   reviewCount: number | null
   ratingTenths: number | null
+  /** The competitor stack the crawl fingerprinted (P-04); undefined /
+   *  null = the crawl did not look. */
+  stack?: string[] | null
+  /** The site builder the crawl fingerprinted (a BUILDER_LABELS key). */
+  builder?: string | null
+  /** The NPPES enumeration date when the registry says the practice is
+   *  NEW (< 18 months); null / undefined otherwise. */
+  openedAt?: string | null
+  /** The registry's read of the practice size. */
+  practiceSize?: PracticeSize | null
 }
 
 export interface ScoreResult {
@@ -33,6 +77,13 @@ export function bandForScore(score: number): ProspectScoreBand {
   return 'low'
 }
 
+/** "Already on NexHealth + Birdeye" — at most three named. */
+export function stackSentence(stack: string[]): string {
+  const named = stack.slice(0, 3).join(' + ')
+  const more = stack.length > 3 ? ` + ${stack.length - 3} more` : ''
+  return `Already on ${named}${more}`
+}
+
 export function computeOpportunityScore(input: ScoreInput): ScoreResult {
   const { verdict, reviewCount, ratingTenths } = input
   const reasons: string[] = []
@@ -40,8 +91,9 @@ export function computeOpportunityScore(input: ScoreInput): ScoreResult {
 
   const fewReviews = reviewCount != null && reviewCount < 20
   const weakRating = ratingTenths != null && ratingTenths < 40
+  const hasWebsite = verdict.hasWebsite
 
-  if (!verdict.hasWebsite) {
+  if (!hasWebsite) {
     score = 92
     reasons.push('No website at all — needs everything we sell')
     if (fewReviews) {
@@ -86,8 +138,43 @@ export function computeOpportunityScore(input: ScoreInput): ScoreResult {
     }
   }
 
+  // ── P-04: what the crawl and the registry already told us ─────────────
+  if (input.openedAt) {
+    if (hasWebsite) {
+      score += OPPORTUNITY_WEIGHTS.newPractice
+      reasons.push(`Opened ${formatMonthYear(input.openedAt) ?? 'recently'} — a new practice still setting up`)
+    } else {
+      score += OPPORTUNITY_WEIGHTS.newPracticeNoSite
+      reasons.push(newPracticeSentence(input.openedAt))
+    }
+  }
+  if (hasWebsite && Array.isArray(input.stack)) {
+    if (input.stack.length > 0) {
+      score += Math.max(OPPORTUNITY_WEIGHTS.stackFloor, OPPORTUNITY_WEIGHTS.stackTool * input.stack.length)
+      reasons.push(stackSentence(input.stack))
+    } else if (!verdict.onlineBooking) {
+      score += OPPORTUNITY_WEIGHTS.noStack
+      reasons.push('No booking widget, no review engine — a phone number is their only door')
+    }
+  }
+  if (hasWebsite && input.builder) {
+    const label = BUILDER_LABELS[input.builder] ?? input.builder
+    if ((DIY_BUILDERS as readonly string[]).includes(input.builder)) {
+      score += OPPORTUNITY_WEIGHTS.diyBuilder
+      reasons.push(`Built on ${label} — a DIY site`)
+    } else if ((TEMPLATE_VENDOR_BUILDERS as readonly string[]).includes(input.builder)) {
+      score += OPPORTUNITY_WEIGHTS.templateVendor
+      reasons.push(`A ${label} template site`)
+    }
+  }
+  if (input.practiceSize === 'group') {
+    score += OPPORTUNITY_WEIGHTS.groupPractice
+    reasons.push('A group practice — lower priority, not a chain')
+  }
+  if (hasWebsite) score = Math.min(OPPORTUNITY_WEIGHTS.websiteCap, score)
+
   score = Math.max(0, Math.min(100, score))
-  return { score, band: bandForScore(score), reasons: reasons.slice(0, 5) }
+  return { score, band: bandForScore(score), reasons: reasons.slice(0, 6) }
 }
 
 /**
@@ -130,6 +217,7 @@ export function heuristicVerdict(
     reasons.push('No meta description')
   }
   if (signals.builder === 'godaddy' || signals.builder === 'weebly') quality -= 10
+  else if (signals.builder && (TEMPLATE_VENDOR_BUILDERS as readonly string[]).includes(signals.builder)) quality -= 5
 
   const socialCount = Object.values(signals.socialLinks).filter(Boolean).length
   const socialPresence = Math.min(100, socialCount * 30)

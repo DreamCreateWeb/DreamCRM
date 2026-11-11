@@ -114,6 +114,7 @@ export default function HuntPanel({
             {tile('Good', quality.good, 'quality 60–79')}
             {tile('Parked', quality.parked, 'not served', quality.parked > 0 ? 'warn' : undefined)}
             {tile('Not verified yet', quality.unverified, 'the sweep is on it')}
+            {hygiene && tile('Chains removed', hygiene.chainsRemoved, 'set aside — targeted later')}
             {hygiene && (
               <div className="rounded-[var(--r-xs)] bg-[color:var(--color-surface-sunk)] p-3 sm:col-span-2" data-hygiene-tile>
                 <div className="text-xs text-gray-500 dark:text-gray-400">Hygiene · today</div>
@@ -128,6 +129,12 @@ export default function HuntPanel({
                     ? `last refresh ${formatUtcStamp(hygiene.lastRefresh.at)}`
                     : `a finished territory is re-swept once it is ${config.hygiene.discoveryRefreshDays} days old`}
                 </div>
+                {hygiene.earlyRefresh && (
+                  <div className="mt-1 text-xs text-amber-700 dark:text-amber-300" data-early-refresh>
+                    Refreshing {hygiene.earlyRefresh.state} {hygiene.earlyRefresh.zipPrefix} early — {hygiene.earlyRefresh.reason}
+                    <span className="text-gray-500 dark:text-gray-400"> · pulled {formatUtcStamp(hygiene.earlyRefresh.at)}</span>
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -33,7 +33,8 @@ vi.mock('@/lib/services/prospecting', () => ({
 
 import { decayCandidateWhere, lastTouchSql, stripRestingReasonSql, wakeSetSql } from '@/lib/services/prospect-hygiene'
 import { HAVING_MORE_THAN_ONE, tenDigitPhoneSql } from '@/lib/services/prospect-dedupe'
-import { territoryQueueOrderSql, territorySweptAtSql } from '@/lib/services/prospect-discovery'
+import { CLOSED_CALL_OUTCOMES, hotTerritoriesQuery, pullForwardWhere, territoryQueueOrderSql, territorySweptAtSql, zip3Sql } from '@/lib/services/prospect-discovery'
+import { addressKeySql, chainGroupHaving, websiteHostSql } from '@/lib/services/prospect-fit'
 import { dueForReverifyWhere, sweepBucketWhere, sweepCutoffs } from '@/lib/services/prospect-verify'
 import { DECAYABLE_STATUSES } from '@/lib/db/schema/prospecting'
 import { PROSPECTING_DEFAULTS } from '@/lib/types/prospecting'
@@ -170,5 +171,55 @@ describe('the re-verify sweep’s buckets (V8)', () => {
     const { readFileSync } = require('node:fs') as typeof import('node:fs')
     const verify = readFileSync('lib/services/prospect-verify.ts', 'utf8')
     for (const bucket of ['unverified', 'stale', 'resting']) expect(verify).toContain(`sweepBucketWhere('${bucket}', cutoffs)`)
+  })
+})
+
+// ── P-04: the chain groups and the callers' freshness pull ──────────────────
+
+describe('the chain sweep’s fragments (P-04)', () => {
+  it('the website host: scheme and www stripped, the first path / port / query cut — no parameters', () => {
+    expect(render(websiteHostSql())).toEqual({
+      sql: `lower(regexp_replace(regexp_replace("prospect"."website_url", '^https?://', ''), '^(www\\.)?([^/:?#]+).*$', '\\2'))`,
+      params: [],
+    })
+  })
+  it('the address key: street + ZIP, letters and digits only — no parameters', () => {
+    expect(render(addressKeySql())).toEqual({
+      sql: `lower(regexp_replace(coalesce("prospect"."address_line1", '') || coalesce("prospect"."postal_code", ''), '[^a-zA-Z0-9]', '', 'g'))`,
+      params: [],
+    })
+  })
+  it('HAVING count(distinct address) >= the threshold, cast', () => {
+    const { sql: text, params } = render(chainGroupHaving(3))
+    expect(text).toMatch(/^count\(distinct lower\(regexp_replace\(coalesce\("prospect"\."address_line1", ''\) \|\| coalesce\("prospect"\."postal_code", ''\), '\[\^a-zA-Z0-9\]', '', 'g'\)\)\) >= \$1::int$/)
+    expect(params).toEqual([3])
+  })
+})
+
+describe('callers steer freshness (P-04)', () => {
+  it('the territory key is the ZIP’s first three digits', () => {
+    expect(render(zip3Sql())).toEqual({ sql: 'substr("prospect"."postal_code", 1, 3)', params: [] })
+  })
+  it('the hot territories: closed / disconnected outcomes inside the window, joined to the practice, grouped by state × zip3, HAVING ≥ the threshold (cast), distinct practices', () => {
+    const { sql: text, params } = render(hotTerritoriesQuery(CUTOFF, 3).getSQL())
+    expect(text).toContain('inner join "prospect" on "prospect_call_log"."prospect_id" = "prospect"."id"')
+    expect(text).toContain('"prospect_call_log"."outcome" in ($1, $2)')
+    expect(params.slice(0, 2)).toEqual([...CLOSED_CALL_OUTCOMES])
+    expect(CLOSED_CALL_OUTCOMES).toEqual(['closed', 'disconnected'])
+    expect(text).toContain('"prospect_call_log"."created_at" >= $3')
+    // A timestamp column maps its Date to ISO text at the driver edge.
+    expect(params[2]).toBe(CUTOFF.toISOString())
+    expect(text).toContain('"prospect"."state" is not null and "prospect"."postal_code" is not null')
+    expect(text).toContain('group by "prospect"."state", substr("prospect"."postal_code", 1, 3)')
+    expect(text).toContain('having count(distinct "prospect_call_log"."prospect_id") >= $4::int')
+    expect(params[3]).toBe(3)
+    expect(text).toContain('count(distinct "prospect_call_log"."prospect_id")::int')
+  })
+  it('the pull touches the territory’s finished tasks (the zip3 and its zip5 children), never one already pulled, never one already due', () => {
+    const { sql: text, params } = render(pullForwardWhere('TX', '787', CUTOFF))
+    expect(text).toBe(
+      '("prospect_discovery_task"."state" = $1 and "prospect_discovery_task"."zip_prefix" like $2 and "prospect_discovery_task"."status" = $3 and "prospect_discovery_task"."refresh_pulled_at" is null and COALESCE("prospect_discovery_task"."last_refreshed_at", "prospect_discovery_task"."updated_at") >= $4)',
+    )
+    expect(params).toEqual(['TX', '787%', 'done', CUTOFF])
   })
 })

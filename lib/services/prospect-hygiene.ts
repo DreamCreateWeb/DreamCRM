@@ -16,14 +16,20 @@ import { bumpProspectingCounter, counterDay, getProspectingConfig, getProspectin
  * PROSPECT HYGIENE (P-03) — the list keeps itself clean. ONE pass,
  * `runProspectHygiene`, rides the enrich cron after the re-verify sweep:
  *
+ *   0. chains from our own data are set aside (P-04 — the same website
+ *      host or phone across ≥3 prospects at different addresses;
+ *      lib/services/prospect-fit.ts)
  *   1. exact duplicates merge (lib/services/prospect-dedupe.ts; ≤25 a run)
  *   2. untouched rows rest (decay — the pure rule in lib/prospect-decay.ts)
- *   3. one finished territory is re-swept for NEW practices (the discovery
+ *   3. the callers steer freshness (P-04 — a territory with ≥3 closed /
+ *      disconnected practices in 30 days has its refresh pulled forward)
+ *   4. one finished territory is re-swept for NEW practices (the discovery
  *      refresh in lib/services/prospect-discovery.ts; NPPES ≤50 a run)
  *
  * Every step is fail-open with its own `hygiene` strike (one a day) and its
- * own day counter (`dedupe_merge` · `decay` · `discovery_refresh`), so a
- * broken step is a logged zero and the next step still runs.
+ * own day counter (`chain_flag` · `dedupe_merge` · `decay` · `refresh_pull`
+ * · `discovery_refresh`), so a broken step is a logged zero and the next
+ * step still runs.
  *
  * The WAKE lives here too: any new inbound signal (a reply, a call outcome,
  * a grader run, a demo request, a conference capture) or a re-verify that
@@ -245,18 +251,23 @@ export interface HygieneRunResult {
   merged: number
   rested: number
   refreshed: { state: string; zipPrefix: string; found: number; imported: number } | null
+  /** Chains set aside this run (P-04). */
+  chainsFlagged: number
+  /** Territories whose refresh the callers pulled forward this run (P-04). */
+  pulledForward: number
   errors: number
   skipped?: string
 }
 
 /**
- * ONE pass: exact merges, decay, one territory refresh. Each step is
- * fail-open — a throw is a logged zero plus the `hygiene` strike (once a
- * run, once a day on the ledger), never a dead cron.
+ * ONE pass: the chain sweep, exact merges, decay, the freshness pull, one
+ * territory refresh. Each step is fail-open — a throw is a logged zero
+ * plus the `hygiene` strike (once a run, once a day on the ledger), never
+ * a dead cron.
  */
 export async function runProspectHygiene(opts: { now?: Date; config?: ProspectingConfig } = {}): Promise<HygieneRunResult> {
   const now = opts.now ?? new Date()
-  const out: HygieneRunResult = { merged: 0, rested: 0, refreshed: null, errors: 0 }
+  const out: HygieneRunResult = { merged: 0, rested: 0, refreshed: null, chainsFlagged: 0, pulledForward: 0, errors: 0 }
   const config = opts.config ?? (await getProspectingConfig())
   if (config.killSwitch) return { ...out, skipped: 'kill_switch' }
   const day = counterDay(now)
@@ -272,6 +283,16 @@ export async function runProspectHygiene(opts: { now?: Date; config?: Prospectin
     } catch (e) {
       console.error('[prospect-hygiene] failure report failed', e)
     }
+  }
+
+  try {
+    const { sweepChains } = await import('./prospect-fit')
+    const r = await sweepChains({ now })
+    out.chainsFlagged = r.flagged
+    if (r.flagged > 0) await bumpProspectingCounter(day, 'chain_flag', r.flagged)
+    if (r.errors > 0) await strike('chains', new Error(`${r.errors} chain flag(s) threw`))
+  } catch (err) {
+    await strike('chains', err)
   }
 
   try {
@@ -293,6 +314,15 @@ export async function runProspectHygiene(opts: { now?: Date; config?: Prospectin
   }
 
   try {
+    const { pullForwardHotTerritories } = await import('./prospect-discovery')
+    const pulled = await pullForwardHotTerritories({ now, config })
+    out.pulledForward = pulled.length
+    if (pulled.length > 0) await bumpProspectingCounter(day, 'refresh_pull', pulled.length)
+  } catch (err) {
+    await strike('freshness', err)
+  }
+
+  try {
     const { refreshStaleTerritory } = await import('./prospect-discovery')
     const r = await refreshStaleTerritory({ now, config })
     if (r) {
@@ -306,7 +336,8 @@ export async function runProspectHygiene(opts: { now?: Date; config?: Prospectin
   return out
 }
 
-/** The hunt panel's tile: merged today, resting now, the last refresh. */
+/** The hunt panel's tile: merged today, resting now, the last refresh —
+ *  and (P-04) the chains set aside, the territory the callers pulled forward. */
 export async function getHygieneStats(now: Date = new Date()): Promise<ProspectHygieneStats> {
   const mergedToday = await getProspectingCounter(counterDay(now), 'dedupe_merge')
   const [resting] = await db
@@ -323,9 +354,28 @@ export async function getHygieneStats(now: Date = new Date()): Promise<ProspectH
     .where(isNotNull(schema.prospectDiscoveryTask.lastRefreshedAt))
     .orderBy(desc(schema.prospectDiscoveryTask.lastRefreshedAt))
     .limit(1)
+  const [chains] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(p)
+    .where(and(eq(p.status, 'disqualified'), eq(p.suppressedReason, 'chain')))
+  const [pulled] = await db
+    .select({
+      state: schema.prospectDiscoveryTask.state,
+      zipPrefix: schema.prospectDiscoveryTask.zipPrefix,
+      reason: schema.prospectDiscoveryTask.refreshPulledReason,
+      at: schema.prospectDiscoveryTask.refreshPulledAt,
+    })
+    .from(schema.prospectDiscoveryTask)
+    .where(isNotNull(schema.prospectDiscoveryTask.refreshPulledAt))
+    .orderBy(desc(schema.prospectDiscoveryTask.refreshPulledAt))
+    .limit(1)
   return {
     mergedToday,
     resting: resting?.n ?? 0,
     lastRefresh: last?.at ? { state: last.state, zipPrefix: last.zipPrefix, at: last.at } : null,
+    chainsRemoved: chains?.n ?? 0,
+    earlyRefresh: pulled?.at
+      ? { state: pulled.state, zipPrefix: pulled.zipPrefix.slice(0, 3), reason: pulled.reason ?? 'closed practices this month', at: pulled.at }
+      : null,
   }
 }

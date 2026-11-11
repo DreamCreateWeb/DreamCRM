@@ -10,6 +10,7 @@ import type { ProspectFunnelStats } from '@/lib/types/prospecting'
  */
 
 const FUNNEL: ProspectFunnelStats = {
+  chains: 0,
   discovered: 1200,
   enriched: 340,
   contacted: 120,

@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest'
  * heuristic fallback verdict keeps ranking honest when AI is unavailable.
  */
 
-import { computeOpportunityScore, bandForScore, heuristicVerdict } from '@/lib/prospect-scoring'
+import { computeOpportunityScore, bandForScore, heuristicVerdict, OPPORTUNITY_WEIGHTS } from '@/lib/prospect-scoring'
 import type { ProspectAiVerdict, ProspectCrawlSignals } from '@/lib/types/prospecting'
 
 const GOOD_SITE: ProspectAiVerdict = {
@@ -108,5 +108,92 @@ describe('heuristicVerdict (AI-unavailable fallback)', () => {
   it('no website → the zero verdict', () => {
     const v = heuristicVerdict(null, false)
     expect(v).toMatchObject({ hasWebsite: false, websiteQuality: 0, weaknesses: ['no website'] })
+  })
+})
+
+// ── P-04: "needs us" gets what we already fetch ─────────────────────────────
+
+describe('the P-04 weights — the stack, the builder, a new practice, a group', () => {
+  const base = { reviewCount: 40, ratingTenths: 45 }
+  const plain = computeOpportunityScore({ verdict: GOOD_SITE, ...base })
+
+  it('documents the weights', () => {
+    expect(OPPORTUNITY_WEIGHTS).toEqual({
+      newPractice: 8,
+      newPracticeNoSite: 4,
+      noStack: 6,
+      stackTool: -5,
+      stackFloor: -15,
+      diyBuilder: 5,
+      templateVendor: 4,
+      groupPractice: -10,
+      websiteCap: 89,
+    })
+  })
+
+  it('a modern stack LOWERS opportunity, −5 a tool, floor −15, and the reason names it', () => {
+    const two = computeOpportunityScore({ verdict: GOOD_SITE, ...base, stack: ['NexHealth', 'Birdeye'] })
+    expect(two.score).toBe(plain.score - 10)
+    expect(two.reasons).toContain('Already on NexHealth + Birdeye')
+    const five = computeOpportunityScore({ verdict: GOOD_SITE, ...base, stack: ['NexHealth', 'Birdeye', 'Weave', 'Podium', 'Yapi'] })
+    expect(five.score).toBe(plain.score - 15)
+    expect(five.reasons).toContain('Already on NexHealth + Birdeye + Weave + 2 more')
+  })
+
+  it('no booking, no review engine — a phone number is their only door — RAISES it (only when the crawl looked)', () => {
+    const noDoor = computeOpportunityScore({ verdict: { ...GOOD_SITE, onlineBooking: false }, ...base, stack: [] })
+    const unknown = computeOpportunityScore({ verdict: { ...GOOD_SITE, onlineBooking: false }, ...base })
+    expect(noDoor.score).toBe(unknown.score + 6)
+    expect(noDoor.reasons).toContain('No booking widget, no review engine — a phone number is their only door')
+    // A verdict that still sees booking on the page gets no "only door" bonus.
+    expect(computeOpportunityScore({ verdict: GOOD_SITE, ...base, stack: [] }).score).toBe(plain.score)
+    // An older crawl (no stack key) moves nothing — the P-01 ladder as it was.
+    expect(unknown.score).toBe(44)
+  })
+
+  it('DIY builders +5, dental template vendors +4, WordPress nothing — in words', () => {
+    expect(computeOpportunityScore({ verdict: GOOD_SITE, ...base, builder: 'wix' })).toMatchObject({ score: plain.score + 5 })
+    expect(computeOpportunityScore({ verdict: GOOD_SITE, ...base, builder: 'wix' }).reasons).toContain('Built on Wix — a DIY site')
+    expect(computeOpportunityScore({ verdict: GOOD_SITE, ...base, builder: 'godaddy' }).reasons).toContain('Built on GoDaddy Website Builder — a DIY site')
+    expect(computeOpportunityScore({ verdict: GOOD_SITE, ...base, builder: 'prosites' })).toMatchObject({ score: plain.score + 4 })
+    expect(computeOpportunityScore({ verdict: GOOD_SITE, ...base, builder: 'prosites' }).reasons).toContain('A ProSites template site')
+    expect(computeOpportunityScore({ verdict: GOOD_SITE, ...base, builder: 'wordpress' }).score).toBe(plain.score)
+  })
+
+  it('a new practice: +8 with a website, +4 without — "no website yet is normal; now is the moment"', () => {
+    const withSite = computeOpportunityScore({ verdict: GOOD_SITE, ...base, openedAt: '2025-06-15' })
+    expect(withSite.score).toBe(plain.score + 8)
+    expect(withSite.reasons).toContain('Opened Jun 2025 — a new practice still setting up')
+    const noSite = computeOpportunityScore({ verdict: { ...GOOD_SITE, hasWebsite: false, websiteQuality: 0 }, ...base, openedAt: '2025-06-15' })
+    expect(noSite.score).toBe(96)
+    expect(noSite.reasons).toContain('Opened Jun 2025 — no website yet is normal; now is the moment')
+  })
+
+  it('a group practice is deprioritised −10, never excluded', () => {
+    const g = computeOpportunityScore({ verdict: GOOD_SITE, ...base, practiceSize: 'group' })
+    expect(g.score).toBe(plain.score - 10)
+    expect(g.reasons).toContain('A group practice — lower priority, not a chain')
+    expect(computeOpportunityScore({ verdict: GOOD_SITE, ...base, practiceSize: 'small' }).score).toBe(plain.score)
+  })
+
+  it('a practice with a website never beats one without, whatever stacks up', () => {
+    const stacked = computeOpportunityScore({
+      verdict: { ...GOOD_SITE, websiteQuality: 0, websiteReasons: [], onlineBooking: false, socialPresence: 0 },
+      reviewCount: 3,
+      ratingTenths: 30,
+      stack: [],
+      builder: 'wix',
+      openedAt: '2025-06-15',
+    })
+    expect(stacked.score).toBe(89)
+    expect(stacked.band).toBe('hot')
+    const none = computeOpportunityScore({ verdict: { ...GOOD_SITE, hasWebsite: false, websiteQuality: 0 }, reviewCount: 3, ratingTenths: 30 })
+    expect(none.score).toBeGreaterThan(stacked.score)
+  })
+
+  it('the heuristic verdict marks a template vendor down a little', () => {
+    const signals: ProspectCrawlSignals = { ssl: true, mobileViewport: true, copyrightYear: 2026, titleTag: 't', metaDescription: 'd', bookingWidget: false, socialLinks: {}, builder: 'prosites', pageWeightKb: 100, emails: [], fetchedAt: '2026-07-03T00:00:00Z' }
+    expect(heuristicVerdict(signals, true).websiteQuality).toBe(45)
+    expect(heuristicVerdict({ ...signals, builder: null }, true).websiteQuality).toBe(50)
   })
 })

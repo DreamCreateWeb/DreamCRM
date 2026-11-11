@@ -73,7 +73,28 @@ export const PHONE_SOURCE_LABELS: Record<ProspectPhoneSource, string> = {
   nppes: 'NPI registry',
   places: 'Google listing',
   caller: 'a call',
+  // The two-source rule (P-04): the column now carries the number's
+  // STANDING; who stated it lives in verification.phone.sources.
+  corroborated: 'two sources agree',
+  single_source: 'one source only',
 }
+
+/** Who can state a prospect's number (verification.phone.sources, P-04):
+ *  the registry, the matched listing, a human on a call, the carrier
+ *  database saying the line is in service. */
+export const PHONE_SOURCE_NAMES = ['nppes', 'places', 'caller', 'carrier'] as const
+export type PhoneSourceName = (typeof PHONE_SOURCE_NAMES)[number]
+export const PHONE_SOURCE_NAME_LABELS: Record<PhoneSourceName, string> = {
+  nppes: 'NPI registry',
+  places: 'Google listing',
+  caller: 'a call',
+  carrier: 'carrier database',
+}
+/** `corroborated` = the registry and the listing agree (ten digits), or the
+ *  carrier says in-service and at least one source states it;
+ *  `single_source` = one source, not carrier-checked. No first-dial bucket
+ *  (owner ruling 2026-11-11). */
+export type PhoneStanding = 'corroborated' | 'single_source'
 
 /** Plain labels for every call outcome (the call card, Call Mode, the log). */
 export const CALL_OUTCOME_LABELS: Record<ProspectCallOutcome, string> = {
@@ -191,7 +212,7 @@ export const CALLER_SKIP_REASON_LABELS: Record<CallerSkipReason, string> = {
 }
 
 // ── Verification (prospect.verification jsonb) ─────────────────────────────
-export const VERIFICATION_SIGNALS = ['places', 'business', 'npi', 'website', 'phone', 'reach'] as const
+export const VERIFICATION_SIGNALS = ['places', 'business', 'npi', 'website', 'phone', 'reviews', 'reach'] as const
 export type VerificationSignalId = (typeof VERIFICATION_SIGNALS)[number]
 
 export const VERIFICATION_SIGNAL_LABELS: Record<VerificationSignalId, string> = {
@@ -200,6 +221,7 @@ export const VERIFICATION_SIGNAL_LABELS: Record<VerificationSignalId, string> = 
   npi: 'NPI registry',
   website: 'Website',
   phone: 'Phone',
+  reviews: 'Google reviews',
   reach: 'Reached by a call',
 }
 
@@ -215,23 +237,139 @@ export interface VerificationSignal {
   source: string
 }
 
-export type ProspectVerification = Partial<Record<VerificationSignalId, VerificationSignal>>
+/** The phone signal carries the two-source rule (P-04): who stated the
+ *  number, its standing, and whether the line check ran. */
+export interface PhoneVerificationSignal extends VerificationSignal {
+  sources?: PhoneSourceName[]
+  standing?: PhoneStanding | null
+  /** off = the line check is not configured; skipped = it was configured
+   *  but did not run (budget, refused, unavailable); done = it answered. */
+  lineCheck?: 'off' | 'skipped' | 'done' | null
+}
+
+/** Liveness from the listing (P-04): the latest review's publish time and
+ *  whether the listing states opening hours. Statuses: recent (≤ 6 months)
+ *  · quiet (≤ 18) · stale (older) · none (no reviews) · unknown (Google
+ *  returned no dates). */
+export interface ReviewsVerificationSignal extends VerificationSignal {
+  latestAt?: string | null
+  hours?: boolean | null
+}
+
+export type OfficialTitleKind = 'clinician' | 'executive' | 'unknown'
+export type PracticeSize = 'solo' | 'small' | 'group' | 'unknown'
+
+/** Fit (P-04) — stored under `verification.fit.*`, each a signal with its
+ *  source and UTC stamp like every other, plus the facts the rule read. */
+export interface ProspectFitSignals {
+  /** A DSO / chain name on the practice, the NPI org or the listing
+   *  (status `match` | `none`). */
+  dso?: VerificationSignal & { name?: string | null; matchedOn?: 'practice' | 'npi' | 'listing' | null; priorStatus?: string | null }
+  /** Our own data: a website host or a phone shared across ≥3 prospects at
+   *  different addresses (status `shared_host` | `shared_phone` | `none`). */
+  chain?: VerificationSignal & { kind?: 'shared_host' | 'shared_phone' | null; count?: number | null; key?: string | null; priorStatus?: string | null }
+  /** NPI-1 dentists at the org's address (status = PracticeSize). */
+  size?: VerificationSignal & { dentists?: number | null; official?: OfficialTitleKind | null }
+  /** NPPES enumeration inside NEW_PRACTICE_MONTHS (status `new` | `established` | `unknown`). */
+  newPractice?: VerificationSignal & { enumeratedAt?: string | null }
+  /** The owner said "Not a chain" — never re-flagged. */
+  chainOverride?: VerificationSignal
+}
+export const FIT_SIGNALS = ['dso', 'chain', 'size', 'newPractice', 'chainOverride'] as const
+export type FitSignalId = (typeof FIT_SIGNALS)[number]
+export const FIT_SIGNAL_LABELS: Record<FitSignalId, string> = {
+  dso: 'DSO / chain name',
+  chain: 'Shared with other practices',
+  size: 'Practice size',
+  newPractice: 'Opened',
+  chainOverride: 'Not a chain',
+}
+
+export type ProspectVerification = Partial<Record<VerificationSignalId, VerificationSignal>> & {
+  phone?: PhoneVerificationSignal
+  reviews?: ReviewsVerificationSignal
+  fit?: ProspectFitSignals
+}
+
+function parseSignal(v: unknown): (VerificationSignal & Record<string, unknown>) | null {
+  if (!v || typeof v !== 'object') return null
+  const r = v as Record<string, unknown>
+  if (typeof r.status !== 'string' || typeof r.checkedAt !== 'string') return null
+  return {
+    ...r,
+    status: r.status,
+    detail: typeof r.detail === 'string' ? r.detail : null,
+    checkedAt: r.checkedAt,
+    source: typeof r.source === 'string' ? r.source : 'unknown',
+  }
+}
 
 /** Junk-tolerant read of the jsonb column. */
 export function parseVerification(raw: unknown): ProspectVerification {
   if (!raw || typeof raw !== 'object') return {}
   const out: ProspectVerification = {}
   for (const id of VERIFICATION_SIGNALS) {
-    const v = (raw as Record<string, unknown>)[id]
-    if (!v || typeof v !== 'object') continue
-    const r = v as Record<string, unknown>
-    if (typeof r.status !== 'string' || typeof r.checkedAt !== 'string') continue
-    out[id] = {
-      status: r.status,
-      detail: typeof r.detail === 'string' ? r.detail : null,
-      checkedAt: r.checkedAt,
-      source: typeof r.source === 'string' ? r.source : 'unknown',
+    const sig = parseSignal((raw as Record<string, unknown>)[id])
+    if (!sig) continue
+    const base: VerificationSignal = { status: sig.status, detail: sig.detail, checkedAt: sig.checkedAt, source: sig.source }
+    if (id === 'phone') {
+      const sources = Array.isArray(sig.sources)
+        ? sig.sources.filter((s): s is PhoneSourceName => (PHONE_SOURCE_NAMES as readonly string[]).includes(s as string))
+        : undefined
+      const standing = sig.standing === 'corroborated' || sig.standing === 'single_source' ? sig.standing : null
+      const lineCheck = sig.lineCheck === 'off' || sig.lineCheck === 'skipped' || sig.lineCheck === 'done' ? sig.lineCheck : null
+      out.phone = { ...base, ...(sources ? { sources } : {}), ...(standing ? { standing } : {}), ...(lineCheck ? { lineCheck } : {}) }
+    } else if (id === 'reviews') {
+      out.reviews = {
+        ...base,
+        latestAt: typeof sig.latestAt === 'string' ? sig.latestAt : null,
+        hours: typeof sig.hours === 'boolean' ? sig.hours : null,
+      }
+    } else {
+      out[id] = base
     }
+  }
+  const fitRaw = (raw as Record<string, unknown>).fit
+  if (fitRaw && typeof fitRaw === 'object') {
+    const fit: ProspectFitSignals = {}
+    for (const id of FIT_SIGNALS) {
+      const sig = parseSignal((fitRaw as Record<string, unknown>)[id])
+      if (!sig) continue
+      const base: VerificationSignal = { status: sig.status, detail: sig.detail, checkedAt: sig.checkedAt, source: sig.source }
+      switch (id) {
+        case 'dso':
+          fit.dso = {
+            ...base,
+            name: typeof sig.name === 'string' ? sig.name : null,
+            matchedOn: sig.matchedOn === 'practice' || sig.matchedOn === 'npi' || sig.matchedOn === 'listing' ? sig.matchedOn : null,
+            priorStatus: typeof sig.priorStatus === 'string' ? sig.priorStatus : null,
+          }
+          break
+        case 'chain':
+          fit.chain = {
+            ...base,
+            kind: sig.kind === 'shared_host' || sig.kind === 'shared_phone' ? sig.kind : null,
+            count: typeof sig.count === 'number' ? sig.count : null,
+            key: typeof sig.key === 'string' ? sig.key : null,
+            priorStatus: typeof sig.priorStatus === 'string' ? sig.priorStatus : null,
+          }
+          break
+        case 'size':
+          fit.size = {
+            ...base,
+            dentists: typeof sig.dentists === 'number' ? sig.dentists : null,
+            official: sig.official === 'clinician' || sig.official === 'executive' || sig.official === 'unknown' ? sig.official : null,
+          }
+          break
+        case 'newPractice':
+          fit.newPractice = { ...base, enumeratedAt: typeof sig.enumeratedAt === 'string' ? sig.enumeratedAt : null }
+          break
+        case 'chainOverride':
+          fit.chainOverride = base
+          break
+      }
+    }
+    if (Object.keys(fit).length > 0) out.fit = fit
   }
   return out
 }
@@ -284,7 +422,14 @@ export interface ProspectCrawlSignals {
   metaDescription: string | null
   bookingWidget: boolean
   socialLinks: { facebook?: string; instagram?: string; tiktok?: string; youtube?: string }
-  builder: string | null // 'wix'|'squarespace'|'godaddy'|'wordpress'|null
+  /** A BUILDER_LABELS key (wix · squarespace · godaddy · weebly · prosites ·
+   *  pbhs · officite · tntdental · wordpress) or null = custom / unknown. */
+  builder: string | null
+  /** The competitor stack (P-04): booking widgets and review engines
+   *  fingerprinted by script / host / iframe on the site (STACK names).
+   *  Optional — older crawls lack it; absent means "not looked", [] means
+   *  "looked, none" (a phone number is their only door). */
+  stack?: string[]
   pageWeightKb: number
   emails: string[] // mailto/contact-page discoveries (never guessed)
   fetchedAt: string // ISO
@@ -304,6 +449,22 @@ export interface ProspectCrawlSignals {
    *  older crawls lack it, re-enrich backfills. */
   vendors?: Array<{ name: string; category: string; estMonthly: number }>
 }
+
+/** The site builders the crawl fingerprints, in words (P-04). DIY builders
+ *  and dental template vendors raise the opportunity score. */
+export const BUILDER_LABELS: Record<string, string> = {
+  wix: 'Wix',
+  squarespace: 'Squarespace',
+  godaddy: 'GoDaddy Website Builder',
+  weebly: 'Weebly',
+  wordpress: 'WordPress',
+  prosites: 'ProSites',
+  pbhs: 'PBHS',
+  officite: 'Officite',
+  tntdental: 'TNT Dental',
+}
+export const DIY_BUILDERS = ['wix', 'squarespace', 'godaddy', 'weebly'] as const
+export const TEMPLATE_VENDOR_BUILDERS = ['prosites', 'pbhs', 'officite', 'tntdental'] as const
 
 // ── AI verdict (prospect.ai_verdict jsonb) ─────────────────────────────────
 export interface ProspectAiVerdict {
@@ -433,7 +594,9 @@ export interface ProspectingConfig {
   }
   /** THE QUALITY FLOOR (P-01). The queues and the hunter serve only
    *  prospects whose quality_score reaches this; everything under it is
-   *  "parked" until a re-verify or a human says otherwise. 0–100. */
+   *  "parked" until a re-verify or a human says otherwise. 0–100. Ships
+   *  at 70 since P-04 (the fit + liveness signals exist to stand behind
+   *  it); a stored config keeps whatever it had. */
   qualityFloor: number
   /** The hunter: auto-enroll enriched prospects into segment sequences.
    *  Ships OFF. Runs even in dry-run (enrollments are DB-only/reversible —
@@ -505,7 +668,7 @@ export const PROSPECTING_DEFAULTS: ProspectingConfig = {
   warmup: { startPerDay: 20, incrementPerWeek: 10, ceilingPerDay: 150, startedAt: null },
   sendWindow: { startHour: 8, endHour: 17 },
   budgets: { placesPerMonth: 2000, crawlsPerMonth: 3000, aiPerMonth: 3000, phoneValidatePerMonth: 1500 },
-  qualityFloor: 60,
+  qualityFloor: 70,
   autoEnroll: { enabled: false, bands: ['hot', 'warm'], perDay: 50 },
   watchdog: {
     enabled: true,
@@ -691,14 +854,24 @@ export interface ProspectListRow {
   // Hygiene (P-03): a merged row says where it went (the table's door).
   mergedIntoProspectId: string | null
   mergedIntoName: string | null
+  /** Why a row was set aside (retired · closed · chain · …) — the table's
+   *  "Chain" pill (P-04). */
+  suppressedReason: string | null
 }
 
 /** The hunt panel's hygiene tile (P-03): what the sweep did today, how many
- *  rows are resting, and the last territory it re-swept (UTC stamped). */
+ *  rows are resting, and the last territory it re-swept (UTC stamped).
+ *  P-04 adds the chains set aside and a territory whose refresh the callers
+ *  pulled forward. */
 export interface ProspectHygieneStats {
   mergedToday: number
   resting: number
   lastRefresh: { state: string; zipPrefix: string; at: Date } | null
+  /** Rows set aside as a chain / DSO (status disqualified, reason chain). */
+  chainsRemoved: number
+  /** The territory whose refresh was pulled forward and has not run yet:
+   *  "Refreshing TX 787 early — 3 closed practices this month". */
+  earlyRefresh: { state: string; zipPrefix: string; reason: string; at: Date } | null
 }
 
 /** What a stale drawer or card hears when its row was merged meanwhile
@@ -772,6 +945,8 @@ export interface ProspectFunnelStats {
   /** Hygiene (P-03) — off the funnel, counted for the table's filters. */
   dormant: number
   merged: number
+  /** Chains / DSOs set aside (P-04) — hidden by default, one chip away. */
+  chains: number
 }
 
 export interface ProspectFilters {
@@ -781,6 +956,8 @@ export interface ProspectFilters {
   qualityBand?: ProspectQualityBand
   hasWebsite?: boolean
   search?: string
+  /** Only the rows set aside as a chain (P-04). */
+  chain?: boolean
 }
 
 /** "(404) 555-1212" from 10 bare digits; anything else echoes as-is. */

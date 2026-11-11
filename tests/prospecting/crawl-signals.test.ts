@@ -13,6 +13,8 @@ import {
   extractSiteEmails,
   findContactPath,
   findTeamPaths,
+  detectStack,
+  stackCorpus,
 } from '@/lib/prospect-signals'
 
 const FETCHED = new Date('2026-07-03T12:00:00Z')
@@ -160,5 +162,44 @@ describe('findTeamPaths', () => {
     expect(paths).toEqual(['/our-team', '/about-us'])
     expect(paths).not.toContain('/contact') // contact is a separate hop
     expect(paths).not.toContain('/services')
+  })
+})
+
+// ── P-04: the builder vendors and the competitor stack ──────────────────────
+
+describe('builders (P-04): the dental template vendors, before WordPress', () => {
+  it('ProSites, PBHS, Officite and TNT Dental by fingerprint', () => {
+    expect(page('<html><body><script src="https://cdn.prosites.com/x.js"></script></body></html>').builder).toBe('prosites')
+    expect(page('<html><body><link href="https://www.pbhs.com/css/a.css"></body></html>').builder).toBe('pbhs')
+    expect(page('<html><body><img src="https://assets.officite.com/l.png"></body></html>').builder).toBe('officite')
+    expect(page('<html><body><a href="https://www.tntdental.com">site by TNT Dental</a></body></html>').builder).toBe('tntdental')
+  })
+  it('a ProSites site built on WordPress reads as ProSites', () => {
+    expect(page('<html><body><script src="/wp-content/themes/prosites-pro/app.js"></script></body></html>').builder).toBe('prosites')
+  })
+})
+
+describe('the competitor stack (P-04) — script / host / iframe, never page copy', () => {
+  it('fingerprints booking widgets and review engines by their hosts', () => {
+    const s = page(`<html><head>
+      <script src="https://widget.nexhealth.com/book.js"></script>
+      <iframe src="https://birdeye.com/widget/123"></iframe>
+      <script src="https://www.getweave.com/widget/x.js"></script>
+      <link rel="stylesheet" href="https://cdn.podium.com/widget.css">
+      <script>window.yapi = { key: 'abc' }</script>
+    </head><body><a href="https://janeapp.com/book/smile">book</a></body></html>`)
+    expect(s.stack).toEqual(['NexHealth', 'Weave', 'Birdeye', 'Podium', 'Yapi', 'Jane'])
+  })
+  it('a vendor named in the copy is not an install; a look-alike host is not Weave; a clean page is an empty list', () => {
+    expect(page('<html><body><p>We love Weave and Birdeye, and we book with NexHealth.</p></body></html>').stack).toEqual([])
+    expect(page('<html><body><script src="https://interweave.com/a.js"></script></body></html>').stack).toEqual([])
+    expect(page('<html><body><p>Hi</p></body></html>').stack).toEqual([])
+    expect(detectStack('')).toEqual([])
+  })
+  it('the corpus is URLs, inline scripts and iframe tags only', () => {
+    const corpus = stackCorpus('<html><body><p>Solutionreach rocks</p><script>var a = "smilereminder"</script><iframe src="https://x.com"></iframe></body></html>')
+    expect(corpus).toContain('smilereminder')
+    expect(corpus).toContain('https://x.com')
+    expect(corpus).not.toContain('Solutionreach rocks')
   })
 })

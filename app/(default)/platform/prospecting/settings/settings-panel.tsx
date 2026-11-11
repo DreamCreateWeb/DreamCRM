@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react'
 import type { ProspectingConfig, ProspectQualityCounts } from '@/lib/types/prospecting'
 import { PROSPECT_SCORE_BANDS } from '@/lib/db/schema/prospecting'
-import { SCORE_BAND_LABELS, splitAtFloor, type ProspectScoreBand } from '@/lib/types/prospecting'
+import { PROSPECTING_DEFAULTS, SCORE_BAND_LABELS, splitAtFloor, type ProspectScoreBand } from '@/lib/types/prospecting'
 import { US_STATES, US_STATE_NAMES, type UsState } from '@/lib/types/us-geo'
 import { StatusPill } from '@/components/ui/status-pill'
 import { ActionButton } from '@/components/ui/action-button'
@@ -121,10 +121,16 @@ export function QualityFloor({ floor, quality }: { floor: number; quality: Prosp
         hunter serve only prospects at or above this floor — and never a parked one (a dead number, a
         retired NPI, a closed or parked site), whatever the floor says. Everyone else waits for a re-verify
         (or you) to say otherwise. Hand-raisers always get through — but never on a disconnected number.
+        With the fit and liveness signals in place (chains out, a number two sources agree on, a listing
+        that shows life), {PROSPECTING_DEFAULTS.qualityFloor} is the recommended line; a floor you set
+        earlier keeps its value.
       </p>
       <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
         Serve prospects scoring at least{' '}
         <span className="font-mono-num text-sm font-bold text-gray-900 dark:text-gray-100">{value}</span>
+        <span className="ml-2 text-gray-500 dark:text-gray-400" data-recommended-floor>
+          recommended: {PROSPECTING_DEFAULTS.qualityFloor}
+        </span>
         <input
           type="range"
           min={0}

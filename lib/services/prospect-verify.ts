@@ -1,16 +1,33 @@
 import 'server-only'
 import { and, asc, eq, inArray, isNotNull, isNull, lt, or } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
-import { lookupNpi } from '@/lib/nppes'
+import { lookupNpi, searchDentistsAtAddress, type NpiLookupResult } from '@/lib/nppes'
 import { findDentalPlaceCandidates, placesConfigured, type PlaceResult, type PlacesSearchOutcome } from '@/lib/google-places'
 import { pickMatchingPlace, type PlaceMatch } from '@/lib/prospect-match'
 import { NANP_FAILURE_LABELS, nanpDigits, validateNanp } from '@/lib/phone-nanp'
 import { computeQualityScore, qualityInput } from '@/lib/prospect-quality'
 import {
+  SIZE_RECHECK_DAYS,
+  chainSentence,
+  fitVerdict,
+  formatMonthYear,
+  isNewPractice,
+  matchDso,
+  monthsBetween,
+  newPracticeSentence,
+  officialTitleKind,
+  practiceSize,
+  practiceSizeSentence,
+  signalOlderThan,
+} from '@/lib/prospect-fit'
+import {
   PARKED_RECHECK_DAYS,
   VERIFY_STALE_DAYS,
   formatProspectPhone,
   parseVerification,
+  type PhoneSourceName,
+  type PhoneStanding,
+  type ProspectFitSignals,
   type ProspectVerification,
   type ProspectingConfig,
   type VerificationSignal,
@@ -50,8 +67,19 @@ import {
  *   npi       is the NPI still active? (free, keyless) — a deactivated NPI
  *             is a retired dentist; a moved location refreshes the address
  *   website   does the site answer, or is it dead / a parking page?
- *   phone     NANP syntax, then the carrier line type (metered, optional)
+ *   phone     NANP syntax, then the carrier line type (metered, optional);
+ *             the TWO-SOURCE RULE (P-04): who states the number
+ *             (registry / listing / a call / the carrier) and its standing
+ *             — corroborated or single_source; no first-dial bucket
+ *   reviews   liveness from the listing (P-04): the latest review's date
+ *             and whether the listing states hours — rides the same call
  *   reach     written only by logCallOutcome — a human got through
+ *   fit.*     (P-04) a DSO / chain name on any of the three names we hold
+ *             → disqualified `chain`; the practice size from the registry
+ *             (NPI-1 dentists at the address, ≤50 requests a run); a NEW
+ *             practice (enumerated < 18 months); the owner's "Not a chain"
+ *             override, never re-flagged. The shared-host / shared-phone
+ *             chain sweep is group work and lives in prospect-fit.ts.
  *
  * Every signal is stored with its source and checked-at, the quality score
  * is computed from the stored signals (lib/prospect-quality.ts), and the
@@ -69,6 +97,12 @@ const DAY_MS = 24 * 60 * 60 * 1000
 export const SWEEP_BATCH_SIZE = 25
 /** NPPES is free, but a run stays polite. */
 export const NPPES_PER_RUN = 50
+/** The practice-size searches a run may spend (P-04) — its own cap, so the
+ *  liveness lookups above are never starved; budgeted like discovery. */
+export const FIT_NPPES_PER_RUN = 50
+/** Review recency (P-04): ≤ 6 months is current, ≤ 18 quiet, older stale. */
+export const REVIEWS_RECENT_MONTHS = 6
+export const REVIEWS_STALE_MONTHS = 18
 /** Below this many liveness checks a run cannot tell "our egress is blocked"
  *  from "a few dead sites". */
 const CRAWL_BLOCKED_MIN_CHECKS = 5
@@ -94,8 +128,9 @@ export type VerifiableProspect = Pick<
   | 'status'
 > &
   /** The stored listing facts — what the score reads when no fresh lookup
-   *  ran — and where the website came from (a listing's goes with the listing). */
-  Partial<Pick<ProspectRow, 'businessStatus' | 'reviewCount' | 'websiteSource'>>
+   *  ran — and where the website came from (a listing's goes with the listing).
+   *  The official's title corroborates the fit read (P-04). */
+  Partial<Pick<ProspectRow, 'businessStatus' | 'reviewCount' | 'websiteSource' | 'authorizedOfficialTitle'>>
 
 /** Per-run context — budgets, the once-a-run failure strikes, the
  *  crawl-blocked tally. One per cron run; the drawer action makes its own. */
@@ -105,6 +140,8 @@ export interface VerifyRunCtx {
   phoneValidateBudget: number
   phoneValidateUsed: number
   nppesLeft: number
+  /** Practice-size registry searches left this run (P-04). */
+  fitNppesLeft: number
   /** Website probes run only while the crawl budget is above zero — the one
    *  knob that pauses touching prospects' sites pauses this too. */
   siteChecks: boolean
@@ -123,6 +160,7 @@ export async function newVerifyRunCtx(config: ProspectingConfig, now = new Date(
     phoneValidateBudget: config.budgets.phoneValidatePerMonth,
     phoneValidateUsed: await getProspectingCounter(month, 'phone_validate'),
     nppesLeft: NPPES_PER_RUN,
+    fitNppesLeft: FIT_NPPES_PER_RUN,
     siteChecks: config.budgets.crawlsPerMonth > 0,
     reported: new Set(),
     liveness: { checks: 0, networkDead: 0 },
@@ -158,7 +196,7 @@ export interface VerifyPatch {
   state?: string | null
   postalCode?: string | null
   status?: 'disqualified'
-  suppressedReason?: 'retired' | 'closed'
+  suppressedReason?: 'retired' | 'closed' | 'chain'
   suppressedAt?: Date
 }
 
@@ -231,7 +269,8 @@ export function listingColumns(
 /**
  * Why a verification pass STOPS an active outreach sequence for good — the
  * same stop a logged `closed` call makes: a disqualified practice (retired
- * NPI, permanently closed) is gone. Null = not a stop.
+ * NPI, permanently closed, a chain we target later) is gone from the pool.
+ * Null = not a stop.
  */
 export function outreachStopReason(patch: Pick<VerifyPatch, 'status' | 'suppressedReason'>): string | null {
   if (patch.status === 'disqualified') return `verify_${patch.suppressedReason ?? 'disqualified'}`
@@ -288,6 +327,21 @@ function sig(status: string, detail: string | null, source: string, now: Date): 
   return { status, detail, checkedAt: now.toISOString(), source }
 }
 
+/**
+ * THE TWO-SOURCE PREDICATE (P-04), pure: `corroborated` when two of the
+ * registry / the listing / a human state the number, or the carrier says
+ * in service and at least one source states it (the row itself counts as
+ * that source), or a human REACHED the practice on it (`caller` stated and
+ * the status is valid); `single_source` otherwise.
+ */
+export function phoneStanding(stated: readonly PhoneSourceName[], phoneStatus: string | null): PhoneStanding {
+  const voices = stated.filter((s) => s !== 'carrier')
+  if (voices.length >= 2) return 'corroborated'
+  if (stated.includes('carrier')) return 'corroborated'
+  if (stated.includes('caller') && phoneStatus === 'valid') return 'corroborated'
+  return 'single_source'
+}
+
 function sameAddress(a: string | null, b: string | null): boolean {
   const norm = (v: string | null) => (v ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
   return norm(a) === norm(b)
@@ -313,6 +367,19 @@ export async function verifyProspectSignals(
   // A call's verdicts survive every re-verify (below, the phone one is kept
   // only while the number is the same).
   if (prior.reach) v.reach = prior.reach
+  // The fit signals (P-04) carry forward — the chain sweep's flag and the
+  // owner's override are never dropped by a pass that did not look.
+  const fit: ProspectFitSignals = { ...(prior.fit ?? {}) }
+  const official = officialTitleKind(p.authorizedOfficialTitle ?? null)
+
+  // Who stated the number we hold NOW (the two-source rule, P-04): the
+  // prior signal's sources, or the legacy column on a row the P-04 pass has
+  // not seen. A number a human typed or reached is `caller`-provided — no
+  // registry or listing replaces it.
+  const legacyStated: PhoneSourceName[] =
+    prior.phone?.sources ??
+    (p.phoneSource === 'nppes' || p.phoneSource === 'places' || p.phoneSource === 'caller' ? [p.phoneSource] : [])
+  const callerProvided = p.phoneSource === 'caller' || legacyStated.includes('caller')
 
   const patch: VerifyPatch = {
     verification: v,
@@ -323,7 +390,7 @@ export async function verifyProspectSignals(
     phone: p.phone ?? null,
     phoneStatus: 'unknown',
     phoneLineType: null,
-    phoneSource: (p.phoneSource as ProspectPhoneSource | null) ?? (p.phone ? (p.npiNumber ? 'nppes' : 'caller') : null),
+    phoneSource: null,
     phoneValidatedAt: null,
   }
   let addressLine1 = p.addressLine1 ?? null
@@ -332,6 +399,9 @@ export async function verifyProspectSignals(
   let postalCode = p.postalCode ?? null
   const originalPhone = p.phone ?? null
   const phoneNotes: string[] = []
+  // The registry's current number and name, when the lookup ran.
+  let npi: NpiLookupResult | null = null
+  let npiLookupRan = false
 
   // ── NPI liveness ─────────────────────────────────────────────────────────
   if (!p.npiNumber) {
@@ -341,7 +411,8 @@ export async function verifyProspectSignals(
   } else {
     ctx.nppesLeft--
     try {
-      const npi = await lookupNpi(p.npiNumber)
+      npi = await lookupNpi(p.npiNumber)
+      npiLookupRan = true
       if (!npi.found) {
         v.npi = sig('retired', 'NPI is no longer in the registry', 'nppes', now)
       } else if (npi.status === 'deactivated') {
@@ -364,10 +435,9 @@ export async function verifyProspectSignals(
           patch.city = city
           patch.state = state
           patch.postalCode = postalCode
-          if (loc.phone && loc.phone !== patch.phone && patch.phoneSource !== 'caller') {
+          if (loc.phone && loc.phone !== patch.phone && !callerProvided) {
             phoneNotes.push(`the registry now lists ${formatProspectPhone(loc.phone)} (was ${formatProspectPhone(patch.phone) ?? 'none'})`)
             patch.phone = loc.phone
-            patch.phoneSource = 'nppes'
           }
           v.npi = sig('active', 'NPI active — practice location changed in the registry, address refreshed', 'nppes', now)
         } else {
@@ -378,6 +448,41 @@ export async function verifyProspectSignals(
       console.warn('[prospect-verify] NPPES lookup failed', p.id, err instanceof Error ? err.message : err)
       v.npi = prior.npi ?? sig('unknown', 'NPI registry unreachable — will check again', 'nppes', now)
       await strike(ctx, 'nppes_down')
+    }
+  }
+
+  // ── Fit from the registry (P-04): a new practice, the practice size ─────
+  if (npi?.found && npi.status === 'active') {
+    const opened = npi.enumerationDate
+    const fresh = isNewPractice(opened, now)
+    fit.newPractice = {
+      ...sig(
+        opened ? (fresh ? 'new' : 'established') : 'unknown',
+        fresh
+          ? newPracticeSentence(opened)
+          : opened
+            ? `In the registry since ${formatMonthYear(opened) ?? opened}`
+            : 'The registry gave no enumeration date',
+        'nppes',
+        now,
+      ),
+      enumeratedAt: opened,
+    }
+    if (npi.enumerationType === 'NPI-1') {
+      fit.size = { ...sig('solo', 'A solo dentist — an individual NPI', 'nppes', now), dentists: 1, official }
+    } else if (ctx.fitNppesLeft > 0 && (!fit.size || signalOlderThan(fit.size.checkedAt, now, SIZE_RECHECK_DAYS))) {
+      ctx.fitNppesLeft--
+      try {
+        const r = await searchDentistsAtAddress({ addressLine1, state, postalCode })
+        if (r) {
+          const size = practiceSize(r.dentists)
+          fit.size = { ...sig(size, practiceSizeSentence(size, r.dentists, official), 'nppes', now), dentists: r.dentists, official }
+        }
+      } catch (err) {
+        console.warn('[prospect-verify] NPPES size search failed', p.id, err instanceof Error ? err.message : err)
+        if (!fit.size) fit.size = { ...sig('unknown', 'Registry size check unavailable — will check again', 'nppes', now), dentists: null, official }
+        await strike(ctx, 'nppes_down')
+      }
     }
   }
 
@@ -421,13 +526,13 @@ export async function verifyProspectSignals(
       match = picked.match
       listing = 'matched'
       v.places = sig('matched', `Matched "${place.displayName ?? 'listing'}" (${match.reasons.join(', ')})`, 'places', now)
-      if (match.phoneDiffers && patch.phoneSource !== 'caller') {
+      if (match.phoneDiffers && !callerProvided) {
         phoneNotes.push(`Google lists ${formatProspectPhone(match.phoneDiffers)}; the registry had ${formatProspectPhone(patch.phone) ?? 'none'}`)
         patch.phone = match.phoneDiffers
-        patch.phoneSource = 'places'
       }
     }
   }
+  const placesAnswered = Boolean(places?.ok)
   if (place) {
     switch (place.businessStatus) {
       case 'CLOSED_PERMANENTLY':
@@ -451,6 +556,46 @@ export async function verifyProspectSignals(
   // listing Google no longer stands behind, the stored ones when no lookup ran.
   const businessStatus = place ? place.businessStatus : listing === 'cleared' ? null : (p.businessStatus ?? null)
   const reviewCount = place ? place.reviewCount : listing === 'cleared' ? null : (p.reviewCount ?? null)
+
+  // ── Liveness from the listing (P-04) ─────────────────────────────────────
+  // The latest review's date and whether the listing states hours ride the
+  // same Places call. A cleared listing takes its reviews with it; no lookup
+  // keeps the prior signal.
+  if (place) {
+    const latest = place.latestReviewAt
+    const hours = place.hasOpeningHours
+    const noHours = hours ? '' : ' — no opening hours on the listing'
+    let status: string
+    let detail: string
+    if (latest) {
+      const months = monthsBetween(new Date(latest), now)
+      status = months < REVIEWS_RECENT_MONTHS ? 'recent' : months < REVIEWS_STALE_MONTHS ? 'quiet' : 'stale'
+      detail = `Latest Google review ${formatMonthYear(latest) ?? latest}${noHours}`
+    } else if ((place.reviewCount ?? 0) === 0) {
+      status = 'none'
+      detail = `No Google reviews yet${noHours}`
+    } else {
+      status = 'unknown'
+      detail = `${place.reviewCount} Google reviews — Google returned no review dates${noHours}`
+    }
+    v.reviews = { ...sig(status, detail, 'places', now), latestAt: latest, hours }
+  } else if (listing === 'kept' && prior.reviews) {
+    v.reviews = prior.reviews
+  }
+
+  // ── The DSO / chain name (P-04) ───────────────────────────────────────────
+  // Three names, one list; the owner's "Not a chain" stands for good.
+  if (!fit.chainOverride) {
+    const hit = matchDso({ practice: p.name, npi: npi?.organizationName ?? null, listing: place?.displayName ?? null })
+    fit.dso = hit
+      ? {
+          ...sig('match', chainSentence({ dso: hit.name }), 'dso_list', now),
+          name: hit.name,
+          matchedOn: hit.matchedOn,
+          priorStatus: prior.fit?.dso?.priorStatus ?? (p.status === 'disqualified' ? null : p.status),
+        }
+      : { ...sig('none', 'Not on the DSO / chain list', 'dso_list', now), name: null, matchedOn: null, priorStatus: null }
+  }
 
   // ── Website liveness ─────────────────────────────────────────────────────
   // A matched listing that states a website replaces the row's (source:
@@ -503,6 +648,9 @@ export async function verifyProspectSignals(
     priorPhone?.source === 'caller' &&
     sameNumber &&
     (p.phoneStatus === 'disconnected' || p.phoneStatus === 'wrong_number' || p.phoneStatus === 'valid')
+  // Whether the line check ran this pass (the two-source rule reads it).
+  let lineCheck: 'off' | 'skipped' | 'done' | null = null
+  let carrierInService = false
   if (!phone) {
     v.phone = sig('missing', 'No phone number on record', 'nanp', now)
     patch.phoneStatus = 'unknown'
@@ -518,20 +666,24 @@ export async function verifyProspectSignals(
       patch.phoneStatus = 'invalid'
     } else if (phoneValidateDriver() === 'none') {
       v.phone = sig('well_formed', 'Well-formed US number — the line check is off', 'nanp', now)
+      lineCheck = 'off'
     } else if (ctx.phoneValidateUsed >= ctx.phoneValidateBudget) {
       v.phone = sig('well_formed', 'Well-formed US number — this month’s line checks are used up', 'nanp', now)
+      lineCheck = 'skipped'
     } else {
       const line = await validatePhoneLine(nanpDigits(phone))
       if (line.ok) {
         ctx.phoneValidateUsed++
         await bumpProspectingCounter(ctx.month, 'phone_validate')
         patch.phoneValidatedAt = now
+        lineCheck = 'done'
         if (line.invalid) {
           v.phone = sig('invalid', 'Carrier database: not an assigned number', 'aws_pinpoint', now)
           patch.phoneStatus = 'invalid'
         } else {
           patch.phoneStatus = 'valid'
           patch.phoneLineType = line.lineType
+          carrierInService = true
           v.phone = sig(
             'valid',
             `Carrier database: ${line.lineType ?? 'line type unknown'}${line.carrier ? ` (${line.carrier})` : ''}`,
@@ -541,11 +693,14 @@ export async function verifyProspectSignals(
         }
       } else if (line.error === 'auth') {
         v.phone = sig('well_formed', 'Well-formed US number — AWS refused the line check', 'nanp', now)
+        lineCheck = 'skipped'
         await strike(ctx, 'phone_validate_auth')
       } else if (line.error === 'driver_off') {
         v.phone = sig('well_formed', 'Well-formed US number — the line check is off', 'nanp', now)
+        lineCheck = 'off'
       } else {
         v.phone = sig('well_formed', 'Well-formed US number — the line check was unavailable', 'nanp', now)
+        lineCheck = 'skipped'
       }
     }
     if (phoneNotes.length > 0 && v.phone.detail) {
@@ -553,7 +708,40 @@ export async function verifyProspectSignals(
     }
   }
 
+  // ── "That clinic's number" — the two-source rule (P-04) ──────────────────
+  // Who states the number we are keeping: the registry (this pass's lookup,
+  // else the prior signal while the number is unchanged), the matched
+  // listing (same), a human (typed or reached), the carrier (in service).
+  // Corroborated = two voices, or the carrier plus any one, or a human who
+  // reached the practice on it; single-source otherwise. No first-dial
+  // bucket — the owner's ruling.
+  if (patch.phone && v.phone && !(callerVerdictStands && priorPhone)) {
+    const finalDigits = nanpDigits(patch.phone)
+    const sameAsOriginal = finalDigits === nanpDigits(originalPhone)
+    const stated: PhoneSourceName[] = []
+    const registryNumber = npiLookupRan ? (npi?.location?.phone ?? null) : null
+    const nppesStates = npiLookupRan
+      ? registryNumber != null && nanpDigits(registryNumber) === finalDigits
+      : sameAsOriginal && legacyStated.includes('nppes')
+    const placesStates = placesAnswered
+      ? place?.nationalPhoneNumber != null && nanpDigits(place.nationalPhoneNumber) === finalDigits
+      : sameAsOriginal && legacyStated.includes('places')
+    if (nppesStates) stated.push('nppes')
+    if (placesStates) stated.push('places')
+    if (callerProvided && sameAsOriginal) stated.push('caller')
+    if (carrierInService) stated.push('carrier')
+    const standing: PhoneStanding = phoneStanding(stated, patch.phoneStatus)
+    v.phone = { ...v.phone, sources: stated, standing, lineCheck }
+    patch.phoneSource = standing
+  } else if (patch.phone && v.phone) {
+    // The caller's verdict stands, signal untouched; the column says what
+    // that signal says (a reach on this number is corroborated).
+    patch.phoneSource = v.phone.standing ?? phoneStanding(v.phone.sources ?? ['caller'], patch.phoneStatus)
+  }
+
   // ── Disqualify the gone ──────────────────────────────────────────────────
+  if (Object.keys(fit).length > 0) v.fit = fit
+  const fitRead = fitVerdict(fit)
   if (v.npi?.status === 'retired') {
     patch.status = 'disqualified'
     patch.suppressedReason = 'retired'
@@ -561,6 +749,13 @@ export async function verifyProspectSignals(
   } else if (v.business?.status === 'closed') {
     patch.status = 'disqualified'
     patch.suppressedReason = 'closed'
+    patch.suppressedAt = now
+  } else if (fitRead.chain) {
+    // Chains and DSOs are out (owner ruling 2026-11-11) — we target them
+    // later with other features. Enrollment stops through the hold below;
+    // the caller's slot frees in writePatch.
+    patch.status = 'disqualified'
+    patch.suppressedReason = 'chain'
     patch.suppressedAt = now
   }
 

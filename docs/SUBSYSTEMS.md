@@ -654,6 +654,111 @@ row's drawer offers no contact adds / re-verify / phone editor / demo
 drafter. Tests: dedupe-service, dedupe-matcher, hygiene, hygiene-sql,
 discovery-refresh, intent, hygiene-ui, quality, quality-ui, + the new
 `hygiene-routes.test.ts` and `hygiene-readers.test.ts`.
+**FIT AND FRESHNESS (P-04, 2026-11-11 — "only practices that need us, with
+numbers we can stand behind"; the owner's rulings: chains and DSOs are OUT
+and targeted later with other features; the quality floor rises to 70 now
+that these signals exist; NO first-dial bucket — "clinics always answer
+their phone"; what matters is that the number is ACTIVE and IS THAT
+CLINIC'S number):** CHAINS OUT, three detectors, each a stored signal
+under `verification.fit.*` with its source and UTC stamp (pure
+`lib/prospect-fit.ts`; the list in `lib/dso-names.ts`): (a) a maintained
+DSO / chain NAME LIST matched as a normalized whole-word sequence on the
+practice name AND the NPI organization name AND the Google listing name
+(`matchDso` — "Imagen" never catches "Imagenation", "DECA" never
+"Decatur"; `fit.dso`); (b) a chain from OUR OWN DATA — the same website
+host or the same ten-digit phone across ≥3 prospects at DIFFERENT
+addresses (`fit.chain = {kind: shared_host | shared_phone, count}`; a
+Facebook page, a Google site, a builder subdomain or a directory is never a
+chain — `GENERIC_WEBSITE_HOSTS`); the group work is `sweepChains` in
+`lib/services/prospect-fit.ts` (two GROUP BY queries over
+`websiteHostSql` / `tenDigitPhoneSql`, HAVING count(distinct address) ≥ 3,
+rendered for real in hygiene-sql.test.ts), step 0 of `runProspectHygiene`
+on the enrich tick, fail-open, day counter `chain_flag`; (c) PRACTICE SIZE
+from the registry — for an NPI-2 organization the NPI-1 dentists at the
+same address (`searchDentistsAtAddress` in `lib/nppes.ts`: ONE request per
+org, the ZIP's dentists filtered by street, its own `FIT_NPPES_PER_RUN =
+50` cap so the liveness lookups are never starved, re-searched after 180
+days; ≥5 → `fit.size = group`, DEPRIORITISED (−10 opportunity) never
+excluded; an individual NPI is `solo` without a request; the authorized
+official's title — owner / dentist / DDS / DMD vs CEO / VP / director /
+manager — corroborates in the sentence, never decides). A DSO or chain
+hit → `status='disqualified'`, `suppressed_reason='chain'`, the plain
+sentence ("Part of Aspen Dental — a chain; we'll target chains later"),
+enrollment stopped through P-01's hold (`verify_chain`), released from any
+caller (P-02's `releaseIfUnservable` — the enrich pass's disqualified
+branch now calls it too); retired and closed outrank chain. The drawer's
+"Not a chain" (`clearChainFlag` → stored `fit.chainOverride`, never
+re-flagged by the pass or the sweep; the row returns to the status it had
+before the flag, else `enriched`; quality recomputed from the stored
+signals). "NEEDS US" GETS WHAT WE ALREADY FETCH (`lib/prospect-scoring.ts`,
+the weights in its header; never a new request): the COMPETITOR STACK —
+booking widgets and review / messaging engines fingerprinted by script,
+host or iframe, never page copy (`detectStack` in `lib/prospect-signals.ts`:
+NexHealth · Zocdoc · LocalMed · Weave · Solutionreach · RevenueWell ·
+Birdeye · Podium · Dentrix Ascend · Curve · Lighthouse 360 · Flex · Yapi ·
+Swell · Doctible · Demandforce · Jane · Modento → `enrichment.stack`,
+accumulated across the crawl's hops) — a modern stack LOWERS opportunity
+(−5 a tool, floor −15, "Already on NexHealth + Birdeye"), none and no
+booking RAISES it (+6, "No booking widget, no review engine — a phone
+number is their only door"); the BUILDER (ProSites · PBHS · Officite · TNT
+Dental join Wix · Squarespace · GoDaddy · Weebly · WordPress; DIY +5,
+template vendor +4; `BUILDER_LABELS` for the UI); the NEW PRACTICE from
+the registry (NPPES `enumeration_date` < 18 months → `fit.newPractice =
+new`, +8 with a website, +4 without, "Opened Jun 2025 — no website yet is
+normal; now is the moment"); a practice WITH a website never beats one
+without (cap 89). LIVENESS FROM THE LISTING: `places.reviews` and
+`places.regularOpeningHours` ride the SAME Places call (the dearer SKU,
+accepted; never a second request) → `verification.reviews = {status:
+recent ≤6 months | quiet ≤18 | stale | none | unknown, latestAt, hours}`;
+the flat "5+ reviews" point is recency-aware (10 / 6 / 0; no dates = the
+P-01 count rule); no review in 18 months AND no opening hours → "Google
+shows no sign of life since <date>", band at most WEAK (`NO_LIFE_CEILING
+59`). "THAT CLINIC'S NUMBER" — THE TWO-SOURCE RULE (`phoneStanding` in
+prospect-verify.ts, pure): who states the number we keep —
+`verification.phone.sources ⊆ [nppes, places, caller, carrier]` (the
+registry's current number from this pass's lookup, else the prior signal
+while the number is unchanged; the matched listing's; a human who typed or
+reached it; the carrier saying in service) — and its standing:
+`corroborated` when two voices agree (the registry and the listing, ten
+digits) OR the carrier says in service and a source states it OR a human
+reached the practice on it; `single_source` when one source only and not
+carrier-checked. `phone_source` now carries the STANDING (`corroborated` |
+`single_source`; `caller` is still written by the hand-typed number and a
+reach on an invalid number; `nppes` / `places` are legacy values read as
+one source). Quality: carrier in service + line type 25 (as before);
+corroborated by agreement 20 (`QUALITY_WEIGHTS.phoneCorroborated`);
+single-source 12 (the well-formed credit, as before) with the card sentence
+"Only one source lists this number — turn on the line check to confirm it"
+when the line check is OFF (`lineCheck: off | skipped | done` on the
+signal). A caller-provided number is never replaced by the registry or the
+listing (`callerProvided` reads the prior sources, so the guard survives
+the column reading `single_source`). CALLERS STEER FRESHNESS: a territory
+(state × zip3) with ≥3 DISTINCT practices logged `closed` / `disconnected`
+inside 30 days (`hotTerritoriesQuery` — a join of prospect_call_log to
+prospect, GROUP BY state, substr(postal_code,1,3), HAVING ≥ 3, cast) has
+its discovery refresh pulled forward (`pullForwardHotTerritories`:
+`last_refreshed_at` set back one day past `discoveryRefreshDays`, the pull
+stamped on `prospect_discovery_task.refresh_pulled_at` /
+`refresh_pulled_reason` — the zip3 task and its zip5 children, never one
+already pulled, never one already due; the refresh that happens clears the
+stamps); step 3 of the hygiene pass, before the refresh step so the same
+tick re-sweeps it; day counter `refresh_pull`; the hunt tile says
+"Refreshing TX 787 early — 3 closed practices this month". THE FLOOR → 70
+(`PROSPECTING_DEFAULTS.qualityFloor`; a stored config keeps its value; the
+settings slider shows "recommended: 70" beside the value). UI (platform
+voice): the table's "⛓ Chains" chip + count (hidden by default like
+Merged — the default list excludes `suppressed_reason = 'chain'`; the
+status cell carries a "Chain" pill), the drawer's Fit card (DSO / chain /
+size / new practice / stack / builder with sources and UTC stamps; the
+"Not a chain" button — confirm BEFORE the transition, runAction), the
+opportunity reasons naming the stack and the builder, the Verification
+card's phone line naming its sources ("Stated by NPI registry, Google
+listing — corroborated"), the reviews row, the hunt panel's "Chains
+removed: N" tile and the early-refresh line. Migration `p04_prospect_fit`
+(0196 on the merged schema: the two pull columns — everything else rides
+the existing jsonb and text columns). Tests: fit, fit-service, fit-ui, the
+P-04 matrices in score / quality / crawl-signals / verify / enrich /
+hygiene / hygiene-sql / nppes-parse / config, migrations/p04-prospect-fit.
 Schema `lib/db/schema/prospecting.ts` is platform-global, NO organizationId by
 design; ships behind kill switch + dry-run + auto-enroll-off; say
 "prospect", never "lead"),

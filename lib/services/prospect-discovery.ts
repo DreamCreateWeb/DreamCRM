@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, asc, eq, inArray, lt, or, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, isNotNull, isNull, like, lt, or, sql, type SQL } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId } from '@/lib/utils'
 import {
@@ -11,6 +11,13 @@ import {
 } from '@/lib/nppes'
 import { stateTimeZone } from '@/lib/types/us-geo'
 import { isExactDuplicate, phoneKey, type DedupeRow } from '@/lib/prospect-dedupe'
+import {
+  EARLY_REFRESH_CLOSED_THRESHOLD,
+  EARLY_REFRESH_WINDOW_DAYS,
+  earlyRefreshDue,
+  earlyRefreshReason,
+  pulledBackStamp,
+} from '@/lib/prospect-fit'
 import { tenDigitPhoneSql } from './prospect-dedupe'
 import type { ProspectingConfig } from '@/lib/types/prospecting'
 import { getProspectingConfig } from './prospecting'
@@ -425,6 +432,9 @@ export async function refreshStaleTerritory(opts: {
     .set({
       lastRefreshedAt: now,
       lastRefreshErrorAt: null,
+      // A refresh the callers pulled forward (P-04) has now happened.
+      refreshPulledAt: null,
+      refreshPulledReason: null,
       found: task.found + found,
       imported: task.imported + imported,
       error: null,
@@ -432,4 +442,90 @@ export async function refreshStaleTerritory(opts: {
     })
     .where(eq(schema.prospectDiscoveryTask.id, task.id))
   return { taskId: task.id, state: task.state, zipPrefix: task.zipPrefix, found, imported, held, requests, capped }
+}
+
+// ── Callers steer freshness (P-04) ──────────────────────────────────────────
+
+/** The territory a prospect belongs to, in SQL: its ZIP's first three digits. */
+export function zip3Sql(): SQL<string> {
+  return sql<string>`substr(${schema.prospect.postalCode}, 1, 3)`
+}
+
+/** The outcomes that mean "this practice is gone": a closed practice, a
+ *  disconnected number. */
+export const CLOSED_CALL_OUTCOMES = ['closed', 'disconnected'] as const
+
+/**
+ * The territories (state × zip3) where callers logged a closed / disconnected
+ * outcome on at least `threshold` DISTINCT practices inside the window —
+ * the registry has moved on there; the refresh should too. Exported for
+ * the boundary test.
+ */
+export function hotTerritoriesQuery(cutoff: Date, threshold = EARLY_REFRESH_CLOSED_THRESHOLD) {
+  const closed = sql<number>`count(distinct ${schema.prospectCallLog.prospectId})::int`
+  return db
+    .select({ state: schema.prospect.state, zipPrefix: zip3Sql(), closed })
+    .from(schema.prospectCallLog)
+    .innerJoin(schema.prospect, eq(schema.prospectCallLog.prospectId, schema.prospect.id))
+    .where(
+      and(
+        inArray(schema.prospectCallLog.outcome, [...CLOSED_CALL_OUTCOMES]),
+        gte(schema.prospectCallLog.createdAt, cutoff),
+        isNotNull(schema.prospect.state),
+        isNotNull(schema.prospect.postalCode),
+      ),
+    )
+    .groupBy(schema.prospect.state, zip3Sql())
+    // A cast parameter, never an untyped $n.
+    .having(sql`count(distinct ${schema.prospectCallLog.prospectId}) >= ${threshold}::int`)
+}
+
+/** The tasks a pull-forward touches: the territory's finished tasks (the
+ *  zip3 and any zip5 children), not already pulled, not already due. */
+export function pullForwardWhere(state: string, zipPrefix: string, dueCutoff: Date) {
+  return and(
+    eq(schema.prospectDiscoveryTask.state, state),
+    like(schema.prospectDiscoveryTask.zipPrefix, `${zipPrefix}%`),
+    eq(schema.prospectDiscoveryTask.status, 'done'),
+    isNull(schema.prospectDiscoveryTask.refreshPulledAt),
+    gte(territorySweptAtSql(), dueCutoff),
+  )
+}
+
+export interface PulledTerritory {
+  state: string
+  zipPrefix: string
+  closed: number
+  tasks: number
+}
+
+/**
+ * Pull a hot territory's refresh forward: `last_refreshed_at` is set back
+ * one day past `config.hygiene.discoveryRefreshDays` (so the next refresh
+ * step picks it), and the pull is stamped with its reason until that
+ * refresh runs. One pass, idempotent (a pulled task is skipped), fail-open
+ * in the hygiene tick.
+ */
+export async function pullForwardHotTerritories(opts: { now?: Date; config?: ProspectingConfig } = {}): Promise<PulledTerritory[]> {
+  const now = opts.now ?? new Date()
+  const config = opts.config ?? (await getProspectingConfig())
+  if (config.killSwitch) return []
+  const windowCutoff = new Date(now.getTime() - EARLY_REFRESH_WINDOW_DAYS * 24 * 60 * 60 * 1000)
+  const dueCutoff = new Date(now.getTime() - config.hygiene.discoveryRefreshDays * 24 * 60 * 60 * 1000)
+  const hot = await hotTerritoriesQuery(windowCutoff)
+  const out: PulledTerritory[] = []
+  for (const t of hot) {
+    if (!t.state || !t.zipPrefix || !earlyRefreshDue(t.closed)) continue
+    const rows = await db
+      .update(schema.prospectDiscoveryTask)
+      .set({
+        lastRefreshedAt: pulledBackStamp(now, config.hygiene.discoveryRefreshDays),
+        refreshPulledAt: now,
+        refreshPulledReason: earlyRefreshReason(t.closed),
+      })
+      .where(pullForwardWhere(t.state, t.zipPrefix, dueCutoff))
+      .returning({ id: schema.prospectDiscoveryTask.id })
+    if (rows.length > 0) out.push({ state: t.state, zipPrefix: t.zipPrefix, closed: t.closed, tasks: rows.length })
+  }
+  return out
 }

@@ -45,6 +45,9 @@ const mocks = vi.hoisted(() => ({
   counter: vi.fn(async () => 0),
   dedupe: vi.fn(async () => ({ groups: 0, merged: 0, skipped: 0, errors: 0 })),
   refresh: vi.fn(async () => null as null | Record<string, unknown>),
+  // P-04: the chain sweep and the freshness pull ride the same pass.
+  chains: vi.fn(async () => ({ groups: 0, flagged: 0, noted: 0, errors: 0 })),
+  pull: vi.fn(async () => [] as Array<Record<string, unknown>>),
   strike: vi.fn(async () => true),
 }))
 vi.mock('@/lib/services/prospecting', () => ({
@@ -54,7 +57,8 @@ vi.mock('@/lib/services/prospecting', () => ({
   counterDay: (d: Date) => d.toISOString().slice(0, 10),
 }))
 vi.mock('@/lib/services/prospect-dedupe', () => ({ runExactDedupeSweep: mocks.dedupe }))
-vi.mock('@/lib/services/prospect-discovery', () => ({ refreshStaleTerritory: mocks.refresh }))
+vi.mock('@/lib/services/prospect-discovery', () => ({ refreshStaleTerritory: mocks.refresh, pullForwardHotTerritories: mocks.pull }))
+vi.mock('@/lib/services/prospect-fit', () => ({ sweepChains: mocks.chains }))
 vi.mock('@/lib/services/engine-failures', () => ({ reportProspectingFailure: mocks.strike }))
 
 import {
@@ -215,8 +219,12 @@ describe('runProspectHygiene — the one pass', () => {
     expect(mocks.dedupe).not.toHaveBeenCalled()
   })
 
-  it('runs merges → decay → refresh in that order, under the caps, and bumps each day counter', async () => {
+  it('runs chains → merges → decay → the freshness pull → refresh in that order, under the caps, and bumps each day counter', async () => {
     const order: string[] = []
+    mocks.chains.mockImplementation(async () => {
+      order.push('chains')
+      return { groups: 1, flagged: 2, noted: 1, errors: 0 }
+    })
     mocks.dedupe.mockImplementation(async () => {
       order.push('dedupe')
       return { groups: 4, merged: 3, skipped: 1, errors: 0 }
@@ -224,19 +232,35 @@ describe('runProspectHygiene — the one pass', () => {
     state.selectQueue.push([
       { id: 'pros_1', status: 'queued', createdAt: new Date(NOW.getTime() - 300 * DAY), nextFollowUpAt: null, qualityReasons: [], lastTouchAt: new Date(NOW.getTime() - 200 * DAY) },
     ])
+    mocks.pull.mockImplementation(async () => {
+      order.push('pull')
+      return [{ state: 'TX', zipPrefix: '787', closed: 3, tasks: 1 }]
+    })
     mocks.refresh.mockImplementation(async () => {
       order.push('refresh')
       return { taskId: 'pdt_1', state: 'GA', zipPrefix: '303', found: 180, imported: 2, requests: 2, capped: false }
     })
     const r = await runProspectHygiene({ now: NOW })
-    expect(r).toEqual({ merged: 3, rested: 1, refreshed: { state: 'GA', zipPrefix: '303', found: 180, imported: 2 }, errors: 0 })
-    expect(order).toEqual(['dedupe', 'refresh'])
+    expect(r).toEqual({
+      merged: 3,
+      rested: 1,
+      refreshed: { state: 'GA', zipPrefix: '303', found: 180, imported: 2 },
+      chainsFlagged: 2,
+      pulledForward: 1,
+      errors: 0,
+    })
+    // The pull runs BEFORE the refresh, so the same tick can re-sweep the territory it pulled.
+    expect(order).toEqual(['chains', 'dedupe', 'pull', 'refresh'])
     expect(prospectUpdates()[0].values.status).toBe('dormant') // decay ran between them
+    expect(mocks.chains).toHaveBeenCalledWith({ now: NOW })
+    expect(mocks.pull).toHaveBeenCalledWith({ now: NOW, config: LIVE })
     expect(mocks.dedupe).toHaveBeenCalledWith({ now: NOW, cap: MERGES_PER_RUN, config: LIVE }) // the config rides along: a verdict that travels rescores with its clock
     expect(MERGES_PER_RUN).toBe(25)
     expect(mocks.bump.mock.calls).toEqual([
+      ['2026-11-10', 'chain_flag', 2],
       ['2026-11-10', 'dedupe_merge', 3],
       ['2026-11-10', 'decay', 1],
+      ['2026-11-10', 'refresh_pull', 1],
       ['2026-11-10', 'discovery_refresh'],
     ])
     expect(mocks.strike).not.toHaveBeenCalled()
@@ -244,10 +268,12 @@ describe('runProspectHygiene — the one pass', () => {
 
   it('a broken step is a logged zero + ONE hygiene strike; the next steps still run', async () => {
     const quiet = vi.spyOn(console, 'error').mockImplementation(() => {})
+    mocks.chains.mockRejectedValue(new Error('chains boom'))
     mocks.dedupe.mockRejectedValue(new Error('boom'))
+    mocks.pull.mockRejectedValue(new Error('pull boom'))
     mocks.refresh.mockRejectedValue(new Error('NPPES 503'))
     const r = await runProspectHygiene({ now: NOW })
-    expect(r).toMatchObject({ merged: 0, rested: 0, refreshed: null, errors: 2 })
+    expect(r).toMatchObject({ merged: 0, rested: 0, refreshed: null, chainsFlagged: 0, pulledForward: 0, errors: 4 })
     expect(mocks.strike).toHaveBeenCalledTimes(1)
     expect(mocks.strike).toHaveBeenCalledWith('hygiene', NOW)
     quiet.mockRestore()
@@ -264,15 +290,28 @@ describe('runProspectHygiene — the one pass', () => {
 })
 
 describe('getHygieneStats', () => {
-  it('merged today from the day counter, resting from the table, the last refresh UTC-stamped upstream', async () => {
+  it('merged today from the day counter, resting from the table, the last refresh UTC-stamped upstream — and (P-04) the chains set aside, the territory the callers pulled forward', async () => {
     mocks.counter.mockResolvedValue(3)
-    state.selectQueue.push([{ n: 41 }], [{ state: 'TX', zipPrefix: '787', at: new Date('2026-11-10T06:00:00Z') }])
+    state.selectQueue.push(
+      [{ n: 41 }],
+      [{ state: 'TX', zipPrefix: '787', at: new Date('2026-11-10T06:00:00Z') }],
+      [{ n: 7 }],
+      [{ state: 'TX', zipPrefix: '7871', reason: '3 closed practices this month', at: new Date('2026-11-10T07:00:00Z') }],
+    )
     expect(await getHygieneStats(NOW)).toEqual({
       mergedToday: 3,
       resting: 41,
       lastRefresh: { state: 'TX', zipPrefix: '787', at: new Date('2026-11-10T06:00:00Z') },
+      chainsRemoved: 7,
+      // A zip5 child task's pull reads as its zip3 territory.
+      earlyRefresh: { state: 'TX', zipPrefix: '787', reason: '3 closed practices this month', at: new Date('2026-11-10T07:00:00Z') },
     })
     expect(mocks.counter).toHaveBeenCalledWith('2026-11-10', 'dedupe_merge')
+  })
+  it('is honest with nothing pulled and no chains', async () => {
+    mocks.counter.mockResolvedValue(0)
+    state.selectQueue.push([{ n: 0 }], [], [{ n: 0 }], [])
+    expect(await getHygieneStats(NOW)).toMatchObject({ chainsRemoved: 0, earlyRefresh: null })
   })
 })
 

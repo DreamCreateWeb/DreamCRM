@@ -47,6 +47,7 @@ import HuntPanel from '@/app/(default)/platform/prospecting/hunt-panel'
 import PhoneEditor from '@/app/(default)/platform/prospecting/phone-editor'
 import { QualityFloor } from '@/app/(default)/platform/prospecting/settings/settings-panel'
 import { qualityLegend, bandServedAt, QUALITY_LEGEND } from '@/app/(default)/platform/prospecting/quality-pills'
+import { PROSPECTING_DEFAULTS } from '@/lib/types/prospecting'
 import CallSession from '@/app/(default)/platform/prospecting/call-mode/call-session'
 import { TONE_PILL } from '@/lib/ui/encodings'
 import { callWindowScore } from '@/lib/prospect-when'
@@ -188,8 +189,10 @@ describe('C19 — the legend reads the live floor', () => {
     const at85 = qualityLegend(85)
     expect(at85.find((l) => l.label === 'Good')!.meaning).toMatch(/under the floor of 85 — not served/)
     expect(at85.find((l) => l.label === 'Parked')!.meaning).toMatch(/not served at any floor/)
-    // The default-floor export is the same function at 60.
-    expect(QUALITY_LEGEND).toEqual(qualityLegend(60))
+    // The default-floor export is the same function at the shipped default
+    // (70 since P-04).
+    expect(QUALITY_LEGEND).toEqual(qualityLegend(PROSPECTING_DEFAULTS.qualityFloor))
+    expect(QUALITY_LEGEND).toEqual(qualityLegend(70))
   })
 })
 

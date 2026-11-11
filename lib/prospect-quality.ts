@@ -1,5 +1,5 @@
 /**
- * THE QUALITY SCORE — pure (P-01).
+ * THE QUALITY SCORE — pure (P-01, rebalanced P-04).
  *
  * 0–100: can we actually reach this practice? Built from the stored
  * verification signals, so it can be recomputed from the row anywhere (the
@@ -11,19 +11,36 @@
  *              (until re-verified)
  *   otherwise  a weighted sum:
  *     Google listing matched + operational   35
- *     phone valid + line type known          25  (well-formed only: 12)
+ *     phone — the two-source rule (P-04):
+ *       carrier says in service, line known  25
+ *       the registry and the listing agree
+ *         (corroborated, line not checked)   20
+ *       one source only, not carrier-checked 12  (well-formed, as before —
+ *                                                 the card says to turn the
+ *                                                 line check on)
  *     NPI active                             15
  *     website alive, or honestly none        10
- *     5+ Google reviews                      10
+ *     Google reviews — recency-aware (P-04):
+ *       latest review ≤ 6 months             10
+ *       latest review ≤ 18 months             6
+ *       older, or none                        0
+ *       (no dates returned: 5+ reviews = 10, the P-01 rule)
  *     a human reached them on a call          5
+ *
+ *   no sign of life (P-04): no review in 18 months AND no opening hours on
+ *   the listing → "Google shows no sign of life since <date>", band at most
+ *   WEAK whatever the sum.
  *
  * Bands: best ≥ 80 · good ≥ 60 · weak ≥ 40 · parked otherwise. The
  * OPPORTUNITY score (how much they need us) is a different number and is
- * never blended in — the queues sort by opportunity WITHIN the floor.
+ * never blended in — the queues sort by opportunity WITHIN the floor. No
+ * first-dial bucket (owner ruling 2026-11-11): what matters is that the
+ * number is ACTIVE and IS THAT CLINIC'S number.
  */
 
 import type { ProspectQualityBand, ProspectPhoneStatus, ProspectPhoneLineType } from '@/lib/db/schema/prospecting'
 import type { ProspectVerification } from '@/lib/types/prospecting'
+import { formatMonthYear } from '@/lib/prospect-fit'
 
 export interface QualityInput {
   status: string
@@ -63,12 +80,22 @@ export interface QualityResult {
 export const QUALITY_WEIGHTS = {
   placesMatched: 35,
   phoneValid: 25,
+  /** The registry and the matched listing agree on the number (P-04). */
+  phoneCorroborated: 20,
   phoneWellFormed: 12,
   npiActive: 15,
   website: 10,
   reviews: 10,
+  /** The latest review is 6–18 months old (P-04). */
+  reviewsQuiet: 6,
   reach: 5,
 } as const
+
+/** The highest score a listing with no sign of life can carry (band weak). */
+export const NO_LIFE_CEILING = 59
+
+/** The sentence the single-source rule puts on the card when the line check is off. */
+export const SINGLE_SOURCE_TURN_ON = 'Only one source lists this number — turn on the line check to confirm it'
 
 export function qualityBandForScore(score: number): ProspectQualityBand {
   if (score >= 80) return 'best'
@@ -153,8 +180,17 @@ export function computeQualityScore(input: QualityInput): QualityResult {
       reasons.push('Phone validated, line type unknown')
     }
   } else if (v.phone?.status === 'well_formed') {
-    score += QUALITY_WEIGHTS.phoneWellFormed
-    reasons.push('Phone is well-formed — line not checked')
+    // The two-source rule (P-04): agreement earns more than one voice.
+    if (v.phone.standing === 'corroborated') {
+      score += QUALITY_WEIGHTS.phoneCorroborated
+      reasons.push('Registry and Google agree on this number — line not checked')
+    } else if (v.phone.standing === 'single_source') {
+      score += QUALITY_WEIGHTS.phoneWellFormed
+      reasons.push(v.phone.lineCheck === 'off' ? SINGLE_SOURCE_TURN_ON : 'Only one source lists this number — line not checked')
+    } else {
+      score += QUALITY_WEIGHTS.phoneWellFormed
+      reasons.push('Phone is well-formed — line not checked')
+    }
   } else if (v.phone?.status === 'missing') {
     reasons.push('No phone number on record')
   } else {
@@ -183,7 +219,27 @@ export function computeQualityScore(input: QualityInput): QualityResult {
     reasons.push('Website not checked yet')
   }
 
-  if (input.reviewCount != null && v.places?.status === 'matched') {
+  // Reviews — recency-aware when the listing gave us dates (P-04), the
+  // P-01 count rule when it did not. A listing with no review in 18 months
+  // and no opening hours shows no sign of life: band at most weak.
+  let noLife: string | null = null
+  const rv = v.reviews
+  if (v.places?.status === 'matched' && rv && rv.status !== 'unknown') {
+    const when = formatMonthYear(rv.latestAt)
+    if (rv.status === 'recent') {
+      score += QUALITY_WEIGHTS.reviews
+      reasons.push(`Google reviews are current — latest ${when ?? 'recently'}`)
+    } else if (rv.status === 'quiet') {
+      score += QUALITY_WEIGHTS.reviewsQuiet
+      reasons.push(`Last Google review ${when ?? 'over 6 months ago'}`)
+    } else if (rv.status === 'stale') {
+      if (rv.hours === false) noLife = `Google shows no sign of life since ${when ?? 'the last review'}`
+      else reasons.push(`No Google review since ${when ?? 'over 18 months ago'}`)
+    } else if (rv.status === 'none') {
+      if (rv.hours === false) noLife = 'Google shows no sign of life — no reviews and no hours on the listing'
+      else reasons.push('No Google reviews')
+    }
+  } else if (input.reviewCount != null && v.places?.status === 'matched') {
     if (input.reviewCount >= 5) {
       score += QUALITY_WEIGHTS.reviews
       reasons.push(`${input.reviewCount} Google reviews`)
@@ -200,7 +256,11 @@ export function computeQualityScore(input: QualityInput): QualityResult {
   }
 
   score = Math.max(0, Math.min(100, score))
-  return { score, band: qualityBandForScore(score), reasons: reasons.slice(0, 7) }
+  if (noLife) {
+    score = Math.min(score, NO_LIFE_CEILING)
+    reasons.unshift(noLife)
+  }
+  return { score, band: qualityBandForScore(score), reasons: reasons.slice(0, 8) }
 }
 
 /** "Verified" = every core signal checked inside the window. The `reach`

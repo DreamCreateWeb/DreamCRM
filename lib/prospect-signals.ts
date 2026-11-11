@@ -12,13 +12,68 @@ import { isJunkEmail, parseEmail } from '@/lib/prospect-email'
 const BOOKING_MARKERS =
   /(localmed|nexhealth|flexbook|zocdoc|solutionreach|lighthouse\s*360|denticon|curve\s*hero|book\s+(online|now|an?\s+appointment)|schedule\s+(online|now|an?\s+appointment)|request\s+an?\s+appointment)/i
 
+// DIY builders first, then the dental template vendors (P-04 — a ProSites
+// or PBHS site is usually WordPress underneath, so the vendor must win),
+// WordPress last. Keys are BUILDER_LABELS keys.
 const BUILDER_FINGERPRINTS: Array<[RegExp, string]> = [
   [/wixstatic\.com|wix\.com\/website/i, 'wix'],
   [/squarespace\.com|squarespace-cdn/i, 'squarespace'],
   [/godaddy\.com|website-builder|wsimg\.com/i, 'godaddy'],
-  [/wp-content|wp-includes|wordpress/i, 'wordpress'],
   [/weebly\.com|weeblycloud/i, 'weebly'],
+  [/prosites\.com|prosites/i, 'prosites'],
+  [/pbhs\.com|pbhs/i, 'pbhs'],
+  [/officite\.com|officite/i, 'officite'],
+  [/tntdental\.com|tntdental/i, 'tntdental'],
+  [/wp-content|wp-includes|wordpress/i, 'wordpress'],
 ]
+
+/**
+ * THE COMPETITOR STACK (P-04) — booking widgets and review / messaging
+ * engines, fingerprinted by SCRIPT, HOST or IFRAME, never by page copy
+ * ("we love Weave" in a blog post is not a Weave install). The corpus is
+ * every src / href / action URL on the page plus the inline script bodies.
+ * Names are the display names the opportunity reasons use ("Already on
+ * NexHealth + Birdeye").
+ */
+export const STACK_FINGERPRINTS: ReadonlyArray<{ name: string; pattern: RegExp }> = [
+  { name: 'NexHealth', pattern: /nexhealth/i },
+  { name: 'Zocdoc', pattern: /zocdoc\.com/i },
+  { name: 'LocalMed', pattern: /localmed\.com|localmed/i },
+  { name: 'Weave', pattern: /\b(?:getweave|weave)\.com\b|weaveconnect/i },
+  { name: 'Solutionreach', pattern: /solutionreach|smilereminder/i },
+  { name: 'RevenueWell', pattern: /revenuewell/i },
+  { name: 'Birdeye', pattern: /birdeye/i },
+  { name: 'Podium', pattern: /\bpodium\.com\b|podium\.js|widget\.podium/i },
+  { name: 'Dentrix Ascend', pattern: /dentrixascend|ascend\.dentrix|dentrix\.com\/ascend/i },
+  { name: 'Curve', pattern: /curvehero|curvedental|curve\s*hero/i },
+  { name: 'Lighthouse 360', pattern: /lighthouse\s*360|lh360/i },
+  { name: 'Flex', pattern: /flexbook|getflex\.com|dentalintel|dental-intelligence/i },
+  { name: 'Yapi', pattern: /yapiapp\.com|\byapi\b/i },
+  { name: 'Swell', pattern: /swellcx|getswell/i },
+  { name: 'Doctible', pattern: /doctible/i },
+  { name: 'Demandforce', pattern: /demandforce/i },
+  { name: 'Jane', pattern: /janeapp\.com/i },
+  { name: 'Modento', pattern: /modento/i },
+]
+
+/** The script / host / iframe corpus: every URL-bearing attribute value and
+ *  every inline script body — never the visible copy. */
+export function stackCorpus(html: string): string {
+  const parts: string[] = []
+  for (const m of Array.from(html.matchAll(/(?:src|href|action|data-src|data-url|data-widget-src)\s*=\s*["']([^"']{1,500})["']/gi))) parts.push(m[1])
+  for (const m of Array.from(html.matchAll(/<script\b[^>]*>([\s\S]{0,20000}?)<\/script>/gi))) parts.push(m[1])
+  for (const m of Array.from(html.matchAll(/<iframe\b[^>]{0,1000}>/gi))) parts.push(m[0])
+  return parts.join('\n')
+}
+
+/** Fingerprint the competitor stack on a page (display names, list order). */
+export function detectStack(html: string): string[] {
+  const corpus = stackCorpus(html)
+  if (!corpus) return []
+  const out: string[] = []
+  for (const f of STACK_FINGERPRINTS) if (f.pattern.test(corpus)) out.push(f.name)
+  return out
+}
 
 function socialLink(html: string, pattern: RegExp): string | undefined {
   const m = html.match(pattern)
@@ -105,6 +160,7 @@ export function extractCrawlSignals(input: {
       youtube: socialLink(html, /https?:\/\/(?:www\.)?youtube\.com\/(?:channel\/|user\/|@)[a-z0-9_.\-/%]+/i),
     },
     builder,
+    stack: detectStack(html),
     pageWeightKb: Math.round(input.bytes / 1024),
     emails: extractSiteEmails(html),
     fetchedAt: input.fetchedAt.toISOString(),

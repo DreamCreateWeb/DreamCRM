@@ -149,6 +149,14 @@ export interface NpiLookupResult {
   status: 'active' | 'deactivated' | null
   /** NPPES's own deactivation date (YYYY-MM-DD or MM/DD/YYYY as given). */
   deactivationDate: string | null
+  /** Fit (P-04): an organization (NPI-2) or an individual (NPI-1). */
+  enumerationType: 'NPI-1' | 'NPI-2' | null
+  /** Fit (P-04): when the NPI was first enumerated — a practice enumerated
+   *  inside 18 months is NEW (no website yet is normal). As given. */
+  enumerationDate: string | null
+  /** Fit (P-04): the organization's registered name — matched against the
+   *  DSO list beside the practice name and the listing name. */
+  organizationName: string | null
   /** The practice LOCATION as the registry has it today. */
   location: {
     addressLine1: string | null
@@ -161,7 +169,15 @@ export interface NpiLookupResult {
 
 /** Parse one NPPES lookup body (`?number=`) — exported for tests. */
 export function parseNpiLookup(body: unknown): NpiLookupResult {
-  const none: NpiLookupResult = { found: false, status: null, deactivationDate: null, location: null }
+  const none: NpiLookupResult = {
+    found: false,
+    status: null,
+    deactivationDate: null,
+    enumerationType: null,
+    enumerationDate: null,
+    organizationName: null,
+    location: null,
+  }
   if (!body || typeof body !== 'object') return none
   const results = (body as { results?: unknown }).results
   const raw = Array.isArray(results) ? results[0] : null
@@ -177,10 +193,14 @@ export function parseNpiLookup(body: unknown): NpiLookupResult {
     statusWord === 'D' || (Boolean(deactivationDate) && !reactivationDate && statusWord !== 'A')
   const addresses = Array.isArray(r.addresses) ? (r.addresses as Array<Record<string, unknown>>) : []
   const location = addresses.find((a) => a && a.address_purpose === 'LOCATION') ?? null
+  const enumerationType = r.enumeration_type === 'NPI-1' ? 'NPI-1' : r.enumeration_type === 'NPI-2' ? 'NPI-2' : null
   return {
     found: true,
     status: deactivated ? 'deactivated' : 'active',
     deactivationDate: deactivated ? deactivationDate : null,
+    enumerationType,
+    enumerationDate: str(basic.enumeration_date),
+    organizationName: str(basic.organization_name),
     location: location
       ? {
           addressLine1: str(location.address_1),
@@ -207,6 +227,76 @@ export async function lookupNpi(npi: string): Promise<NpiLookupResult> {
   const body = (await res.json()) as Record<string, unknown>
   if (body?.Errors) throw new Error(`NPPES error: ${JSON.stringify(body.Errors).slice(0, 200)}`)
   return parseNpiLookup(body)
+}
+
+// ── Practice size (P-04) ─────────────────────────────────────────────────────
+
+export interface DentistsAtAddress {
+  /** Individual (NPI-1) dentists whose LOCATION street matches. */
+  dentists: number
+  /** Rows the registry returned for the ZIP (pre-filter). */
+  scanned: number
+  /** True when the ZIP page was full — more dentists may exist past it. */
+  capped: boolean
+}
+
+function addressKey(v: string | null | undefined): string {
+  return (v ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+/** Count the NPI-1 dentists at one street address in a ZIP search body —
+ *  exported for tests. A record without a LOCATION street never counts. */
+export function countDentistsAt(body: unknown, addressLine1: string | null): DentistsAtAddress {
+  const key = addressKey(addressLine1)
+  const rawResults = body && typeof body === 'object' && Array.isArray((body as { results?: unknown }).results)
+    ? ((body as { results: unknown[] }).results)
+    : []
+  let dentists = 0
+  if (key) {
+    for (const raw of rawResults) {
+      const parsed = normalizeNppesResult(raw)
+      if (!parsed || !parsed.addressLine1) continue
+      if (addressKey(parsed.addressLine1) === key) dentists++
+    }
+  }
+  const resultCount =
+    body && typeof body === 'object' && typeof (body as { result_count?: unknown }).result_count === 'number'
+      ? ((body as { result_count: number }).result_count)
+      : rawResults.length
+  return { dentists, scanned: resultCount, capped: resultCount >= NPPES_PAGE_SIZE }
+}
+
+/**
+ * How many individual dentists the registry lists at one address — ONE
+ * request (the ZIP's NPI-1 dentists, 200 a page, filtered by street here;
+ * NPPES has no street search). Free, keyless; throws on network / HTTP
+ * failure so the caller can keep the prior signal. Null when the address
+ * has no ZIP to search by.
+ */
+export async function searchDentistsAtAddress(input: {
+  addressLine1: string | null
+  state: string | null
+  postalCode: string | null
+}): Promise<DentistsAtAddress | null> {
+  const zip = (input.postalCode ?? '').replace(/\D/g, '').slice(0, 5)
+  if (zip.length !== 5 || !input.addressLine1) return null
+  const params = new URLSearchParams({
+    version: '2.1',
+    enumeration_type: 'NPI-1',
+    taxonomy_description: 'Dentist',
+    postal_code: zip,
+    limit: String(NPPES_PAGE_SIZE),
+    skip: '0',
+  })
+  if (input.state) params.set('state', input.state)
+  const res = await fetch(`${NPPES_BASE}?${params}`, {
+    headers: { accept: 'application/json' },
+    signal: AbortSignal.timeout(20_000),
+  })
+  if (!res.ok) throw new Error(`NPPES ${res.status}`)
+  const body = (await res.json()) as Record<string, unknown>
+  if (body?.Errors) throw new Error(`NPPES error: ${JSON.stringify(body.Errors).slice(0, 200)}`)
+  return countDentistsAt(body, input.addressLine1)
 }
 
 /**

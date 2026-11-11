@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { computeQualityScore, qualityBandForScore, qualityInput, isFullyVerified, QUALITY_WEIGHTS } from '@/lib/prospect-quality'
+import { computeQualityScore, qualityBandForScore, qualityInput, isFullyVerified, QUALITY_WEIGHTS, NO_LIFE_CEILING, SINGLE_SOURCE_TURN_ON } from '@/lib/prospect-quality'
 import { PARKED_RECHECK_DAYS, PROSPECTING_DEFAULTS, type ProspectVerification, type VerificationSignal } from '@/lib/types/prospecting'
 
 /**
@@ -181,5 +181,72 @@ describe('isFullyVerified', () => {
     expect(isFullyVerified(noPhone, NOW)).toBe(false)
     const stale = { ...ALL_GOOD, npi: sig('active', null, 'nppes', new Date('2026-08-01T00:00:00Z')) }
     expect(isFullyVerified(stale, NOW)).toBe(false)
+  })
+})
+
+// ── P-04: liveness from the listing + the two-source rule ───────────────────
+
+describe('the phone, under the two-source rule', () => {
+  const wellFormed = (extra: Record<string, unknown>) => ({ ...sig('well_formed', 'Well-formed US number — the line check is off', 'nanp'), ...extra })
+  it('the registry and the listing agree → 20 (corroborated, line not checked)', () => {
+    const r = score({ phoneStatus: 'unknown', phoneLineType: null, verification: { ...ALL_GOOD, phone: wellFormed({ sources: ['nppes', 'places'], standing: 'corroborated', lineCheck: 'off' }) } })
+    expect(r.score).toBe(95)
+    expect(r.reasons).toContain('Registry and Google agree on this number — line not checked')
+    expect(QUALITY_WEIGHTS.phoneCorroborated).toBe(20)
+  })
+  it('one source, the line check OFF → the well-formed 12 and "turn on the line check"', () => {
+    const r = score({ phoneStatus: 'unknown', phoneLineType: null, verification: { ...ALL_GOOD, phone: wellFormed({ sources: ['places'], standing: 'single_source', lineCheck: 'off' }) } })
+    expect(r.score).toBe(87)
+    expect(r.reasons).toContain(SINGLE_SOURCE_TURN_ON)
+    expect(SINGLE_SOURCE_TURN_ON).toBe('Only one source lists this number — turn on the line check to confirm it')
+  })
+  it('one source, the check configured but skipped → 12, "line not checked"', () => {
+    const r = score({ phoneStatus: 'unknown', phoneLineType: null, verification: { ...ALL_GOOD, phone: wellFormed({ sources: ['nppes'], standing: 'single_source', lineCheck: 'skipped' }) } })
+    expect(r.score).toBe(87)
+    expect(r.reasons).toContain('Only one source lists this number — line not checked')
+  })
+  it('a legacy signal (no standing) scores as before', () => {
+    const r = score({ phoneStatus: 'unknown', phoneLineType: null, verification: { ...ALL_GOOD, phone: wellFormed({}) } })
+    expect(r.score).toBe(87)
+    expect(r.reasons).toContain('Phone is well-formed — line not checked')
+  })
+  it('the carrier saying in service still scores the full 25 — no first-dial bucket', () => {
+    expect(score().score).toBe(100)
+  })
+})
+
+describe('reviews — recency-aware, with the no-sign-of-life cap', () => {
+  const reviews = (status: string, latestAt: string | null, hours: boolean | null) => ({ ...sig(status, null, 'places'), latestAt, hours })
+  it('current (≤6 months) 10 · quiet (≤18) 6 · stale 0 · none 0 — in words with the month', () => {
+    expect(score({ verification: { ...ALL_GOOD, reviews: reviews('recent', '2026-09-01T00:00:00.000Z', true) } })).toMatchObject({ score: 100 })
+    expect(score({ verification: { ...ALL_GOOD, reviews: reviews('recent', '2026-09-01T00:00:00.000Z', true) } }).reasons).toContain('Google reviews are current — latest Sep 2026')
+    const quiet = score({ verification: { ...ALL_GOOD, reviews: reviews('quiet', '2025-12-01T00:00:00.000Z', true) } })
+    expect(quiet.score).toBe(96)
+    expect(quiet.reasons).toContain('Last Google review Dec 2025')
+    expect(QUALITY_WEIGHTS.reviewsQuiet).toBe(6)
+    const stale = score({ verification: { ...ALL_GOOD, reviews: reviews('stale', '2024-01-01T00:00:00.000Z', true) } })
+    expect(stale.score).toBe(90)
+    expect(stale.reasons).toContain('No Google review since Jan 2024')
+    const none = score({ verification: { ...ALL_GOOD, reviews: reviews('none', null, true) } })
+    expect(none.score).toBe(90)
+    expect(none.reasons).toContain('No Google reviews')
+  })
+  it('no review in 18 months AND no opening hours → "Google shows no sign of life since <date>", band at most weak', () => {
+    const r = score({ verification: { ...ALL_GOOD, reviews: reviews('stale', '2024-01-01T00:00:00.000Z', false) } })
+    expect(r.score).toBe(NO_LIFE_CEILING)
+    expect(r.band).toBe('weak')
+    expect(r.reasons[0]).toBe('Google shows no sign of life since Jan 2024')
+    expect(NO_LIFE_CEILING).toBe(59)
+    const never = score({ verification: { ...ALL_GOOD, reviews: reviews('none', null, false) } })
+    expect(never.band).toBe('weak')
+    expect(never.reasons[0]).toBe('Google shows no sign of life — no reviews and no hours on the listing')
+    // Hours unknown (an older signal) never caps.
+    expect(score({ verification: { ...ALL_GOOD, reviews: reviews('stale', '2024-01-01T00:00:00.000Z', null) } }).band).toBe('best')
+  })
+  it('Google gave no dates → the P-01 count rule; a review signal with no matched listing is ignored', () => {
+    expect(score({ verification: { ...ALL_GOOD, reviews: reviews('unknown', null, true) }, reviewCount: 40 }).score).toBe(100)
+    expect(score({ verification: { ...ALL_GOOD, reviews: reviews('unknown', null, true) }, reviewCount: 2 }).score).toBe(90)
+    const unmatched = score({ verification: { ...ALL_GOOD, places: sig('no_match'), reviews: reviews('recent', '2026-09-01T00:00:00.000Z', true) }, reviewCount: null })
+    expect(unmatched.reasons.join(' ')).not.toMatch(/review/)
   })
 })

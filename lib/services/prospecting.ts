@@ -703,10 +703,18 @@ export async function listProspects(
 ): Promise<{ rows: ProspectListRow[]; total: number; pageSize: number }> {
   const conds = []
   if (filters.state) conds.push(eq(schema.prospect.state, filters.state))
-  if (filters.status) conds.push(eq(schema.prospect.status, filters.status))
+  if (filters.chain) {
+    // The chains set aside (P-04) — hidden by default like Merged, one
+    // chip away.
+    conds.push(eq(schema.prospect.status, 'disqualified'), eq(schema.prospect.suppressedReason, 'chain'))
+  } else if (filters.status) conds.push(eq(schema.prospect.status, filters.status))
   // Hygiene (P-03): merged duplicates and resting rows leave the default
-  // view; each has its own filter chip.
-  else conds.push(notInArray(schema.prospect.status, ['merged', 'dormant']))
+  // view; each has its own filter chip. So do the chains (P-04).
+  else
+    conds.push(
+      notInArray(schema.prospect.status, ['merged', 'dormant']),
+      or(isNull(schema.prospect.suppressedReason), ne(schema.prospect.suppressedReason, 'chain')),
+    )
   if (filters.scoreBand) conds.push(eq(schema.prospect.scoreBand, filters.scoreBand))
   if (filters.qualityBand) {
     // A quality band only means something for the pool the floor applies
@@ -763,6 +771,7 @@ export async function listProspects(
       verifiedAt: schema.prospect.verifiedAt,
       assignedCallerId: schema.prospect.assignedCallerId,
       mergedIntoProspectId: schema.prospect.mergedIntoProspectId,
+      suppressedReason: schema.prospect.suppressedReason,
     })
     .from(schema.prospect)
     .where(where)
@@ -792,6 +801,7 @@ export async function listProspects(
       qualityReasons: Array.isArray(r.qualityReasons) ? (r.qualityReasons as string[]) : [],
       mergedIntoProspectId: r.mergedIntoProspectId ?? null,
       mergedIntoName: r.mergedIntoProspectId ? (survivorNames.get(r.mergedIntoProspectId) ?? null) : null,
+      suppressedReason: r.suppressedReason ?? null,
     })) as ProspectListRow[],
     total: total ?? 0,
     pageSize: LIST_PAGE_SIZE,
@@ -904,7 +914,12 @@ export async function getFunnelStats(): Promise<ProspectFunnelStats> {
   // one is counted once, under its survivor.
   const dormant = sum(['dormant'])
   const merged = sum(['merged'])
-  return { discovered: discovered + dormant, enriched, contacted, engaged, callList, converted, dormant, merged }
+  // The chains set aside (P-04) — their own chip, hidden by default.
+  const [chainRow] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(schema.prospect)
+    .where(and(eq(schema.prospect.status, 'disqualified'), eq(schema.prospect.suppressedReason, 'chain')))
+  return { discovered: discovered + dormant, enriched, contacted, engaged, callList, converted, dormant, merged, chains: chainRow?.n ?? 0 }
 }
 
 /** Live-pool score-band counts (enriched-and-later prospects) — grounds the
@@ -2052,11 +2067,15 @@ async function applyCallerFeedback(prospectId: string, outcome: string, now: Dat
     // number the CALLER reported is never cleared here — only a new number is.
     if (row.phoneStatus === 'invalid' && verification.phone?.source !== 'caller') {
       phoneStatus = 'valid'
+      // A human reached the practice on it: that IS the clinic's number
+      // (corroborated, the two-source rule — P-04).
       verification.phone = {
         status: 'valid',
         detail: `Reached on ${utcDate(now)} — the number works (heard on a call)`,
         checkedAt,
         source: 'caller',
+        sources: ['caller'],
+        standing: 'corroborated',
       }
       patch.phoneStatus = 'valid'
       patch.phoneSource = 'caller'
@@ -2127,11 +2146,15 @@ export async function updateProspectPhone(
   if (row.status === 'merged') return { ok: false, reason: 'merged' }
   const now = new Date()
   const verification = parseVerification(row.verification)
+  // A hand-typed number is stated by one human (the two-source rule, P-04)
+  // — the next verify pass checks the line and reads the standing.
   verification.phone = {
     status: 'well_formed',
     detail: `Number entered by hand on ${utcDate(now)} — line not checked yet`,
     checkedAt: now.toISOString(),
     source: 'caller',
+    sources: ['caller'],
+    standing: 'single_source',
   }
   const patch: Partial<typeof schema.prospect.$inferInsert> = {
     phone: digits,
