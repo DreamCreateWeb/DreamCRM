@@ -31,6 +31,7 @@ import {
   formatProspectPhone,
   listingAltNote,
   parseVerification,
+  phoneStanding,
   withoutListingAltNote,
   type PhoneSourceName,
   type PhoneStanding,
@@ -345,22 +346,10 @@ function sig(status: string, detail: string | null, source: string, now: Date): 
   return { status, detail, checkedAt: now.toISOString(), source }
 }
 
-/**
- * THE TWO-SOURCE PREDICATE (P-04), pure: `corroborated` when two of the
- * registry / the listing / a human state the number, or the carrier says
- * in service AND at least one of them states it, or a human REACHED the
- * practice on it (`caller` stated and the status is valid);
- * `single_source` otherwise. The carrier ALONE is never corroboration
- * (fix pass, G.1): "in service" says the line rings, not whose it is — the
- * owner's ruling needs ACTIVE and THIS CLINIC'S.
- */
-export function phoneStanding(stated: readonly PhoneSourceName[], phoneStatus: string | null): PhoneStanding {
-  const voices = stated.filter((s) => s !== 'carrier')
-  if (voices.length >= 2) return 'corroborated'
-  if (stated.includes('carrier') && voices.length >= 1) return 'corroborated'
-  if (stated.includes('caller') && phoneStatus === 'valid') return 'corroborated'
-  return 'single_source'
-}
+/** THE TWO-SOURCE PREDICATE (P-04) lives in lib/types/prospecting.ts
+ *  since fix pass IV (the merge computes it too); re-exported here for
+ *  the callers that learned it at this door. */
+export { phoneStanding }
 
 function sameAddress(a: string | null, b: string | null): boolean {
   const norm = (v: string | null) => (v ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
@@ -717,7 +706,10 @@ export async function verifyProspectSignals(
     } else {
       ctx.liveness.checks++
       if (isNetworkDead(liveness)) ctx.liveness.networkDead++
-      v.website = sig(liveness.status, liveness.detail, 'crawl', now)
+      // The CAUSE rides the signal (Y1): a dead by timeout read nothing,
+      // and the enrich pass's verdict must be able to tell it from a site
+      // that is really gone.
+      v.website = { ...sig(liveness.status, liveness.detail, 'crawl', now), ...(liveness.cause ? { cause: liveness.cause } : {}) }
     }
   }
 

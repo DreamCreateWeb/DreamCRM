@@ -25,7 +25,7 @@ import {
   type GuardedFetchDeps,
   type GuardedSession,
 } from './prospect-site-liveness'
-import { crawlWasRead, type ProspectAiVerdict, type ProspectCrawlSignals } from '@/lib/types/prospecting'
+import { crawlWasRead, siteGoneWasRead, type ProspectAiVerdict, type ProspectCrawlSignals } from '@/lib/types/prospecting'
 import {
   getProspectingConfig,
   bumpProspectingCounter,
@@ -390,11 +390,12 @@ async function enrichOneProspect(
         await bumpProspectingCounter(budget.month, 'ai_score')
       }
     }
-    // A site the probe found DEAD or PARKED is not "unread" — its state was
-    // read: the practice has no working website, and the ladder says so.
-    // Only a site we could not read (no crawl, robots, a failed fetch)
-    // gets the UNREAD verdict (X1).
-    const siteGone = websiteStatus === 'dead' || websiteStatus === 'parked'
+    // A site the probe found GONE — dead by DNS / refused / an HTTP answer
+    // / an invalid address, or parked — is not "unread": its state was
+    // read, the practice has no working website, and the ladder says so.
+    // A dead by TIMEOUT read nothing (Y1) and, like a site we could not
+    // crawl (budget, robots, a failed fetch), gets the UNREAD verdict (X1).
+    const siteGone = siteGoneWasRead(verified.patch.verification.website)
     if (!verdict) verdict = heuristicVerdict(signals, Boolean(websiteUrl) && !siteGone)
 
     // 4) Deterministic score — with what the crawl and the registry already

@@ -38,7 +38,20 @@ vi.mock('@/lib/services/prospecting', () => ({
   // these; it never calls them on a restore.
   stopActiveEnrollments: vi.fn(),
   clearSystemFollowUp: vi.fn(),
+  // The real verify pass (run on a MERGED row in the Y2 test below) reads
+  // the month counter and the config through these.
+  counterMonth: () => '2026-11',
+  getProspectingCounter: vi.fn(async () => 0),
+  bumpProspectingCounter: vi.fn(async () => {}),
+  pauseActiveEnrollments: vi.fn(),
+  resumeVerifyPausedEnrollments: vi.fn(),
 }))
+// The verify pass's network edges, spies: the Y2 test hands the listing in
+// and the merged row has no NPI, no website and the line check off.
+vi.mock('@/lib/nppes', () => ({ lookupNpi: vi.fn(), searchDentistsAtAddress: vi.fn() }))
+vi.mock('@/lib/google-places', () => ({ findDentalPlaceCandidates: vi.fn(), placesConfigured: () => true }))
+vi.mock('@/lib/services/prospect-site-liveness', () => ({ checkSiteLiveness: vi.fn() }))
+vi.mock('@/lib/services/phone-validate', () => ({ phoneValidateDriver: () => 'none', validatePhoneLine: vi.fn() }))
 // The one chain restore (P-04 fix pass) is its own module with its own
 // tests; here it is a spy, so the merge's writes stay its own — except in
 // the F.2(b) tests that hand the spy the REAL restore (V10 / V11), so the
@@ -102,7 +115,8 @@ import {
   runExactDedupeSweep,
   survivorOf,
 } from '@/lib/services/prospect-dedupe'
-import { PROSPECTING_DEFAULTS } from '@/lib/types/prospecting'
+import { newVerifyRunCtx, verifyProspectSignals } from '@/lib/services/prospect-verify'
+import { PROSPECTING_DEFAULTS, parseVerification } from '@/lib/types/prospecting'
 
 const NOW = new Date('2026-11-10T12:00:00Z')
 const DAY = 24 * 60 * 60 * 1000
@@ -780,7 +794,9 @@ describe('mergeProspects — the merge', () => {
     const w = updates('prospect')[0].values!
     expect(w).not.toHaveProperty('phone') // its own spelling stands…
     expect(w).toMatchObject({ phoneStatus: 'disconnected', phoneLineType: null, phoneSource: 'caller', phoneValidatedAt: new Date('2026-11-09T00:00:00Z') })
-    expect(w.verification).toEqual({ ...good, phone: disconnected }) // …the verdict is about this line
+    // …the verdict is about this line — and the merge keeps BOTH rows' voices on it (Y2): the survivor's legacy
+    // column 'nppes' and the loser's 'caller' become the signal's sources; a dead number has no standing (Y3).
+    expect(w.verification).toEqual({ ...good, phone: { ...disconnected, sources: ['nppes', 'caller'], standing: 'single_source' } })
     // The rescore: a dead number is a hard zero, in the caller's words.
     expect(w).toMatchObject({ qualityScore: 0, qualityBand: 'parked', qualityReasons: [disconnected.detail] })
 
@@ -809,6 +825,121 @@ describe('mergeProspects — the merge', () => {
     await mergeProspects('a', 'b', { now: NOW, config: CONFIG })
     expect(updates('prospect')[0].values).not.toHaveProperty('phoneStatus')
     expect(updates('prospect')[0].values).not.toHaveProperty('verification')
+  })
+
+  it('Y2: the same-number verdict take keeps the survivor’s statement — sources = union of both rows’ voices (signal sources AND legacy columns), the standing recomputed, the survivor’s alt and its sentence kept, the column caller when either side’s was', async () => {
+    const AT = '2026-11-09T00:00:00.000Z'
+    const typed = { status: 'well_formed', detail: 'Well-formed US number — this month’s line checks are used up', checkedAt: AT, source: 'nanp', sources: ['caller'], standing: 'single_source', lineCheck: 'skipped' }
+    const invalid = { status: 'invalid', detail: 'Carrier database: not an assigned number', checkedAt: AT, source: 'aws_pinpoint', sources: ['nppes'], standing: 'single_source', lineCheck: 'done' }
+    // Probe 1 — the standing shape: survivor hand-added (column single_source, sources [caller]) + loser {invalid, sources [nppes]}.
+    state.selectQueue.push(
+      [
+        prospect({ id: 'a', phone: '4045550000', phoneStatus: 'unknown', phoneLineType: null, phoneSource: 'single_source', phoneValidatedAt: null, qualityScore: 47, qualityBand: 'weak', verifiedAt: new Date(AT), verification: { phone: typed } }),
+        prospect({ id: 'b', phone: '4045550000', phoneStatus: 'invalid', phoneLineType: null, phoneSource: 'single_source', phoneValidatedAt: new Date(AT), qualityScore: 0, qualityBand: 'parked', verification: { phone: invalid } }),
+      ],
+      [], [], [],
+    )
+    await mergeProspects('a', 'b', { now: NOW, config: CONFIG })
+    const w = updates('prospect')[0].values!
+    expect(w).toMatchObject({ phoneStatus: 'invalid', phoneValidatedAt: new Date(AT), qualityScore: 0, qualityBand: 'parked' })
+    const signal = (w.verification as { phone: Record<string, unknown> }).phone
+    // Both voices kept; a bad number has no standing (Y3) — the predicate's own word, on the signal and the column.
+    expect(signal).toEqual({ ...invalid, sources: ['caller', 'nppes'], standing: 'single_source' })
+    expect(w.phoneSource).toBe('single_source')
+
+    // Probe 2 — legacy columns, no sources on either signal: the columns are the voices; the column stays 'caller'.
+    state.ops = []
+    const { sources: _s1, standing: _st1, ...typedLegacy } = typed
+    const { sources: _s2, standing: _st2, ...invalidLegacy } = invalid
+    state.selectQueue.push(
+      [
+        prospect({ id: 'a', phone: '4045550000', phoneStatus: 'unknown', phoneSource: 'caller', verification: { phone: typedLegacy } }),
+        prospect({ id: 'b', phone: '4045550000', phoneStatus: 'invalid', phoneSource: 'nppes', phoneValidatedAt: new Date(AT), verification: { phone: invalidLegacy } }),
+      ],
+      [], [], [],
+    )
+    await mergeProspects('a', 'b', { now: NOW, config: CONFIG })
+    const legacy = updates('prospect')[0].values!
+    expect(legacy.phoneSource).toBe('caller')
+    expect((legacy.verification as { phone: Record<string, unknown> }).phone).toEqual({ ...invalidLegacy, sources: ['caller', 'nppes'], standing: 'single_source' })
+
+    // The survivor's alt (Google lists another number) rides the loser's verdict, its sentence appended ONCE; the loser's alt only when the survivor has none.
+    state.ops = []
+    const alt = { number: '4045559999', source: 'places', at: AT }
+    state.selectQueue.push(
+      [
+        prospect({ id: 'a', phone: '4045550000', phoneStatus: 'unknown', phoneSource: 'single_source', verification: { phone: { ...typed, alt, detail: `${typed.detail}; Google lists (404) 555-9999 — kept the number you typed` } } }),
+        prospect({ id: 'b', phone: '4045550000', phoneStatus: 'invalid', phoneSource: 'single_source', verification: { phone: invalid } }),
+      ],
+      [], [], [],
+    )
+    await mergeProspects('a', 'b', { now: NOW, config: CONFIG })
+    const withAlt = (updates('prospect')[0].values!.verification as { phone: Record<string, unknown> }).phone
+    expect(withAlt).toMatchObject({ status: 'invalid', alt, detail: 'Carrier database: not an assigned number; Google lists (404) 555-9999 — kept the number you typed' })
+    expect((withAlt.detail as string).match(/Google lists/g)).toHaveLength(1)
+    state.ops = []
+    state.selectQueue.push(
+      [
+        prospect({ id: 'a', phone: '4045550000', phoneStatus: 'unknown', phoneSource: 'single_source', verification: { phone: typed } }),
+        prospect({ id: 'b', phone: '4045550000', phoneStatus: 'invalid', phoneSource: 'single_source', verification: { phone: { ...invalid, alt: { ...alt, number: '4045558888' } } } }),
+      ],
+      [], [], [],
+    )
+    await mergeProspects('a', 'b', { now: NOW, config: CONFIG })
+    expect((updates('prospect')[0].values!.verification as { phone: Record<string, unknown> }).phone).toMatchObject({ alt: { number: '4045558888' } })
+  })
+
+  it('Y2: the FILL of a verification-less survivor — the loser’s phone signal about the SAME number lands with both rows’ voices and the caller column kept; one about ANOTHER number never lands at all', async () => {
+    const AT = '2026-11-09T00:00:00.000Z'
+    const places = { status: 'matched', detail: null, checkedAt: AT, source: 'places' }
+    const theirs = { status: 'valid', detail: 'Carrier database: landline', checkedAt: AT, source: 'aws_pinpoint', sources: ['nppes', 'places'], standing: 'corroborated', lineCheck: 'done' }
+    // Same number: a hand-added, never-verified survivor (column caller, no verification) + a verified loser.
+    state.selectQueue.push(
+      [
+        prospect({ id: 'a', phone: '4045550000', phoneStatus: null, phoneSource: 'caller', verification: null }),
+        prospect({ id: 'b', phone: '4045550000', phoneStatus: 'valid', phoneSource: 'corroborated', phoneLineType: 'landline', verification: { places, phone: theirs } }),
+      ],
+      [], [], [],
+    )
+    await mergeProspects('a', 'b', { now: NOW, config: CONFIG })
+    const same = updates('prospect')[0].values!
+    expect(same.verification).toEqual({ places, phone: { ...theirs, sources: ['caller', 'nppes', 'places'], standing: 'corroborated' } })
+    expect(same.phoneSource).toBe('caller') // the column stays 'caller' — the loser's 'corroborated' never replaces it
+    // Another number: the loser's signal describes a line this row does not hold — the fill keeps the rest, drops the phone signal.
+    state.ops = []
+    state.selectQueue.push(
+      [
+        prospect({ id: 'a', phone: '4045550000', phoneStatus: null, phoneSource: 'caller', verification: null }),
+        prospect({ id: 'b', phone: '4045551234', phoneStatus: 'valid', phoneSource: 'corroborated', verification: { places, phone: theirs } }),
+      ],
+      [], [], [],
+    )
+    await mergeProspects('a', 'b', { now: NOW, config: CONFIG })
+    const other = updates('prospect')[0].values!
+    expect(other.verification).toEqual({ places })
+    expect(other).not.toHaveProperty('phone')
+    expect(other).not.toHaveProperty('phoneSource')
+  })
+
+  it('Y2 end to end: the MERGED row’s next verify pass (the REAL verifyProspectSignals) keeps the typed number against a listing that lists another — the alt attached, never replaced', async () => {
+    const AT = '2026-11-09T00:00:00.000Z'
+    const typed = { status: 'well_formed', detail: 'Well-formed US number — the line check is off', checkedAt: AT, source: 'nanp', sources: ['caller'], standing: 'single_source', lineCheck: 'off' }
+    const invalid = { status: 'invalid', detail: 'Carrier database: not an assigned number', checkedAt: AT, source: 'aws_pinpoint', sources: ['nppes'], standing: 'single_source', lineCheck: 'done' }
+    const survivor = prospect({ id: 'a', name: 'Smile Dental PC', addressLine1: '123 Main St', phone: '4045550000', phoneStatus: 'unknown', phoneLineType: null, phoneSource: 'single_source', phoneValidatedAt: null, npiNumber: null, verifiedAt: new Date(AT), verification: { phone: typed } })
+    state.selectQueue.push(
+      [survivor, prospect({ id: 'b', phone: '4045550000', phoneStatus: 'invalid', phoneSource: 'single_source', phoneValidatedAt: new Date(AT), qualityScore: 0, verification: { phone: invalid } })],
+      [], [], [],
+    )
+    await mergeProspects('a', 'b', { now: NOW, config: CONFIG })
+    const fill = updates('prospect')[0].values!
+    const merged = { ...survivor, ...fill, verification: parseVerification(fill.verification) }
+    const listing = { placeId: 'place_1', displayName: 'Smile Dental', formattedAddress: '123 Main St, Atlanta, GA 30309, USA', nationalPhoneNumber: '4045559999', websiteUri: null, ratingTenths: 47, reviewCount: 22, businessStatus: 'OPERATIONAL', googleMapsUri: 'https://maps.google.com/x', latestReviewAt: null, hasOpeningHours: true }
+    const ctx = await newVerifyRunCtx({ ...PROSPECTING_DEFAULTS, killSwitch: false }, NOW)
+    const out = await verifyProspectSignals(merged as never, { ok: true, places: [listing] }, ctx)
+    expect(out.patch.phone).toBe('4045550000')
+    expect(out.patch.verification.phone).toMatchObject({ sources: ['nppes', 'caller'], alt: { number: '4045559999', source: 'places' } })
+    expect(out.patch.verification.phone?.detail).toMatch(/Google lists \(404\) 555-9999 — kept the number you typed/)
+    expect(out.patch.verification.phone?.detail).not.toMatch(/the registry had/)
   })
 
   it('V1: a `reach` heard on the same line is kept, and rescores only a row the pass has looked at', async () => {

@@ -12,6 +12,9 @@ import type {
   ProspectPhoneSource,
   ProspectCallOutcome,
 } from '@/lib/db/schema/prospecting'
+// The one list of the statuses a number is never dialled in — the standing
+// predicate reads it (Y3); the UI already does through quality-pills.
+import { BAD_PHONE_STATUSES } from '@/lib/db/schema/prospecting'
 
 export type {
   ProspectStatus,
@@ -97,6 +100,46 @@ export const PHONE_SOURCE_NAME_LABELS: Record<PhoneSourceName, string> = {
  *  line is in service, never whose it is. No first-dial bucket (owner
  *  ruling 2026-11-11). */
 export type PhoneStanding = 'corroborated' | 'single_source'
+
+/**
+ * THE TWO-SOURCE PREDICATE (P-04), pure: `corroborated` when two of the
+ * registry / the listing / a human state the number, or the carrier says
+ * in service AND at least one of them states it, or a human REACHED the
+ * practice on it (`caller` stated and the status is valid);
+ * `single_source` otherwise. The carrier ALONE is never corroboration
+ * (fix pass, G.1): "in service" says the line rings, not whose it is — the
+ * owner's ruling needs ACTIVE and THIS CLINIC'S. Lives here (client-safe)
+ * since fix pass IV: the verify pass and the dedupe merge both compute it.
+ */
+export function phoneStanding(stated: readonly PhoneSourceName[], phoneStatus: string | null): PhoneStanding {
+  // A BAD NUMBER HAS NO STANDING (fix pass IV, Y3): a number known to be
+  // wrong, dead or unassigned is never corroborated, whoever listed it —
+  // the voices that stated it are a verdict's context, not agreement.
+  if (phoneStatus && (BAD_PHONE_STATUSES as readonly string[]).includes(phoneStatus)) return 'single_source'
+  const voices = stated.filter((s) => s !== 'carrier')
+  if (voices.length >= 2) return 'corroborated'
+  if (stated.includes('carrier') && voices.length >= 1) return 'corroborated'
+  if (stated.includes('caller') && phoneStatus === 'valid') return 'corroborated'
+  return 'single_source'
+}
+
+/** Who states a row's number, read from BOTH places it can be written (fix
+ *  pass IV, Y2): the signal's `sources` AND the legacy `phone_source`
+ *  column when it still names a voice (`caller` / `nppes` / `places` —
+ *  pre-standing rows; `corroborated` / `single_source` name none). The
+ *  merge unions the two rows' voices so a statement is never lost. */
+export function phoneVoices(sources: readonly PhoneSourceName[] | null | undefined, column: string | null | undefined): PhoneSourceName[] {
+  const out: PhoneSourceName[] = [...(sources ?? [])]
+  if ((column === 'caller' || column === 'nppes' || column === 'places') && !out.includes(column)) out.push(column)
+  return out
+}
+
+/** The union of two rows' voices, the first row's order first. */
+export function unionPhoneVoices(a: readonly PhoneSourceName[], b: readonly PhoneSourceName[]): PhoneSourceName[] {
+  const out = [...a]
+  for (const s of b) if (!out.includes(s)) out.push(s)
+  return out
+}
 
 /** Plain labels for every call outcome (the call card, Call Mode, the log). */
 export const CALL_OUTCOME_LABELS: Record<ProspectCallOutcome, string> = {
@@ -318,8 +361,31 @@ export const FIT_SIGNAL_LABELS: Record<FitSignalId, string> = {
   chainOverride: 'Not a chain',
 }
 
+/** The website probe's signal (P-04 fix pass IV, Y1): `cause` says what
+ *  the probe saw behind a `dead` / `parked` / `unknown` — `dns` · `refused`
+ *  · `http` · `invalid` · `timeout` · `parked` · `policy` · `resolver` ·
+ *  `redirects` (lib/services/prospect-site-liveness.ts). A `dead` whose
+ *  cause is `timeout` read NOTHING: the opportunity verdict treats it as
+ *  an unread site, never "no website". */
+export interface WebsiteVerificationSignal extends VerificationSignal {
+  cause?: string | null
+}
+
+/** Did the probe READ that the site is gone? True for a dead by DNS /
+ *  refused / an HTTP answer / an invalid address and for a parked page
+ *  (those were observed — the no-website / parked verdicts stand); false
+ *  for a dead by TIMEOUT (nothing was read — the unread verdict) and for
+ *  every other status. A stored `dead` from before the cause was kept
+ *  (no `cause`) reads as gone, as it did. */
+export function siteGoneWasRead(website: WebsiteVerificationSignal | null | undefined): boolean {
+  if (!website) return false
+  if (website.status === 'parked') return true
+  return website.status === 'dead' && website.cause !== 'timeout'
+}
+
 export type ProspectVerification = Partial<Record<VerificationSignalId, VerificationSignal>> & {
   phone?: PhoneVerificationSignal
+  website?: WebsiteVerificationSignal
   reviews?: ReviewsVerificationSignal
   fit?: ProspectFitSignals
 }
@@ -371,6 +437,8 @@ export function parseVerification(raw: unknown): ProspectVerification {
         latestAt: typeof sig.latestAt === 'string' ? sig.latestAt : null,
         hours: typeof sig.hours === 'boolean' ? sig.hours : null,
       }
+    } else if (id === 'website') {
+      out.website = { ...base, ...(typeof sig.cause === 'string' ? { cause: sig.cause } : {}) }
     } else {
       out[id] = base
     }

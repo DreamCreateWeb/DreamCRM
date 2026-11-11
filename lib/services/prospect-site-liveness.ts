@@ -18,7 +18,9 @@ export { BODY_LIMIT, readBodyCapped }
  *
  *   alive       answered (2xx), or answered and asked crawlers to stay out
  *   dead        DNS says the name is gone · 5xx · homepage gone (404/410) ·
- *               timed out twice · refused the connection
+ *               timed out twice · refused the connection — `cause` says
+ *               which (dns · http · timeout · refused · invalid); a
+ *               TIMEOUT read nothing and the verdict treats it as unread
  *   parked      a registrar-parking / server-default fingerprint — on the
  *               FINAL response, after redirects (a domain-for-sale page is
  *               most often a redirect to the registrar's own host)
@@ -50,6 +52,14 @@ export type SiteLivenessStatus = 'alive' | 'dead' | 'parked' | 'redirected' | 'u
  *  into one) — the crawler must refuse the same URL. `resolver`: DNS could
  *  not answer right now. `redirects`: a loop, or a Location we could not read. */
 export type SiteUnknownCause = 'policy' | 'resolver' | 'redirects'
+/** Why a `dead` is dead (P-04 fix pass IV, Y1) — what the probe actually
+ *  distinguishes: `dns` the name is gone; `refused` the connection was
+ *  refused; `http` the server answered 5xx / 404 / 410; `invalid` the
+ *  address is not a URL; `timeout` it timed out twice — the ONE dead whose
+ *  page was never read (a slow host, a WAF that hangs on bots), so the
+ *  opportunity verdict treats it as UNREAD, never "no website". */
+export type SiteDeadCause = 'dns' | 'refused' | 'http' | 'invalid' | 'timeout'
+export type SiteLivenessCause = SiteUnknownCause | SiteDeadCause | 'parked'
 
 export interface SiteLiveness {
   status: SiteLivenessStatus
@@ -57,8 +67,11 @@ export interface SiteLiveness {
   detail: string
   finalUrl: string | null
   httpStatus: number | null
-  /** Set only on `unknown` — see SiteUnknownCause. */
-  cause?: SiteUnknownCause
+  /** On `unknown`: why we could not tell (SiteUnknownCause). On `dead` and
+   *  `parked`: what the probe saw (SiteDeadCause | 'parked') — stored on
+   *  `verification.website.cause` so a later pass can tell a timeout from
+   *  a site that is really gone. Absent on alive / redirected. */
+  cause?: SiteLivenessCause
 }
 
 const TIMEOUT_MS = 6_000
@@ -506,7 +519,7 @@ export async function checkSiteLiveness(url: string, deps: LivenessDeps = {}): P
   try {
     parsed = new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`)
   } catch {
-    return { status: 'dead', detail: 'Website address is not a valid URL', finalUrl: null, httpStatus: null }
+    return { status: 'dead', detail: 'Website address is not a valid URL', finalUrl: null, httpStatus: null, cause: 'invalid' }
   }
   const session = guardedSession(parsed, deps)
   try {
@@ -518,7 +531,9 @@ export async function checkSiteLiveness(url: string, deps: LivenessDeps = {}): P
 
 function refused(w: Extract<GuardedWalk, { kind: 'refused' }> | Extract<GuardVerdict, { ok: false }>): SiteLiveness {
   const out: SiteLiveness = { status: w.status, detail: w.detail, finalUrl: null, httpStatus: null }
-  if (w.status === 'unknown' && w.cause !== 'gone') out.cause = w.cause
+  // A gone name is dead by DNS (Y1); an unknown says why it could not tell.
+  if (w.cause === 'gone') out.cause = 'dns'
+  else if (w.status === 'unknown') out.cause = w.cause
   return out
 }
 
@@ -551,10 +566,10 @@ async function probe(parsed: URL, session: GuardedSession, deps: LivenessDeps): 
   let head = await walk('HEAD', parsed)
   if (head.kind === 'timeout') head = await walk('HEAD', parsed)
   if (head.kind === 'timeout') {
-    return { status: 'dead', detail: `${host} timed out twice (${TIMEOUT_MS / 1000}s)`, ...none }
+    return { status: 'dead', detail: `${host} timed out twice (${TIMEOUT_MS / 1000}s)`, ...none, cause: 'timeout' }
   }
   if (head.kind === 'error') {
-    return { status: 'dead', detail: `${host} refused the connection`, ...none }
+    return { status: 'dead', detail: `${host} refused the connection`, ...none, cause: 'refused' }
   }
   if (head.kind === 'refused') return refused(head)
 
@@ -567,7 +582,7 @@ async function probe(parsed: URL, session: GuardedSession, deps: LivenessDeps): 
     let got = await walk('GET', head.url)
     if (got.kind === 'timeout') got = await walk('GET', head.url)
     if (got.kind === 'timeout') {
-      return { status: 'dead', detail: `${host} timed out twice (${TIMEOUT_MS / 1000}s)`, ...none }
+      return { status: 'dead', detail: `${host} timed out twice (${TIMEOUT_MS / 1000}s)`, ...none, cause: 'timeout' }
     }
     if (got.kind === 'refused') return refused(got)
     if (got.kind === 'ok') {
@@ -582,16 +597,16 @@ async function probe(parsed: URL, session: GuardedSession, deps: LivenessDeps): 
   const landed = finalHost !== host ? `${host} now lands on ${finalHost}` : host
 
   if (res.status >= 500) {
-    return { status: 'dead', detail: `${host} answers with a server error (${res.status})`, finalUrl, httpStatus: res.status }
+    return { status: 'dead', detail: `${host} answers with a server error (${res.status})`, finalUrl, httpStatus: res.status, cause: 'http' }
   }
   if (res.status === 404 || res.status === 410) {
-    return { status: 'dead', detail: `${host}'s homepage is gone (${res.status})`, finalUrl, httpStatus: res.status }
+    return { status: 'dead', detail: `${host}'s homepage is gone (${res.status})`, finalUrl, httpStatus: res.status, cause: 'http' }
   }
   // Parking is judged on the FINAL response: the registrar's HOST we landed
   // on (exact hostname, never a substring), then the body we were served there.
   const urlParked = finalHost !== host ? parkedHost(final.url) : null
   if (urlParked) {
-    return { status: 'parked', detail: `${landed} — ${urlParked}`, finalUrl, httpStatus: res.status }
+    return { status: 'parked', detail: `${landed} — ${urlParked}`, finalUrl, httpStatus: res.status, cause: 'parked' }
   }
   if (res.ok && bodyRead && res.body !== undefined) {
     const html = await readBodyCapped(res)
@@ -602,6 +617,7 @@ async function probe(parsed: URL, session: GuardedSession, deps: LivenessDeps): 
         detail: finalHost !== host ? `${landed} — ${parked}` : `${host} shows ${parked}`,
         finalUrl,
         httpStatus: res.status,
+        cause: 'parked',
       }
     }
   }
