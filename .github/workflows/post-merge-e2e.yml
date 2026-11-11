@@ -110,7 +110,16 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Playwright Chromium
-        run: pnpm exec playwright install --with-deps chromium
+        # `--with-deps` also apt-installs a handful of OPTIONAL fonts (CJK,
+        # Thai, unifont). When the runner's apt mirror is unreachable
+        # (azure.archive.ubuntu.com would not resolve on 2026-11-11, two runs
+        # 20 minutes apart) the whole install exits 100 BEFORE the browser is
+        # downloaded, and every PR goes red on a step no test depends on:
+        # ubuntu-latest already carries every library Chromium needs (the
+        # failing log listed each one "already the newest version"), and the
+        # suite has no visual snapshots. So fall back to the browser-only
+        # install; a genuinely missing library still fails loudly at launch.
+        run: pnpm exec playwright install --with-deps chromium || pnpm exec playwright install chromium
 
       - name: Run the E2E harness against the merged tree
         run: bash scripts/e2e-harness.sh
