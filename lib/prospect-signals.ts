@@ -29,49 +29,76 @@ const BUILDER_FINGERPRINTS: Array<[RegExp, string]> = [
 
 /**
  * THE COMPETITOR STACK (P-04) — booking widgets and review / messaging
- * engines, fingerprinted by SCRIPT, HOST or IFRAME, never by page copy
- * ("we love Weave" in a blog post is not a Weave install). The corpus is
- * every src / href / action URL on the page plus the inline script bodies.
- * Names are the display names the opportunity reasons use ("Already on
- * NexHealth + Birdeye").
+ * engines, fingerprinted on HOSTS and nothing else (fix pass): the host of
+ * every `<script src>`, `<link href>` and `<iframe src>`, and the host of
+ * every URL-shaped token inside an inline script body. Never a bare word —
+ * "we moved off NexHealth" in a blog's JSON-LD, a hydration payload or an
+ * article link is not a NexHealth install. Each pattern matches a host
+ * label at a dot boundary, so "localmedia.com" is not LocalMed and
+ * "interweave.com" is not Weave. Names are the display names the
+ * opportunity reasons use ("Already on NexHealth + Birdeye").
  */
 export const STACK_FINGERPRINTS: ReadonlyArray<{ name: string; pattern: RegExp }> = [
-  { name: 'NexHealth', pattern: /nexhealth/i },
-  { name: 'Zocdoc', pattern: /zocdoc\.com/i },
-  { name: 'LocalMed', pattern: /localmed\.com|localmed/i },
-  { name: 'Weave', pattern: /\b(?:getweave|weave)\.com\b|weaveconnect/i },
-  { name: 'Solutionreach', pattern: /solutionreach|smilereminder/i },
-  { name: 'RevenueWell', pattern: /revenuewell/i },
-  { name: 'Birdeye', pattern: /birdeye/i },
-  { name: 'Podium', pattern: /\bpodium\.com\b|podium\.js|widget\.podium/i },
-  { name: 'Dentrix Ascend', pattern: /dentrixascend|ascend\.dentrix|dentrix\.com\/ascend/i },
-  { name: 'Curve', pattern: /curvehero|curvedental|curve\s*hero/i },
-  { name: 'Lighthouse 360', pattern: /lighthouse\s*360|lh360/i },
-  { name: 'Flex', pattern: /flexbook|getflex\.com|dentalintel|dental-intelligence/i },
-  { name: 'Yapi', pattern: /yapiapp\.com|\byapi\b/i },
-  { name: 'Swell', pattern: /swellcx|getswell/i },
-  { name: 'Doctible', pattern: /doctible/i },
-  { name: 'Demandforce', pattern: /demandforce/i },
-  { name: 'Jane', pattern: /janeapp\.com/i },
-  { name: 'Modento', pattern: /modento/i },
+  { name: 'NexHealth', pattern: /(^|\.)nexhealth\./ },
+  { name: 'Zocdoc', pattern: /(^|\.)zocdoc\./ },
+  { name: 'LocalMed', pattern: /(^|\.)localmed\./ },
+  { name: 'Weave', pattern: /(^|\.)(getweave|weave|weaveconnect)\./ },
+  { name: 'Solutionreach', pattern: /(^|\.)(solutionreach|smilereminder)\./ },
+  { name: 'RevenueWell', pattern: /(^|\.)revenuewell\./ },
+  { name: 'Birdeye', pattern: /(^|\.)birdeye\./ },
+  { name: 'Podium', pattern: /(^|\.)podium\./ },
+  { name: 'Dentrix Ascend', pattern: /(^|\.)(dentrixascend|ascend\.dentrix)\./ },
+  { name: 'Curve', pattern: /(^|\.)(curvehero|curvedental)\./ },
+  { name: 'Lighthouse 360', pattern: /(^|\.)(lighthouse360|lh360)\./ },
+  { name: 'Flex', pattern: /(^|\.)(flexbook|getflex|dentalintel|dental-intelligence)\./ },
+  { name: 'Yapi', pattern: /(^|\.)(yapiapp|yapi)\./ },
+  { name: 'Swell', pattern: /(^|\.)(swellcx|getswell)\./ },
+  { name: 'Doctible', pattern: /(^|\.)doctible\./ },
+  { name: 'Demandforce', pattern: /(^|\.)demandforce\./ },
+  { name: 'Jane', pattern: /(^|\.)janeapp\./ },
+  { name: 'Modento', pattern: /(^|\.)modento\./ },
 ]
 
-/** The script / host / iframe corpus: every URL-bearing attribute value and
- *  every inline script body — never the visible copy. */
+/** The host of an absolute or protocol-relative http(s) URL, lower-cased;
+ *  null for a relative path, another scheme or junk. */
+function hostOf(url: string): string | null {
+  try {
+    const u = new URL(url.trim(), 'https://relative.invalid')
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return null
+    const host = u.hostname.toLowerCase()
+    return host && host !== 'relative.invalid' ? host : null
+  } catch {
+    return null
+  }
+}
+
+/** The hosts a page loads code or frames from: `<script src>`, `<link
+ *  href>`, `<iframe src>`, and every URL inside an inline script body.
+ *  Exported for tests. */
+export function stackHosts(html: string): string[] {
+  const hosts = new Set<string>()
+  const add = (url: string) => {
+    const h = hostOf(url)
+    if (h) hosts.add(h)
+  }
+  for (const m of Array.from(html.matchAll(/<(?:script|link|iframe)\b[^>]*?\s(?:src|href)\s*=\s*["']([^"']{1,500})["']/gi))) add(m[1])
+  for (const m of Array.from(html.matchAll(/<script\b[^>]*>([\s\S]{0,20000}?)<\/script>/gi))) {
+    for (const u of Array.from(m[1].matchAll(/https?:\/\/[a-z0-9.-]+/gi))) add(u[0])
+  }
+  return Array.from(hosts)
+}
+
+/** The corpus the fingerprints run over: one host a line, nothing else. */
 export function stackCorpus(html: string): string {
-  const parts: string[] = []
-  for (const m of Array.from(html.matchAll(/(?:src|href|action|data-src|data-url|data-widget-src)\s*=\s*["']([^"']{1,500})["']/gi))) parts.push(m[1])
-  for (const m of Array.from(html.matchAll(/<script\b[^>]*>([\s\S]{0,20000}?)<\/script>/gi))) parts.push(m[1])
-  for (const m of Array.from(html.matchAll(/<iframe\b[^>]{0,1000}>/gi))) parts.push(m[0])
-  return parts.join('\n')
+  return stackHosts(html).join('\n')
 }
 
 /** Fingerprint the competitor stack on a page (display names, list order). */
 export function detectStack(html: string): string[] {
-  const corpus = stackCorpus(html)
-  if (!corpus) return []
+  const hosts = stackHosts(html)
+  if (hosts.length === 0) return []
   const out: string[] = []
-  for (const f of STACK_FINGERPRINTS) if (f.pattern.test(corpus)) out.push(f.name)
+  for (const f of STACK_FINGERPRINTS) if (hosts.some((h) => f.pattern.test(h))) out.push(f.name)
   return out
 }
 

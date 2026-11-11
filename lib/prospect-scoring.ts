@@ -1,4 +1,4 @@
-import type { ProspectAiVerdict, ProspectCrawlSignals, PracticeSize } from '@/lib/types/prospecting'
+import type { ProspectAiVerdict, ProspectCrawlSignals, ProspectVerification, PracticeSize } from '@/lib/types/prospecting'
 import { BUILDER_LABELS, DIY_BUILDERS, TEMPLATE_VENDOR_BUILDERS } from '@/lib/types/prospecting'
 import type { ProspectScoreBand } from '@/lib/db/schema/prospecting'
 import { newPracticeSentence, formatMonthYear } from '@/lib/prospect-fit'
@@ -31,8 +31,15 @@ import { newPracticeSentence, formatMonthYear } from '@/lib/prospect-fit'
  *   a group practice (≥5 dentists, registry)     −10   deprioritised, never
  *                                                       excluded (owner ruling)
  *
- * The stack is only judged when the crawl LOOKED (`stack` is an array);
- * an older crawl without it moves nothing.
+ * The stack is only judged when the crawl READ the page (`stack` is an
+ * array); an older crawl without it, or a page robots.txt refused (`null`),
+ * moves nothing — the no-stack credit is for a page somebody read.
+ *
+ * `rescoreOpportunity` (fix pass) recomputes the score from a ROW's stored
+ * inputs — the verdict, the listing's reputation, the crawl's stack and
+ * builder, the fit signals — so a verify pass that changes the practice
+ * size or the new-practice read moves the opportunity it promises to
+ * (−10 for a group, +8 / +4 for a new practice) without a re-enrich.
  */
 
 export const OPPORTUNITY_WEIGHTS = {
@@ -82,6 +89,46 @@ export function stackSentence(stack: string[]): string {
   const named = stack.slice(0, 3).join(' + ')
   const more = stack.length > 3 ? ` + ${stack.length - 3} more` : ''
   return `Already on ${named}${more}`
+}
+
+/** The fit-derived halves of a ScoreInput, read the one way the enrich pass
+ *  and the rescore both use. */
+export function fitScoreInputs(verification: ProspectVerification | null | undefined): Pick<ScoreInput, 'openedAt' | 'practiceSize'> {
+  const fit = verification?.fit
+  return {
+    openedAt: fit?.newPractice?.status === 'new' ? (fit.newPractice.enumeratedAt ?? null) : null,
+    practiceSize: fit?.size ? (fit.size.status as PracticeSize) : null,
+  }
+}
+
+function isVerdict(v: unknown): v is ProspectAiVerdict {
+  if (!v || typeof v !== 'object') return false
+  const r = v as Record<string, unknown>
+  return typeof r.hasWebsite === 'boolean' && typeof r.websiteQuality === 'number' && typeof r.onlineBooking === 'boolean' && typeof r.socialPresence === 'number'
+}
+
+/**
+ * Recompute a row's opportunity from what it already stores. Null when the
+ * row has no verdict yet (never enriched) — a rescore invents nothing.
+ */
+export function rescoreOpportunity(row: {
+  aiVerdict: unknown
+  reviewCount: number | null
+  ratingTenths: number | null
+  enrichment: unknown
+  verification: ProspectVerification | null | undefined
+}): ScoreResult | null {
+  if (!isVerdict(row.aiVerdict)) return null
+  const verdict: ProspectAiVerdict = { ...row.aiVerdict, websiteReasons: Array.isArray(row.aiVerdict.websiteReasons) ? row.aiVerdict.websiteReasons : [] }
+  const signals = row.enrichment && typeof row.enrichment === 'object' ? (row.enrichment as Partial<ProspectCrawlSignals>) : null
+  return computeOpportunityScore({
+    verdict,
+    reviewCount: row.reviewCount,
+    ratingTenths: row.ratingTenths,
+    stack: signals?.stack ?? null,
+    builder: signals?.builder ?? null,
+    ...fitScoreInputs(row.verification),
+  })
 }
 
 export function computeOpportunityScore(input: ScoreInput): ScoreResult {

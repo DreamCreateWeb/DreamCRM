@@ -16,8 +16,11 @@ import NotAChainButton from './not-a-chain-button'
  * sell to: the DSO / chain name, a shared host or phone, the practice size,
  * a new practice, the competitor stack and the builder the crawl saw. Every
  * registry / listing / sweep fact carries its source and a UTC stamp; the
- * crawl facts carry the crawl's. Platform voice. A flagged row offers "Not
- * a chain" (the owner's override, stored for good).
+ * crawl facts carry the crawl's. Platform voice. A row SET ASIDE (status
+ * disqualified, reason chain) says so and offers "Not a chain" (the
+ * owner's override, stored for good); a row that merely carries the signal
+ * (a customer, a row that already said no) says "noted — kept where it
+ * is" and offers nothing to lift (fix pass, E.6).
  */
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -66,7 +69,8 @@ export function FitCard({
   const v = parseVerification(verification)
   const fit = v.fit
   const read = fitVerdict(fit)
-  const flagged = read.chain || (status === 'disqualified' && suppressedReason === 'chain')
+  const setAside = status === 'disqualified' && suppressedReason === 'chain'
+  const noted = !setAside && read.chain
   const stack = signals?.stack
   const builder = signals?.builder ?? null
   const nothing = !fit && !signals
@@ -74,8 +78,10 @@ export function FitCard({
   return (
     <div data-fit-card>
       <div className="flex flex-wrap items-center gap-2">
-        {flagged ? (
+        {setAside ? (
           <StatusPill tone="urgent" label="Chain — set aside" title="Chains and DSOs are targeted later with other features" />
+        ) : noted ? (
+          <StatusPill tone="warn" label="Chain signal noted — kept where it is" title="The signal is recorded; a row that already said no, or a customer, keeps its status" />
         ) : fit?.chainOverride ? (
           <StatusPill tone="ok" label="Not a chain (by hand)" title={fit.chainOverride.detail ?? undefined} />
         ) : fit?.dso ? (
@@ -88,7 +94,7 @@ export function FitCard({
           <StatusPill tone={sizeTone(fit.size.status)} label={SIZE_LABEL[fit.size.status] ?? fit.size.status} title={fit.size.detail ?? undefined} />
         )}
       </div>
-      {flagged && (
+      {(setAside || noted) && (
         <p className="mt-2 text-sm text-gray-700 dark:text-gray-300" data-fit-reason>
           {read.chain ? read.reason : "Part of a chain; we'll target chains later"}
         </p>
@@ -120,13 +126,15 @@ export function FitCard({
             <div className="flex items-center justify-between gap-2">
               <span className="text-gray-500 dark:text-gray-400">{FIT_SIGNAL_LABELS.chain}</span>
               <StatusPill
-                tone={fit.chain.status === 'none' || fit.chainOverride ? 'ok' : 'urgent'}
+                tone={fit.chain.status === 'none' || fit.chain.status === 'cleared' || fit.chainOverride ? 'ok' : 'urgent'}
                 label={
                   fit.chain.status === 'shared_host'
                     ? `Same website · ${fit.chain.count ?? '?'} practices`
                     : fit.chain.status === 'shared_phone'
                       ? `Same phone · ${fit.chain.count ?? '?'} practices`
-                      : 'None'
+                      : fit.chain.status === 'cleared'
+                        ? 'Cleared'
+                        : 'None'
                 }
               />
             </div>
@@ -210,7 +218,7 @@ export function FitCard({
           </li>
         )}
       </ul>
-      {flagged && !readOnly && <NotAChainButton prospectId={prospectId} prospectName={prospectName} />}
+      {setAside && !readOnly && <NotAChainButton prospectId={prospectId} prospectName={prospectName} />}
     </div>
   )
 }

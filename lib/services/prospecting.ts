@@ -83,8 +83,11 @@ export async function addManualProspect(input: {
     authorizedOfficialName: input.contactName?.trim() || null,
     // NANP ten digits — a typed "+1 (404) 555-1212" drops its country code
     // here, so the stored number, the syntax check and the carrier check
-    // all see the same ten.
+    // all see the same ten. Typed by a human: `caller` — no registry or
+    // listing ever replaces it (the P-01 guard, pinned at the write since
+    // the P-04 fix pass).
     phone: input.phone ? nanpDigits(input.phone) || null : null,
+    phoneSource: input.phone && nanpDigits(input.phone) ? 'caller' : null,
     email,
     emailSource: email ? 'manual' : null,
     addressLine1: input.addressLine1?.trim() || null,
@@ -922,6 +925,13 @@ export async function getFunnelStats(): Promise<ProspectFunnelStats> {
   return { discovered: discovered + dormant, enriched, contacted, engaged, callList, converted, dormant, merged, chains: chainRow?.n ?? 0 }
 }
 
+/** The statuses a hot / warm count never includes: unscored rows, a
+ *  practice set aside (retired, closed, a chain), one that asked never to
+ *  hear from us, a merged shell. `getBandCounts` and the territory
+ *  coverage read the same list (fix pass, J.1); a resting row is counted
+ *  by the coverage under the status it rested from. */
+export const BAND_COUNT_EXCLUDED_STATUSES = ['discovered', 'enriching', 'disqualified', 'suppressed', 'merged'] as const
+
 /** Live-pool score-band counts (enriched-and-later prospects) — grounds the
  *  copilot's "how many hot prospects" answers. Excludes discovered/enriching
  *  (unscored) and terminal statuses. */
@@ -932,7 +942,7 @@ export async function getBandCounts(): Promise<Record<string, number>> {
     .where(
       and(
         isNotNull(schema.prospect.scoreBand),
-        notInArray(schema.prospect.status, ['discovered', 'enriching', 'disqualified', 'suppressed', 'merged', 'dormant']),
+        notInArray(schema.prospect.status, [...BAND_COUNT_EXCLUDED_STATUSES, 'dormant']),
       ),
     )
     .groupBy(schema.prospect.scoreBand)
@@ -1098,7 +1108,9 @@ export async function getTerritoryCoverage(
   // A resting row (P-03) is still the practice it was — it was contacted,
   // that is why it could rest — so it is counted where it came from, never
   // as an unworked row (a territory does not become "10% worked" as its
-  // contacted rows rest).
+  // contacted rows rest). A DISQUALIFIED row (retired, closed, a chain the
+  // sweep set aside) is not a prospect in the territory at all (P-04 fix
+  // pass): it leaves the total, and never reads as hot or warm.
   const statusRows = (
     await db
       .select({
@@ -1109,7 +1121,7 @@ export async function getTerritoryCoverage(
         n: sql<number>`count(*)::int`,
       })
       .from(schema.prospect)
-      .where(and(isNotNull(schema.prospect.state), notInArray(schema.prospect.status, ['merged'])))
+      .where(and(isNotNull(schema.prospect.state), notInArray(schema.prospect.status, ['merged', 'disqualified'])))
       .groupBy(schema.prospect.state, schema.prospect.status, schema.prospect.dormantFromStatus, schema.prospect.scoreBand)
   ).map((r) => ({ ...r, status: r.status === 'dormant' ? wakeStatus(r.dormantFromStatus) : r.status }))
 
@@ -1143,8 +1155,9 @@ export async function getTerritoryCoverage(
     if (CONTACTED_PLUS.has(r.status)) a.contacted += r.n
     if (r.status === 'call_list') a.callList += r.n
     if (r.status === 'converted') a.won += r.n
-    if (r.band === 'hot') a.hot += r.n
-    if (r.band === 'warm') a.warm += r.n
+    const bandCounts = !(BAND_COUNT_EXCLUDED_STATUSES as readonly string[]).includes(r.status)
+    if (bandCounts && r.band === 'hot') a.hot += r.n
+    if (bandCounts && r.band === 'warm') a.warm += r.n
     byState.set(r.state, a)
   }
 
@@ -2062,23 +2075,26 @@ async function applyCallerFeedback(prospectId: string, outcome: string, now: Dat
       checkedAt,
       source: 'caller',
     }
-    // A human reached them on this number: that outranks a syntax check or
-    // a carrier database that called it invalid. A disconnected / wrong
-    // number the CALLER reported is never cleared here — only a new number is.
-    if (row.phoneStatus === 'invalid' && verification.phone?.source !== 'caller') {
+    // A human reached the practice on this number: that IS the clinic's
+    // number (the two-source rule, P-04 — a reach corroborates whatever the
+    // prior standing was, and outranks a syntax check or a carrier database
+    // that called it invalid). The caller joins the sources that state it;
+    // the signal is the caller's, so the next verify keeps it as it stands.
+    if (row.phone) {
       phoneStatus = 'valid'
-      // A human reached the practice on it: that IS the clinic's number
-      // (corroborated, the two-source rule — P-04).
+      const priorSources = verification.phone?.sources ?? []
+      const sources = priorSources.includes('caller') ? priorSources : [...priorSources, 'caller' as const]
       verification.phone = {
         status: 'valid',
         detail: `Reached on ${utcDate(now)} — the number works (heard on a call)`,
         checkedAt,
         source: 'caller',
-        sources: ['caller'],
+        sources,
         standing: 'corroborated',
+        ...(verification.phone?.lineCheck ? { lineCheck: verification.phone.lineCheck } : {}),
       }
       patch.phoneStatus = 'valid'
-      patch.phoneSource = 'caller'
+      patch.phoneSource = 'corroborated'
     }
   }
   patch.verification = verification

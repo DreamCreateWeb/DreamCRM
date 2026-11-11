@@ -6,7 +6,7 @@ import { runClaudeJson, aiConfigured } from '@/lib/ai'
 import { findDentalPlaceCandidates, placesConfigured } from '@/lib/google-places'
 import { detectStack, extractCrawlSignals, extractSiteEmails, findContactPath, findTeamPaths } from '@/lib/prospect-signals'
 import { detectVendors, type DetectedVendor } from '@/lib/prospect-vendors'
-import { computeOpportunityScore, heuristicVerdict } from '@/lib/prospect-scoring'
+import { computeOpportunityScore, fitScoreInputs, heuristicVerdict } from '@/lib/prospect-scoring'
 import { syncProspectContacts } from './prospect-contacts'
 import { robotsAllows } from './prospect-crawl-policy'
 import {
@@ -97,6 +97,8 @@ export async function crawlProspectSite(url: string, deps: GuardedFetchDeps = {}
     // robots.txt through the same guarded fetch: judged, pinned, never
     // followed, read through the capped stream.
     if (!(await robotsAllows(origin, session.fetch))) {
+      // Nobody read the page: the stack is UNKNOWN (null), never "looked,
+      // none" — the no-stack credit is for a page somebody read.
       return {
         ssl: normalized.startsWith('https://'),
         mobileViewport: false,
@@ -106,7 +108,7 @@ export async function crawlProspectSite(url: string, deps: GuardedFetchDeps = {}
         bookingWidget: false,
         socialLinks: {},
         builder: null,
-        stack: [],
+        stack: null,
         pageWeightKb: 0,
         emails: [],
         fetchedAt: new Date().toISOString(),
@@ -190,7 +192,7 @@ async function aiVerdictForSite(input: {
     `HTTPS: ${s.ssl} · Mobile viewport: ${s.mobileViewport} · Copyright year: ${s.copyrightYear ?? 'none found'}`,
     `Title: ${s.titleTag ?? '(none)'} · Meta description: ${s.metaDescription ?? '(none)'}`,
     `Online booking markers: ${s.bookingWidget} · Site builder: ${s.builder ?? 'unknown/custom'} · Page weight: ${s.pageWeightKb}KB`,
-    `Booking / review tools fingerprinted on the site: ${s.stack && s.stack.length > 0 ? s.stack.join(', ') : 'none'}`,
+    `Booking / review tools fingerprinted on the site: ${Array.isArray(s.stack) ? (s.stack.length > 0 ? s.stack.join(', ') : 'none') : s.error === 'robots_disallow' ? 'not read (robots)' : 'not read'}`,
     `Social profiles linked: ${Object.entries(s.socialLinks).filter(([, v]) => v).map(([k]) => k).join(', ') || 'none'}`,
   ].join('\n')
 
@@ -368,15 +370,13 @@ async function enrichOneProspect(
     // 4) Deterministic score — with what the crawl and the registry already
     //    told us (P-04): the competitor stack, the builder, a new practice,
     //    the practice size. Never a new fetch.
-    const fit = verified.patch.verification.fit
     const scored = computeOpportunityScore({
       verdict,
       reviewCount: place?.reviewCount ?? null,
       ratingTenths: place?.ratingTenths ?? null,
       stack: signals?.stack ?? null,
       builder: signals?.builder ?? null,
-      openedAt: fit?.newPractice?.status === 'new' ? (fit.newPractice.enumeratedAt ?? null) : null,
-      practiceSize: fit?.size ? (fit.size.status as 'solo' | 'small' | 'group' | 'unknown') : null,
+      ...fitScoreInputs(verified.patch.verification),
     })
 
     // A manual re-enrich must never demote a prospect the pipeline has

@@ -64,6 +64,7 @@ vi.mock('drizzle-orm', () => {
 })
 
 import { logCallOutcome, updateProspectPhone } from '@/lib/services/prospecting'
+import { SINGLE_SOURCE_TURN_ON } from '@/lib/prospect-quality'
 
 const VERIFIED_ROW = {
   status: 'enriched',
@@ -152,6 +153,30 @@ describe('logCallOutcome — a human got through', () => {
     expect(w.qualityBand).toBe('best')
   })
 
+  it('G.2: a human reaching the practice CORROBORATES the number whatever its standing was — the common row (sources [nppes], line check off, gatekeeper): caller joins the sources, corroborated, valid, the "turn on the line check" sentence gone', async () => {
+    state.selectQueue.push([LIVE_ROW], [
+      {
+        ...VERIFIED_ROW,
+        phoneStatus: 'unknown',
+        phoneLineType: null,
+        verification: {
+          ...VERIFIED_ROW.verification,
+          phone: { status: 'well_formed', detail: 'Well-formed US number — the line check is off', checkedAt: '2026-11-01T00:00:00.000Z', source: 'nanp', sources: ['nppes'], standing: 'single_source', lineCheck: 'off' },
+        },
+      },
+    ])
+    await logCallOutcome({ prospectId: 'pros_1', outcome: 'gatekeeper' })
+    const w = prospectUpdates().at(-1)!.values
+    expect(w).toMatchObject({ phoneStatus: 'valid', phoneSource: 'corroborated' })
+    const v = w.verification as { phone: Record<string, unknown>; reach: { status: string } }
+    expect(v.phone).toMatchObject({ status: 'valid', source: 'caller', sources: ['nppes', 'caller'], standing: 'corroborated', lineCheck: 'off' })
+    expect(v.reach.status).toBe('reached')
+    expect(w.qualityReasons as string[]).not.toContain(SINGLE_SOURCE_TURN_ON)
+    expect((w.qualityReasons as string[]).join(' ')).not.toMatch(/Only one source/)
+    // 35 + 12 (valid, line type unknown) + 15 + 10 + 10 + 5
+    expect(w.qualityScore).toBe(87)
+  })
+
   it('a reach on a never-verified row records the signal but invents no score', async () => {
     state.selectQueue.push([LIVE_ROW], [{ ...VERIFIED_ROW, verification: null, verifiedAt: null }])
     await logCallOutcome({ prospectId: 'pros_1', outcome: 'callback' })
@@ -188,9 +213,9 @@ describe('a human reaching them outranks a database "invalid" (C16)', () => {
     ])
     await logCallOutcome({ prospectId: 'pros_1', outcome: 'gatekeeper' })
     const w = prospectUpdates().at(-1)!.values
-    expect(w).toMatchObject({ phoneStatus: 'valid', phoneSource: 'caller' })
-    const v = w.verification as { phone: { status: string; source: string; detail: string }; reach: { status: string } }
-    expect(v.phone).toMatchObject({ status: 'valid', source: 'caller' })
+    expect(w).toMatchObject({ phoneStatus: 'valid', phoneSource: 'corroborated' })
+    const v = w.verification as { phone: { status: string; source: string; detail: string; sources: string[]; standing: string }; reach: { status: string } }
+    expect(v.phone).toMatchObject({ status: 'valid', source: 'caller', sources: ['caller'], standing: 'corroborated' })
     expect(v.phone.detail).toMatch(/the number works/)
     expect(v.reach.status).toBe('reached')
     // 35 + 12 (valid, line type unknown) + 15 + 10 + 10 + 5 — no longer a hard zero.
@@ -211,7 +236,7 @@ describe('a human reaching them outranks a database "invalid" (C16)', () => {
     expect(prospectUpdates().at(-1)!.values).toMatchObject({ phoneStatus: 'valid' })
   })
 
-  it('a disconnected / wrong number the CALLER reported is never cleared by a later reach', async () => {
+  it('a disconnected / wrong number the caller reported earlier is cleared by a later reach on it — the latest human word wins (G.2: regardless of the prior status)', async () => {
     state.selectQueue.push([LIVE_ROW], [
       {
         ...VERIFIED_ROW,
@@ -225,9 +250,16 @@ describe('a human reaching them outranks a database "invalid" (C16)', () => {
     ])
     await logCallOutcome({ prospectId: 'pros_1', outcome: 'callback' })
     const w = prospectUpdates().at(-1)!.values
-    expect(w).not.toHaveProperty('phoneStatus')
-    expect((w.verification as { phone: { status: string } }).phone.status).toBe('disconnected')
-    expect(w.qualityScore).toBe(0)
+    expect(w).toMatchObject({ phoneStatus: 'valid', phoneSource: 'corroborated' })
+    expect((w.verification as { phone: { status: string; sources: string[] } }).phone).toMatchObject({ status: 'valid', sources: ['caller'] })
+    expect(w.qualityScore).toBe(87)
+    // A row with NO number on it gets the reach signal and nothing on the phone.
+    state.updates = []
+    state.selectQueue.push([LIVE_ROW], [{ ...VERIFIED_ROW, phone: null, phoneStatus: null, phoneLineType: null, verification: { ...VERIFIED_ROW.verification, phone: undefined } }])
+    await logCallOutcome({ prospectId: 'pros_1', outcome: 'callback' })
+    const w2 = prospectUpdates().at(-1)!.values
+    expect(w2).not.toHaveProperty('phoneStatus')
+    expect((w2.verification as { phone?: unknown }).phone).toBeUndefined()
   })
 })
 

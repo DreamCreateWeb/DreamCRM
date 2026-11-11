@@ -476,6 +476,25 @@ describe('P-04 in the enrich pass', () => {
     expect(releaseMock).toHaveBeenCalledWith('pros_1', expect.any(Date))
   })
 
+  it('a robots.txt refusal is UNKNOWN (stack null), never "looked, no booking engine": no +6, the AI told "not read (robots)" (I.1 / C8)', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      const u = String(url)
+      if (u.endsWith('/robots.txt')) return { ok: true, body: bodyStream('User-agent: *\nDisallow: /'), text: async () => 'User-agent: *\nDisallow: /', url } as unknown as Response
+      throw new Error(`the page must not be fetched: ${u}`)
+    })
+    aiMock.mockResolvedValue({ websiteQuality: 20, websiteReasons: [], socialPresence: 0, onlineBooking: false, weaknesses: [], summary: 'x' })
+    state.selectQueue.push([PROSPECT])
+    placeMock.mockResolvedValue(found(PLACE))
+    const r = await runEnrichment()
+    expect(r.enriched).toBe(1)
+    const final = state.updates.find((u) => u.values.enrichment)!.values
+    expect((final.enrichment as { stack: unknown; error: string }).stack).toBeNull()
+    expect((final.enrichment as { error: string }).error).toBe('robots_disallow')
+    expect(final.scoreReasons as string[]).not.toContain('No booking widget, no review engine — a phone number is their only door')
+    const prompt = (aiMock.mock.calls[0][0] as { messages: Array<{ content: string }> }).messages[0].content
+    expect(prompt).toContain('Booking / review tools fingerprinted on the site: not read (robots)')
+  })
+
   it('the crawl fingerprints the competitor stack across the hops and the score names it', async () => {
     const STACKED = `<!doctype html><html><head><title>Smile Dental</title>
       <meta name="viewport" content="width=device-width">

@@ -10,8 +10,9 @@ import { describe, it, expect } from 'vitest'
  * new key.
  */
 
-import { DSO_NAMES } from '@/lib/dso-names'
+import { DSO_DOMAIN_CLASS, DSO_ENTRIES, DSO_NAMES } from '@/lib/dso-names'
 import {
+  ADDRESS_WORDS,
   CHAIN_SHARED_THRESHOLD,
   EARLY_REFRESH_CLOSED_THRESHOLD,
   EARLY_REFRESH_WINDOW_DAYS,
@@ -22,10 +23,13 @@ import {
   chainGroupVerdict,
   chainRestoreStatus,
   chainSentence,
+  addressKey,
   earlyRefreshDue,
   earlyRefreshReason,
   fitVerdict,
   formatMonthYear,
+  hostMatchesDomains,
+  isDomainClassDso,
   isGenericWebsiteHost,
   isNewPractice,
   matchDso,
@@ -37,8 +41,8 @@ import {
   parseNppesDate,
   practiceSize,
   practiceSizeSentence,
-  pulledBackStamp,
   signalOlderThan,
+  territoryPullDue,
   websiteHost,
 } from '@/lib/prospect-fit'
 import { latestReviewTime, normalizePlace, statesOpeningHours } from '@/lib/google-places'
@@ -62,6 +66,30 @@ describe('the DSO list', () => {
       expect(DSO_NAMES, n).toContain(n)
     }
     expect(new Set(DSO_NAMES).size).toBe(DSO_NAMES.length)
+  })
+
+  it('every common-phrase brand carries its own web domains — the fix-pass rule; a distinct brand carries none', () => {
+    const domains = (name: string) => DSO_ENTRIES.find((e) => e.name === name)?.domains ?? null
+    expect(domains('Gentle Dental')).toEqual(['interdent.com', 'gentle1.com'])
+    expect(domains('Perfect Teeth')).toEqual(['perfectteeth.com'])
+    expect(domains('Dentistry for Children')).toEqual(['dentistryforchildrenus.com'])
+    expect(domains('Sage Dental')).toEqual(['mysagedental.com'])
+    expect(domains('Midwest Dental')).toEqual(['midwest-dental.com'])
+    expect(domains('Monarch Dental')).toEqual(['monarchdental.com'])
+    expect(domains('Familia Dental')).toEqual(['familiadental.com'])
+    expect(domains('Lone Peak')).toEqual(['lonepeakdentalgroup.com'])
+    expect(domains('Smile Doctors')).toEqual(['smiledoctors.com'])
+    expect(domains('Castle Dental')).toEqual(['castledental.com'])
+    expect(DSO_DOMAIN_CLASS).toEqual([
+      'Sage Dental', 'Familia Dental', 'Gentle Dental', 'Castle Dental', 'Midwest Dental', 'Lone Peak',
+      'Dentistry for Children', 'Perfect Teeth', 'Monarch Dental', 'Smile Doctors',
+    ])
+    for (const n of ['Aspen Dental', 'Heartland Dental', 'Pacific Dental Services', 'Smile Brands', 'DECA']) {
+      expect(domains(n), n).toBeNull()
+      expect(isDomainClassDso(n), n).toBe(false)
+    }
+    expect(isDomainClassDso('Gentle Dental')).toBe(true)
+    expect(isDomainClassDso(null)).toBe(false)
   })
 
   it('normalizes punctuation, case and the ampersand', () => {
@@ -88,8 +116,47 @@ describe('the DSO list', () => {
   it('matchDso reads the practice name, then the NPI organization, then the listing', () => {
     expect(matchDso({ practice: 'Smile Dental', npi: 'HEARTLAND DENTAL LLC', listing: 'Smile Dental' })).toEqual({ name: 'Heartland Dental', matchedOn: 'npi' })
     expect(matchDso({ practice: 'Aspen Dental', npi: 'HEARTLAND DENTAL LLC' })).toEqual({ name: 'Aspen Dental', matchedOn: 'practice' })
-    expect(matchDso({ practice: 'Dr. Jane Roe, DDS', npi: 'JANE ROE DDS PC', listing: 'Gentle Dental of Decatur' })).toEqual({ name: 'Gentle Dental', matchedOn: 'listing' })
+    // A common-phrase brand on the listing is a chain ONLY with the brand's own host.
+    expect(matchDso({ practice: 'Dr. Jane Roe, DDS', npi: 'JANE ROE DDS PC', listing: 'Gentle Dental of Decatur', hosts: ['gentledental.interdent.com'] })).toEqual({ name: 'Gentle Dental', matchedOn: 'listing' })
+    expect(matchDso({ practice: 'Dr. Jane Roe, DDS', npi: 'JANE ROE DDS PC', listing: 'Gentle Dental of Decatur' })).toBeNull()
+    expect(matchDso({ practice: 'Dr. Jane Roe, DDS', npi: 'JANE ROE DDS PC', listing: 'Gentle Dental of Decatur', hosts: ['decaturdental.com', null] })).toBeNull()
     expect(matchDso({ practice: 'Smile Dental', npi: null, listing: null })).toBeNull()
+  })
+
+  it('a common phrase needs the brand’s own domain — a name hit alone is NOT a match, not even a weaker one', () => {
+    // Independents that carry the words.
+    expect(matchDsoName('Gentle Dental Care of Smithville', ['smithvilledental.com'])).toBeNull()
+    expect(matchDsoName('Gentle Dental Care of Smithville')).toBeNull()
+    expect(matchDsoName('Pediatric Dentistry for Children')).toBeNull()
+    expect(matchDsoName('Pediatric Dentistry for Children', ['childrensdent.com'])).toBeNull()
+    expect(matchDsoName('Perfect Teeth Family Dentistry')).toBeNull()
+    expect(matchDsoName('Mi Familia Dental')).toBeNull()
+    expect(matchDsoName('Mi Familia Dental', ['mifamiliadental.com'])).toBeNull()
+    expect(matchDsoName('Sage Dental Care')).toBeNull()
+    expect(matchDsoName('Midwest Dental Center')).toBeNull()
+    expect(matchDsoName('Monarch Dental Group')).toBeNull()
+    expect(matchDsoName('Lone Peak Family Dentistry')).toBeNull()
+    expect(matchDsoName('Smile Doctors Orthodontics')).toBeNull()
+    expect(matchDsoName('Castle Dental Associates', ['castledentalassociates.com'])).toBeNull()
+    // The brands themselves: the host equals or sits under a brand domain.
+    expect(matchDsoName('Gentle Dental of Decatur', ['gentledental.interdent.com'])).toBe('Gentle Dental')
+    expect(matchDsoName('Gentle Dental of Decatur', ['www.gentle1.com'])).toBe('Gentle Dental')
+    expect(matchDsoName('Perfect Teeth Family Dentistry', ['perfectteeth.com'])).toBe('Perfect Teeth')
+    expect(matchDsoName('Dentistry for Children of Lodi', ['dentistryforchildrenus.com'])).toBe('Dentistry for Children')
+    expect(matchDsoName('Sage Dental of Kennesaw', ['mysagedental.com'])).toBe('Sage Dental')
+    expect(matchDsoName('Midwest Dental Center', ['www.midwest-dental.com'])).toBe('Midwest Dental')
+    expect(matchDsoName('Monarch Dental Group', ['monarchdental.com'])).toBe('Monarch Dental')
+    expect(matchDsoName('Familia Dental Addison', ['familiadental.com'])).toBe('Familia Dental')
+    expect(matchDsoName('Lone Peak Dental Group', ['lonepeakdentalgroup.com'])).toBe('Lone Peak')
+    expect(matchDsoName('Smile Doctors Orthodontics', ['smiledoctors.com'])).toBe('Smile Doctors')
+    expect(matchDsoName('Castle Dental Buda', ['castledental.com'])).toBe('Castle Dental')
+    // A distinct brand never needed a host.
+    expect(matchDsoName('Aspen Dental of Austin', ['austinsmiles.com'])).toBe('Aspen Dental')
+    // The host rule itself: equal or under, never a look-alike.
+    expect(hostMatchesDomains('castledental.com', ['castledental.com'])).toBe(true)
+    expect(hostMatchesDomains('book.castledental.com', ['castledental.com'])).toBe(true)
+    expect(hostMatchesDomains('notcastledental.com', ['castledental.com'])).toBe(false)
+    expect(hostMatchesDomains(null, ['castledental.com'])).toBe(false)
   })
 })
 
@@ -199,14 +266,53 @@ describe('chains from our own data', () => {
       }),
     ).toEqual({ chain: false })
   })
-  it('a lifted flag returns to where it was, else to enriched; only a live row is ever disqualified', () => {
+  it('a lifted flag returns to where it was, else to enriched; a live OR RESTING row is set aside (a resting one returns to resting)', () => {
     expect(chainRestoreStatus('contacted')).toBe('contacted')
     expect(chainRestoreStatus('call_list')).toBe('call_list')
+    expect(chainRestoreStatus('dormant')).toBe('dormant')
     expect(chainRestoreStatus('disqualified')).toBe('enriched')
     expect(chainRestoreStatus(null)).toBe('enriched')
     expect(chainFlaggable('enriched')).toBe(true)
     expect(chainFlaggable('discovered')).toBe(true)
-    for (const s of ['converted', 'merged', 'suppressed', 'not_interested', 'disqualified', 'dormant', null]) expect(chainFlaggable(s), String(s)).toBe(false)
+    expect(chainFlaggable('dormant')).toBe(true)
+    for (const s of ['converted', 'merged', 'suppressed', 'not_interested', 'disqualified', null]) expect(chainFlaggable(s), String(s)).toBe(false)
+  })
+  it('a cleared chain signal (the sweep restored the row) is not a chain', () => {
+    const at = NOW.toISOString()
+    expect(fitVerdict({ chain: { status: 'cleared', detail: null, checkedAt: at, source: 'our_data', kind: 'shared_phone', count: 3, clearedAt: at } })).toEqual({ chain: false })
+  })
+})
+
+describe('the address key — one spelling per address (E.2)', () => {
+  it('the same office spelled two ways is ONE key; two streets are two; the word table drives it', () => {
+    const pairs: Array<[[string, string], [string, string], boolean]> = [
+      [['123 MAIN ST STE 200', '787011234'], ['123 Main Street Suite 200', '78701'], true],
+      [['100 MAIN ST', '787011234'], ['100 Main Street', '78701'], true],
+      [['100 MAIN ST STE 200', '78701'], ['100 MAIN ST', '78701'], true],
+      [['55 N Peachtree Avenue, Unit #4', '30309'], ['55 North Peachtree Ave.', '30309-1234'], true],
+      [['9 Oak Blvd Fl 2', '30309'], ['9 Oak Boulevard Floor 2', '30309'], true],
+      [['12 Lake Road Bldg B', '30309'], ['12 Lake Rd', '30309'], true],
+      [['100 Main St', '78701'], ['200 Main St', '78701'], false],
+      [['100 Main St', '78701'], ['100 Main St', '78702'], false],
+      [['100 United Way Dr', '78701'], ['100 United Way Dr', '78701'], true],
+    ]
+    for (const [a, b, same] of pairs) {
+      const ka = addressKey(a[0], a[1])
+      const kb = addressKey(b[0], b[1])
+      expect(ka === kb, `${a.join(' / ')} vs ${b.join(' / ')}`).toBe(same)
+      expect(ka).toMatch(/^[a-z0-9]+$/)
+    }
+    expect(addressKey('123 MAIN ST STE 200', '787011234')).toBe('123mainst78701')
+    expect(addressKey('100 United Way Dr', '78701')).toBe('100unitedwaydr78701') // "United" is not a unit token
+    expect(addressKey(null, null)).toBe('')
+    expect(ADDRESS_WORDS.map(([w]) => w)).toEqual([
+      'street', 'avenue', 'road', 'drive', 'boulevard', 'lane', 'court', 'parkway', 'highway', 'place', 'circle', 'north', 'south', 'east', 'west',
+      'suite', 'floor', 'building', 'apartment', 'room',
+    ])
+  })
+  it('with the suite KEPT (the size count), the suite tells two practices apart', () => {
+    expect(addressKey('100 Medical Plaza Dr STE 101', null, { keepSuite: true })).not.toBe(addressKey('100 Medical Plaza Dr STE 102', null, { keepSuite: true }))
+    expect(addressKey('100 Medical Plaza Drive Suite 101', null, { keepSuite: true })).toBe(addressKey('100 MEDICAL PLAZA DR STE 101', null, { keepSuite: true }))
   })
 })
 
@@ -218,10 +324,29 @@ describe('callers steer freshness', () => {
     expect(earlyRefreshDue(3)).toBe(true)
     expect(earlyRefreshDue(Number.NaN)).toBe(false)
   })
-  it('the reason and the stamp that makes the territory due now', () => {
-    expect(earlyRefreshReason(3)).toBe('3 closed practices this month')
-    expect(earlyRefreshReason(1)).toBe('1 closed practice this month')
-    expect(pulledBackStamp(NOW, 30)).toEqual(new Date(NOW.getTime() - 31 * DAY))
+  it('the reason tells the truth about the mix — never "closed practices" for a disconnected count (C27)', () => {
+    expect(earlyRefreshReason({ closed: 3, disconnected: 0 })).toBe('3 closed practices this month')
+    expect(earlyRefreshReason({ closed: 1, disconnected: 0 })).toBe('1 closed practice this month')
+    expect(earlyRefreshReason({ closed: 0, disconnected: 3 })).toBe('3 disconnected numbers this month')
+    expect(earlyRefreshReason({ closed: 0, disconnected: 1 })).toBe('1 disconnected number this month')
+    expect(earlyRefreshReason({ closed: 2, disconnected: 1 })).toBe('2 closed, 1 disconnected this month')
+  })
+  it('ONE pull per new closed call (D): tick 1 pulls, the refresh stamps the sweep, tick 2 pulls nothing on the same calls, a 4th closed call later pulls once more; a disabled state never', () => {
+    const t0 = new Date('2026-11-01T10:00:00Z') // the newest of three closed calls
+    const firstSweep = new Date('2026-10-01T00:00:00Z')
+    // Tick 1: the calls are newer than the last sweep → due.
+    expect(territoryPullDue({ sweptAt: firstSweep, refreshPulledAt: null, newestClosedCall: t0 }, true)).toBe(true)
+    // …pulled, not yet refreshed → never pulled twice.
+    const tick1 = new Date('2026-11-01T12:00:00Z')
+    expect(territoryPullDue({ sweptAt: firstSweep, refreshPulledAt: tick1, newestClosedCall: t0 }, true)).toBe(false)
+    // The refresh ran and stamped the sweep; the pull cleared. Tick 2, the same three calls: nothing.
+    expect(territoryPullDue({ sweptAt: tick1, refreshPulledAt: null, newestClosedCall: t0 }, true)).toBe(false)
+    // A 4th closed call later → pulled once more.
+    const t4 = new Date('2026-11-05T09:00:00Z')
+    expect(territoryPullDue({ sweptAt: tick1, refreshPulledAt: null, newestClosedCall: t4 }, true)).toBe(true)
+    // A disabled state (C13), or no call at all: never.
+    expect(territoryPullDue({ sweptAt: tick1, refreshPulledAt: null, newestClosedCall: t4 }, false)).toBe(false)
+    expect(territoryPullDue({ sweptAt: tick1, refreshPulledAt: null, newestClosedCall: null }, true)).toBe(false)
   })
   it('a stored signal’s age', () => {
     expect(SIZE_RECHECK_DAYS).toBe(180)
@@ -262,11 +387,25 @@ describe('dentists at an address (the registry)', () => {
   it('counts the NPI-1 dentists whose LOCATION street matches, ignoring formatting', () => {
     const body = {
       result_count: 4,
-      results: [dentist(1, '123 Main St'), dentist(2, '123 MAIN ST.'), dentist(3, '500 Other Rd'), { ...dentist(4, '123 Main St'), taxonomies: [{ code: '207Q00000X' }] }],
+      results: [dentist(1, '123 Main St'), dentist(2, '123 MAIN STREET'), dentist(3, '500 Other Rd'), { ...dentist(4, '123 Main St'), taxonomies: [{ code: '207Q00000X' }] }],
     }
     expect(countDentistsAt(body, '123 Main St')).toEqual({ dentists: 2, scanned: 4, capped: false })
     expect(countDentistsAt(body, null)).toEqual({ dentists: 0, scanned: 4, capped: false })
     expect(countDentistsAt(null, '123 Main St')).toEqual({ dentists: 0, scanned: 0, capped: false })
+  })
+  it('keys on street + SUITE (address_1 + address_2): six solo dentists in suites 101–106 of one building are each solo (H.2)', () => {
+    const suite = (n: number, line2: string) => {
+      const d = dentist(n, '100 Medical Plaza Dr')
+      return { ...d, addresses: [{ ...d.addresses[0], address_2: line2 }] }
+    }
+    const body = { result_count: 6, results: [101, 102, 103, 104, 105, 106].map((n) => suite(n, `STE ${n}`)) }
+    for (const n of [101, 102, 103, 104, 105, 106]) {
+      expect(countDentistsAt(body, '100 Medical Plaza Dr', `Suite ${n}`).dentists, String(n)).toBe(1)
+    }
+    // An org at the same street with no suite of its own matches nobody's suite; a real group in one suite counts in full.
+    expect(countDentistsAt(body, '100 Medical Plaza Dr').dentists).toBe(0)
+    const group = { result_count: 6, results: [1, 2, 3, 4, 5].map((n) => suite(n, 'STE 300')).concat([suite(9, 'STE 301')]) }
+    expect(countDentistsAt(group, '100 Medical Plaza Drive', 'Ste 300').dentists).toBe(5)
   })
   it('a full page is capped — more may exist past it', () => {
     expect(countDentistsAt({ result_count: 200, results: [] }, '123 Main St').capped).toBe(true)

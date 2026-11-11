@@ -16,7 +16,6 @@ import {
   EARLY_REFRESH_WINDOW_DAYS,
   earlyRefreshDue,
   earlyRefreshReason,
-  pulledBackStamp,
 } from '@/lib/prospect-fit'
 import { tenDigitPhoneSql } from './prospect-dedupe'
 import type { ProspectingConfig } from '@/lib/types/prospecting'
@@ -345,15 +344,33 @@ export function territoryQueueOrderSql() {
   return sql`GREATEST(${schema.prospectDiscoveryTask.lastRefreshedAt}, ${schema.prospectDiscoveryTask.lastRefreshErrorAt}, ${schema.prospectDiscoveryTask.updatedAt})`
 }
 
+/** "Due for a refresh": naturally aged past the clock, OR pulled forward by
+ *  the callers (P-04) and not yet refreshed. The pull never touches
+ *  `last_refreshed_at` (fix pass, D.1), so the pull stamp is what makes a
+ *  young territory due. Exported for the boundary test. */
+export function territoryRefreshDueWhere(cutoff: Date) {
+  return or(lt(territorySweptAtSql(), cutoff), isNotNull(schema.prospectDiscoveryTask.refreshPulledAt))
+}
+
+/** Pulled territories go FIRST — unless the pulled refresh already threw
+ *  since the pull, in which case it queues like any other (a failing
+ *  pulled territory never monopolises the one refresh slot). 0 sorts
+ *  before 1. Exported for the boundary test. */
+export function territoryPulledFirstSql() {
+  const t = schema.prospectDiscoveryTask
+  return sql`CASE WHEN ${t.refreshPulledAt} IS NOT NULL AND (${t.lastRefreshErrorAt} IS NULL OR ${t.lastRefreshErrorAt} < ${t.refreshPulledAt}) THEN 0 ELSE 1 END`
+}
+
 /**
  * Re-sweep ONE finished territory whose last sweep is older than
- * `config.hygiene.discoveryRefreshDays`: the same state × zip prefix, both
- * entity phases from skip 0, every page through the same door as
- * discovery — so only NEW NPIs enter (the NPI unique, the dedupe hash and
- * the matcher all stand). A finished sweep stamps `last_refreshed_at`; one
+ * `config.hygiene.discoveryRefreshDays` — or whose refresh the callers
+ * pulled forward (P-04): the same state × zip prefix, both entity phases
+ * from skip 0, every page through the same door as discovery — so only NEW
+ * NPIs enter (the NPI unique, the dedupe hash and the matcher all stand).
+ * A finished sweep stamps `last_refreshed_at` and clears the pull; one
  * that threw stamps `last_refresh_error_at` instead (the territory stays
- * due, behind every other due one). The least-recently-attempted territory
- * goes first, so every territory gets its turn.
+ * due, behind every other due one). A pulled territory goes first, then
+ * the least-recently-attempted, so every territory gets its turn.
  */
 export async function refreshStaleTerritory(opts: {
   now?: Date
@@ -371,10 +388,10 @@ export async function refreshStaleTerritory(opts: {
       and(
         eq(schema.prospectDiscoveryTask.status, 'done'),
         inArray(schema.prospectDiscoveryTask.state, config.enabledStates),
-        lt(territorySweptAtSql(), cutoff),
+        territoryRefreshDueWhere(cutoff),
       ),
     )
-    .orderBy(asc(territoryQueueOrderSql()))
+    .orderBy(asc(territoryPulledFirstSql()), asc(territoryQueueOrderSql()))
     .limit(1)
   if (!task) return null
 
@@ -458,37 +475,45 @@ export const CLOSED_CALL_OUTCOMES = ['closed', 'disconnected'] as const
 /**
  * The territories (state × zip3) where callers logged a closed / disconnected
  * outcome on at least `threshold` DISTINCT practices inside the window —
- * the registry has moved on there; the refresh should too. Exported for
- * the boundary test.
+ * the registry has moved on there; the refresh should too. Carries the
+ * closed-practice count (so the reason tells the truth about the mix) and
+ * the NEWEST such call (what the pull compares against the last sweep).
+ * Exported for the boundary test.
  */
 export function hotTerritoriesQuery(cutoff: Date, threshold = EARLY_REFRESH_CLOSED_THRESHOLD) {
-  const closed = sql<number>`count(distinct ${schema.prospectCallLog.prospectId})::int`
+  const log = schema.prospectCallLog
+  const closed = sql<number>`count(distinct ${log.prospectId})::int`
+  const closedPractices = sql<number>`count(distinct case when ${log.outcome} = 'closed' then ${log.prospectId} end)::int`
+  const newest = sql<Date | string | null>`max(${log.createdAt})`
   return db
-    .select({ state: schema.prospect.state, zipPrefix: zip3Sql(), closed })
-    .from(schema.prospectCallLog)
-    .innerJoin(schema.prospect, eq(schema.prospectCallLog.prospectId, schema.prospect.id))
+    .select({ state: schema.prospect.state, zipPrefix: zip3Sql(), closed, closedPractices, newest })
+    .from(log)
+    .innerJoin(schema.prospect, eq(log.prospectId, schema.prospect.id))
     .where(
       and(
-        inArray(schema.prospectCallLog.outcome, [...CLOSED_CALL_OUTCOMES]),
-        gte(schema.prospectCallLog.createdAt, cutoff),
+        inArray(log.outcome, [...CLOSED_CALL_OUTCOMES]),
+        gte(log.createdAt, cutoff),
         isNotNull(schema.prospect.state),
         isNotNull(schema.prospect.postalCode),
       ),
     )
     .groupBy(schema.prospect.state, zip3Sql())
     // A cast parameter, never an untyped $n.
-    .having(sql`count(distinct ${schema.prospectCallLog.prospectId}) >= ${threshold}::int`)
+    .having(sql`count(distinct ${log.prospectId}) >= ${threshold}::int`)
 }
 
 /** The tasks a pull-forward touches: the territory's finished tasks (the
- *  zip3 and any zip5 children), not already pulled, not already due. */
-export function pullForwardWhere(state: string, zipPrefix: string, dueCutoff: Date) {
+ *  zip3 and any zip5 children), not already pulled, whose last sweep is
+ *  OLDER than the newest closed call — one pull per new closed call, never
+ *  a second pull on the same calls (fix pass, D.3). */
+export function pullForwardWhere(state: string, zipPrefix: string, newestClosedCall: Date) {
   return and(
     eq(schema.prospectDiscoveryTask.state, state),
     like(schema.prospectDiscoveryTask.zipPrefix, `${zipPrefix}%`),
     eq(schema.prospectDiscoveryTask.status, 'done'),
     isNull(schema.prospectDiscoveryTask.refreshPulledAt),
-    gte(territorySweptAtSql(), dueCutoff),
+    // A cast parameter, never an untyped $n.
+    sql`${territorySweptAtSql()} < ${newestClosedCall.toISOString()}::timestamptz`,
   )
 }
 
@@ -497,35 +522,44 @@ export interface PulledTerritory {
   zipPrefix: string
   closed: number
   tasks: number
+  reason: string
+}
+
+function asDate(v: unknown): Date | null {
+  if (!v) return null
+  const d = v instanceof Date ? v : new Date(String(v))
+  return Number.isNaN(d.getTime()) ? null : d
 }
 
 /**
- * Pull a hot territory's refresh forward: `last_refreshed_at` is set back
- * one day past `config.hygiene.discoveryRefreshDays` (so the next refresh
- * step picks it), and the pull is stamped with its reason until that
- * refresh runs. One pass, idempotent (a pulled task is skipped), fail-open
- * in the hygiene tick.
+ * Pull a hot territory's refresh forward: the pull is stamped
+ * (`refresh_pulled_at` + its honest reason) and NOTHING else moves —
+ * `last_refreshed_at` is a refresh that happened, never a pull. The
+ * refresh step picks a pulled territory first and clears the stamp when
+ * it has run; the same calls never pull it again (the task's last sweep
+ * is then newer than them), a later closed call does. Only an enabled
+ * state is pulled (C13). One pass, fail-open in the hygiene tick.
  */
 export async function pullForwardHotTerritories(opts: { now?: Date; config?: ProspectingConfig } = {}): Promise<PulledTerritory[]> {
   const now = opts.now ?? new Date()
   const config = opts.config ?? (await getProspectingConfig())
   if (config.killSwitch) return []
+  const enabled = new Set(config.enabledStates)
   const windowCutoff = new Date(now.getTime() - EARLY_REFRESH_WINDOW_DAYS * 24 * 60 * 60 * 1000)
-  const dueCutoff = new Date(now.getTime() - config.hygiene.discoveryRefreshDays * 24 * 60 * 60 * 1000)
   const hot = await hotTerritoriesQuery(windowCutoff)
   const out: PulledTerritory[] = []
   for (const t of hot) {
-    if (!t.state || !t.zipPrefix || !earlyRefreshDue(t.closed)) continue
+    if (!t.state || !t.zipPrefix || !enabled.has(t.state) || !earlyRefreshDue(t.closed)) continue
+    const newest = asDate(t.newest)
+    if (!newest) continue
+    const closedPractices = Math.min(Number(t.closedPractices) || 0, t.closed)
+    const reason = earlyRefreshReason({ closed: closedPractices, disconnected: t.closed - closedPractices })
     const rows = await db
       .update(schema.prospectDiscoveryTask)
-      .set({
-        lastRefreshedAt: pulledBackStamp(now, config.hygiene.discoveryRefreshDays),
-        refreshPulledAt: now,
-        refreshPulledReason: earlyRefreshReason(t.closed),
-      })
-      .where(pullForwardWhere(t.state, t.zipPrefix, dueCutoff))
+      .set({ refreshPulledAt: now, refreshPulledReason: reason })
+      .where(pullForwardWhere(t.state, t.zipPrefix, newest))
       .returning({ id: schema.prospectDiscoveryTask.id })
-    if (rows.length > 0) out.push({ state: t.state, zipPrefix: t.zipPrefix, closed: t.closed, tasks: rows.length })
+    if (rows.length > 0) out.push({ state: t.state, zipPrefix: t.zipPrefix, closed: t.closed, tasks: rows.length, reason })
   }
   return out
 }

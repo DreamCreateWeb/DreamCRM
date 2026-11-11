@@ -1,4 +1,5 @@
 import { createHash } from 'crypto'
+import { addressKey } from './prospect-fit'
 
 /**
  * NPPES NPI Registry client — the free, official CMS directory of every US
@@ -157,9 +158,11 @@ export interface NpiLookupResult {
   /** Fit (P-04): the organization's registered name — matched against the
    *  DSO list beside the practice name and the listing name. */
   organizationName: string | null
-  /** The practice LOCATION as the registry has it today. */
+  /** The practice LOCATION as the registry has it today (`addressLine2`
+   *  is the suite / floor line — the practice-size count keys on it). */
   location: {
     addressLine1: string | null
+    addressLine2: string | null
     city: string | null
     state: string | null
     postalCode: string | null
@@ -204,6 +207,7 @@ export function parseNpiLookup(body: unknown): NpiLookupResult {
     location: location
       ? {
           addressLine1: str(location.address_1),
+          addressLine2: str(location.address_2),
           city: str(location.city),
           state: str(location.state),
           postalCode: str(location.postal_code)?.slice(0, 5) ?? null,
@@ -240,14 +244,27 @@ export interface DentistsAtAddress {
   capped: boolean
 }
 
-function addressKey(v: string | null | undefined): string {
-  return (v ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
+/** An NPI-1 record's LOCATION lines, raw (the dental taxonomy and the
+ *  active status are still `normalizeNppesResult`'s to judge). */
+function locationLines(raw: unknown): { line1: string | null; line2: string | null } {
+  const r = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+  const addresses = Array.isArray(r.addresses) ? (r.addresses as Array<Record<string, unknown>>) : []
+  const location = addresses.find((a) => a && a.address_purpose === 'LOCATION') ?? addresses[0] ?? {}
+  return { line1: str(location.address_1), line2: str(location.address_2) }
 }
 
-/** Count the NPI-1 dentists at one street address in a ZIP search body —
+/** The key the size count compares: street + suite (address_1 + address_2),
+ *  normalized by THE address key with the suite KEPT — in a professional
+ *  building the suite is what tells one practice from the next (fix pass,
+ *  H.2). */
+export function sizeAddressKey(line1: string | null | undefined, line2: string | null | undefined): string {
+  return addressKey([line1, line2].filter(Boolean).join(' '), null, { keepSuite: true })
+}
+
+/** Count the NPI-1 dentists at one street + suite in a ZIP search body —
  *  exported for tests. A record without a LOCATION street never counts. */
-export function countDentistsAt(body: unknown, addressLine1: string | null): DentistsAtAddress {
-  const key = addressKey(addressLine1)
+export function countDentistsAt(body: unknown, addressLine1: string | null, addressLine2: string | null = null): DentistsAtAddress {
+  const key = addressKey(addressLine1, null, { keepSuite: true }) ? sizeAddressKey(addressLine1, addressLine2) : ''
   const rawResults = body && typeof body === 'object' && Array.isArray((body as { results?: unknown }).results)
     ? ((body as { results: unknown[] }).results)
     : []
@@ -256,7 +273,8 @@ export function countDentistsAt(body: unknown, addressLine1: string | null): Den
     for (const raw of rawResults) {
       const parsed = normalizeNppesResult(raw)
       if (!parsed || !parsed.addressLine1) continue
-      if (addressKey(parsed.addressLine1) === key) dentists++
+      const lines = locationLines(raw)
+      if (sizeAddressKey(lines.line1, lines.line2) === key) dentists++
     }
   }
   const resultCount =
@@ -275,6 +293,8 @@ export function countDentistsAt(body: unknown, addressLine1: string | null): Den
  */
 export async function searchDentistsAtAddress(input: {
   addressLine1: string | null
+  /** The suite / floor line, when the registry lookup gave it. */
+  addressLine2?: string | null
   state: string | null
   postalCode: string | null
 }): Promise<DentistsAtAddress | null> {
@@ -296,7 +316,7 @@ export async function searchDentistsAtAddress(input: {
   if (!res.ok) throw new Error(`NPPES ${res.status}`)
   const body = (await res.json()) as Record<string, unknown>
   if (body?.Errors) throw new Error(`NPPES error: ${JSON.stringify(body.Errors).slice(0, 200)}`)
-  return countDentistsAt(body, input.addressLine1)
+  return countDentistsAt(body, input.addressLine1, input.addressLine2 ?? null)
 }
 
 /**

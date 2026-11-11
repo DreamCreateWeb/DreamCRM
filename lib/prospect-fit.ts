@@ -11,7 +11,11 @@
  * verify sweep, the chain sweep and the drawer all reason the same way:
  *
  *   matchDso            a DSO / chain name on the practice, the NPI org or
- *                       the Google listing (lib/dso-names.ts)
+ *                       the Google listing (lib/dso-names.ts) — a common-
+ *                       phrase brand needs the website host to agree
+ *   addressKey          the one normalized address the chain rule counts
+ *                       DISTINCT addresses by (mirrored in SQL by
+ *                       lib/services/prospect-fit.ts: addressKeySql)
  *   chainGroupVerdict   our own data: the same website host or the same
  *                       phone across ≥ CHAIN_SHARED_THRESHOLD prospects at
  *                       different addresses → every one of them is a chain
@@ -23,10 +27,11 @@
  *                       the owner's "Not a chain" override
  *   earlyRefreshDue     callers steer freshness: ≥ 3 closed / disconnected
  *                       practices in a territory inside 30 days pulls its
- *                       discovery refresh forward
+ *                       discovery refresh forward — ONE pull per new closed
+ *                       call (territoryPullDue), nothing mutated backwards
  */
 
-import { DSO_NAMES } from './dso-names'
+import { DSO_DOMAIN_CLASS, DSO_ENTRIES } from './dso-names'
 import type { OfficialTitleKind, PracticeSize, ProspectFitSignals } from './types/prospecting'
 
 /** A practice enumerated inside this window is "new" — no website yet is normal. */
@@ -59,38 +64,60 @@ export function normalizePracticeName(name: string | null | undefined): string {
     .replace(/\s+/g, ' ')
 }
 
-const DSO_NORMALIZED: ReadonlyArray<{ name: string; key: string }> = DSO_NAMES.map((name) => ({
-  name,
-  key: normalizePracticeName(name),
+const DSO_NORMALIZED: ReadonlyArray<{ name: string; key: string; domains: readonly string[] | null }> = DSO_ENTRIES.map((e) => ({
+  name: e.name,
+  key: normalizePracticeName(e.name),
+  domains: e.domains && e.domains.length > 0 ? e.domains : null,
 })).filter((d) => d.key.length > 0)
 
+/** "www.gentledental.interdent.com" meets ['interdent.com'] — the host
+ *  equals a brand domain or sits under it. */
+export function hostMatchesDomains(host: string | null | undefined, domains: readonly string[]): boolean {
+  const h = (host ?? '').toLowerCase().replace(/^www\./, '')
+  if (!h) return false
+  return domains.some((d) => h === d || h.endsWith(`.${d}`))
+}
+
+/** Is this list entry one that needs the website host to agree? */
+export function isDomainClassDso(name: string | null | undefined): boolean {
+  return Boolean(name) && DSO_DOMAIN_CLASS.includes(name as string)
+}
+
 /** The DSO whose normalized name appears in this name as a whole-word
- *  sequence, else null. */
-export function matchDsoName(name: string | null | undefined): string | null {
+ *  sequence, else null. A common-phrase brand (lib/dso-names.ts `domains`)
+ *  matches ONLY when one of `hosts` is the brand's own — a name hit with
+ *  no host corroboration is null, not a weaker signal. */
+export function matchDsoName(name: string | null | undefined, hosts: ReadonlyArray<string | null | undefined> = []): string | null {
   const key = normalizePracticeName(name)
   if (!key) return null
   const padded = ` ${key} `
   for (const d of DSO_NORMALIZED) {
-    if (padded.includes(` ${d.key} `)) return d.name
+    if (!padded.includes(` ${d.key} `)) continue
+    if (!d.domains) return d.name
+    if (hosts.some((h) => hostMatchesDomains(h, d.domains as readonly string[]))) return d.name
   }
   return null
 }
 
 export type DsoMatchedOn = 'practice' | 'npi' | 'listing'
 
-/** The first DSO hit across the three names we hold for a practice. */
+/** The first DSO hit across the three names we hold for a practice; the
+ *  hosts (the row's website, the matched listing's) corroborate a
+ *  common-phrase brand. */
 export function matchDso(names: {
   practice?: string | null
   npi?: string | null
   listing?: string | null
+  hosts?: ReadonlyArray<string | null | undefined>
 }): { name: string; matchedOn: DsoMatchedOn } | null {
+  const hosts = names.hosts ?? []
   const order: Array<[DsoMatchedOn, string | null | undefined]> = [
     ['practice', names.practice],
     ['npi', names.npi],
     ['listing', names.listing],
   ]
   for (const [matchedOn, value] of order) {
-    const hit = matchDsoName(value)
+    const hit = matchDsoName(value, hosts)
     if (hit) return { name: hit, matchedOn }
   }
   return null
@@ -182,6 +209,59 @@ export function formatMonthYear(iso: string | Date | null | undefined): string |
 export function newPracticeSentence(enumeratedAt: string | null | undefined): string {
   const when = formatMonthYear(enumeratedAt)
   return `Opened ${when ?? 'recently'} — no website yet is normal; now is the moment`
+}
+
+// ── The address key ────────────────────────────────────────────────────────
+
+/** The street words the key folds to one spelling — the same table drives
+ *  `addressKeySql` (lib/services/prospect-fit.ts), so the SQL and the pure
+ *  key cannot drift apart. */
+export const ADDRESS_WORDS: ReadonlyArray<readonly [string, string]> = [
+  ['street', 'st'],
+  ['avenue', 'ave'],
+  ['road', 'rd'],
+  ['drive', 'dr'],
+  ['boulevard', 'blvd'],
+  ['lane', 'ln'],
+  ['court', 'ct'],
+  ['parkway', 'pkwy'],
+  ['highway', 'hwy'],
+  ['place', 'pl'],
+  ['circle', 'cir'],
+  ['north', 'n'],
+  ['south', 's'],
+  ['east', 'e'],
+  ['west', 'w'],
+  // The suite line's own spellings, so a KEPT suite compares as one word.
+  ['suite', 'ste'],
+  ['floor', 'fl'],
+  ['building', 'bldg'],
+  ['apartment', 'apt'],
+  ['room', 'rm'],
+]
+/** A suite / unit / floor token and the value after it ("STE 200",
+ *  "Suite B", "Unit #4") — read AFTER the word table folded the long
+ *  spellings, so only the short ones are listed. */
+export const SUITE_TOKEN_PATTERN = '(ste|unit|apt|fl|rm|bldg)'
+
+/**
+ * THE ONE ADDRESS KEY: lower-case; the common street (and suite) words
+ * folded to their abbreviations; the suite / unit / floor token and its
+ * value dropped (unless `keepSuite` — the practice-size count keeps them,
+ * they ARE the distinguishing token in a building); ZIP5 only; then
+ * letters and digits. '123 MAIN ST STE 200' / '787011234' and '123 Main
+ * Street Suite 200' / '78701' are ONE address; '100 Main St' and '200 Main
+ * St' are two.
+ */
+export function addressKey(line1: string | null | undefined, postalCode: string | null | undefined, opts: { keepSuite?: boolean } = {}): string {
+  let s = (line1 ?? '').toLowerCase()
+  for (const [word, abbr] of ADDRESS_WORDS) s = s.replace(new RegExp(`\\b${word}\\b`, 'g'), abbr)
+  if (!opts.keepSuite) {
+    s = s.replace(new RegExp(`\\b${SUITE_TOKEN_PATTERN}\\b\\.?\\s*#?\\s*[a-z0-9-]+`, 'g'), ' ')
+    s = s.replace(/#\s*[a-z0-9-]+/g, ' ')
+  }
+  const zip = (postalCode ?? '').replace(/\D/g, '').slice(0, 5)
+  return `${s}${zip}`.replace(/[^a-z0-9]/g, '')
 }
 
 // ── Chains from our own data ───────────────────────────────────────────────
@@ -292,16 +372,19 @@ export function fitVerdict(fit: ProspectFitSignals | null | undefined):
 }
 
 /** Statuses a chain flag can be lifted back to; anything else returns to
- *  the pool as `enriched`. */
-export const CHAIN_RESTORABLE_STATUSES = ['discovered', 'enriched', 'queued', 'contacted', 'engaged', 'call_list'] as const
+ *  the pool as `enriched`. A RESTING row (`dormant`) is set aside like any
+ *  live member and returns to resting — its `dormant_from_status` is kept
+ *  through the flag, so it still wakes to where it came from. */
+export const CHAIN_RESTORABLE_STATUSES = ['discovered', 'enriched', 'queued', 'contacted', 'engaged', 'call_list', 'dormant'] as const
 
 export function chainRestoreStatus(priorStatus: string | null | undefined): string {
   return priorStatus && (CHAIN_RESTORABLE_STATUSES as readonly string[]).includes(priorStatus) ? priorStatus : 'enriched'
 }
 
-/** The statuses a chain sweep DISQUALIFIES; every other row still records
- *  the signal (a customer, a merged shell, a row that already said no or is
- *  already gone keeps its status). */
+/** The statuses a chain sweep DISQUALIFIES — the live ones and a resting
+ *  one (a dormant member is set aside exactly as the verify sweep sets it
+ *  aside); every other row still records the signal (a customer, a merged
+ *  shell, a row that already said no or is already gone keeps its status). */
 export function chainFlaggable(status: string | null | undefined): boolean {
   return Boolean(status) && (CHAIN_RESTORABLE_STATUSES as readonly string[]).includes(status as string)
 }
@@ -312,15 +395,35 @@ export function earlyRefreshDue(closedPractices: number, threshold = EARLY_REFRE
   return Number.isFinite(closedPractices) && closedPractices >= threshold
 }
 
-/** "3 closed practices this month" — the hunt tile's reason. */
-export function earlyRefreshReason(closedPractices: number): string {
-  return `${closedPractices} closed practice${closedPractices === 1 ? '' : 's'} this month`
+/** The hunt tile's reason, honest about the mix: "3 closed practices this
+ *  month", "3 disconnected numbers this month", "2 closed, 1 disconnected
+ *  this month" — never "closed practices" for a disconnected count. */
+export function earlyRefreshReason(counts: { closed: number; disconnected: number }): string {
+  const closed = Math.max(0, Math.floor(counts.closed || 0))
+  const disconnected = Math.max(0, Math.floor(counts.disconnected || 0))
+  if (closed > 0 && disconnected > 0) return `${closed} closed, ${disconnected} disconnected this month`
+  if (closed > 0) return `${closed} closed practice${closed === 1 ? '' : 's'} this month`
+  return `${disconnected} disconnected number${disconnected === 1 ? '' : 's'} this month`
 }
 
-/** Where `last_refreshed_at` is set back to so the territory is due NOW:
- *  one day past the refresh clock. */
-export function pulledBackStamp(now: Date, discoveryRefreshDays: number): Date {
-  return new Date(now.getTime() - (discoveryRefreshDays + 1) * DAY_MS)
+/**
+ * ONE PULL PER NEW CLOSED CALL (the fix-pass rule): a territory's refresh
+ * is pulled forward when its NEWEST closed / disconnected call is later
+ * than its last sweep (`COALESCE(last_refreshed_at, updated_at)`), it is
+ * not already pulled, and its state is enabled. A refresh that ran stamps
+ * `last_refreshed_at = now`, so the same calls never pull it again; a
+ * later closed call does. Mirrored in SQL by `pullForwardWhere`
+ * (lib/services/prospect-discovery.ts).
+ */
+export function territoryPullDue(
+  t: { sweptAt: Date | null; refreshPulledAt: Date | null; newestClosedCall: Date | null },
+  enabled: boolean,
+): boolean {
+  if (!enabled) return false
+  if (t.refreshPulledAt) return false
+  if (!t.newestClosedCall) return false
+  if (!t.sweptAt) return true
+  return t.newestClosedCall.getTime() > t.sweptAt.getTime()
 }
 
 /** Is a stored signal older than `days` (or missing)? */

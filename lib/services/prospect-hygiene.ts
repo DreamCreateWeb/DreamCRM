@@ -16,20 +16,25 @@ import { bumpProspectingCounter, counterDay, getProspectingConfig, getProspectin
  * PROSPECT HYGIENE (P-03) — the list keeps itself clean. ONE pass,
  * `runProspectHygiene`, rides the enrich cron after the re-verify sweep:
  *
- *   0. chains from our own data are set aside (P-04 — the same website
+ *   0. exact duplicates merge (lib/services/prospect-dedupe.ts; ≤25 a run)
+ *      — FIRST, so a duplicate spelling of one office is folded before the
+ *      chain rule counts addresses (P-04 fix pass, E.1)
+ *   1. chains from our own data are set aside (P-04 — the same website
  *      host or phone across ≥3 prospects at different addresses;
- *      lib/services/prospect-fit.ts)
- *   1. exact duplicates merge (lib/services/prospect-dedupe.ts; ≤25 a run)
+ *      lib/services/prospect-fit.ts) — and a flagged group that fell under
+ *      the threshold is restored by the same sweep
  *   2. untouched rows rest (decay — the pure rule in lib/prospect-decay.ts)
- *   3. the callers steer freshness (P-04 — a territory with ≥3 closed /
- *      disconnected practices in 30 days has its refresh pulled forward)
+ *   3. the callers steer freshness (P-04 — a territory whose newest closed /
+ *      disconnected call is later than its last sweep has its refresh pulled
+ *      forward, once per new call)
  *   4. one finished territory is re-swept for NEW practices (the discovery
- *      refresh in lib/services/prospect-discovery.ts; NPPES ≤50 a run)
+ *      refresh in lib/services/prospect-discovery.ts; NPPES ≤50 a run; a
+ *      pulled territory goes first)
  *
  * Every step is fail-open with its own `hygiene` strike (one a day) and its
- * own day counter (`chain_flag` · `dedupe_merge` · `decay` · `refresh_pull`
- * · `discovery_refresh`), so a broken step is a logged zero and the next
- * step still runs.
+ * own day counter (`dedupe_merge` · `chain_flag` · `chain_restore` · `decay`
+ * · `refresh_pull` · `discovery_refresh`), so a broken step is a logged zero
+ * and the next step still runs.
  *
  * The WAKE lives here too: any new inbound signal (a reply, a call outcome,
  * a grader run, a demo request, a conference capture) or a re-verify that
@@ -253,6 +258,9 @@ export interface HygieneRunResult {
   refreshed: { state: string; zipPrefix: string; found: number; imported: number } | null
   /** Chains set aside this run (P-04). */
   chainsFlagged: number
+  /** Rows the chain sweep restored this run — their group fell under the
+   *  threshold (P-04 fix pass). */
+  chainsRestored: number
   /** Territories whose refresh the callers pulled forward this run (P-04). */
   pulledForward: number
   errors: number
@@ -260,14 +268,14 @@ export interface HygieneRunResult {
 }
 
 /**
- * ONE pass: the chain sweep, exact merges, decay, the freshness pull, one
+ * ONE pass: exact merges, the chain sweep, decay, the freshness pull, one
  * territory refresh. Each step is fail-open — a throw is a logged zero
  * plus the `hygiene` strike (once a run, once a day on the ledger), never
  * a dead cron.
  */
 export async function runProspectHygiene(opts: { now?: Date; config?: ProspectingConfig } = {}): Promise<HygieneRunResult> {
   const now = opts.now ?? new Date()
-  const out: HygieneRunResult = { merged: 0, rested: 0, refreshed: null, chainsFlagged: 0, pulledForward: 0, errors: 0 }
+  const out: HygieneRunResult = { merged: 0, rested: 0, refreshed: null, chainsFlagged: 0, chainsRestored: 0, pulledForward: 0, errors: 0 }
   const config = opts.config ?? (await getProspectingConfig())
   if (config.killSwitch) return { ...out, skipped: 'kill_switch' }
   const day = counterDay(now)
@@ -286,16 +294,6 @@ export async function runProspectHygiene(opts: { now?: Date; config?: Prospectin
   }
 
   try {
-    const { sweepChains } = await import('./prospect-fit')
-    const r = await sweepChains({ now })
-    out.chainsFlagged = r.flagged
-    if (r.flagged > 0) await bumpProspectingCounter(day, 'chain_flag', r.flagged)
-    if (r.errors > 0) await strike('chains', new Error(`${r.errors} chain flag(s) threw`))
-  } catch (err) {
-    await strike('chains', err)
-  }
-
-  try {
     const { runExactDedupeSweep } = await import('./prospect-dedupe')
     const r = await runExactDedupeSweep({ now, cap: MERGES_PER_RUN, config })
     out.merged = r.merged
@@ -303,6 +301,18 @@ export async function runProspectHygiene(opts: { now?: Date; config?: Prospectin
     if (r.errors > 0) await strike('dedupe', new Error(`${r.errors} merge(s) threw`))
   } catch (err) {
     await strike('dedupe', err)
+  }
+
+  try {
+    const { sweepChains } = await import('./prospect-fit')
+    const r = await sweepChains({ now })
+    out.chainsFlagged = r.flagged
+    out.chainsRestored = r.restored ?? 0
+    if (r.flagged > 0) await bumpProspectingCounter(day, 'chain_flag', r.flagged)
+    if (out.chainsRestored > 0) await bumpProspectingCounter(day, 'chain_restore', out.chainsRestored)
+    if (r.errors > 0) await strike('chains', new Error(`${r.errors} chain flag(s) threw`))
+  } catch (err) {
+    await strike('chains', err)
   }
 
   try {
@@ -336,10 +346,13 @@ export async function runProspectHygiene(opts: { now?: Date; config?: Prospectin
   return out
 }
 
-/** The hunt panel's tile: merged today, resting now, the last refresh —
- *  and (P-04) the chains set aside, the territory the callers pulled forward. */
+/** The hunt panel's tile: merged today, resting now, the last refresh (a
+ *  refresh that HAPPENED — a pull never writes that stamp) — and (P-04) the
+ *  chains set aside, the chains restored today, the territory the callers
+ *  pulled forward and have not refreshed yet (a cleared pull reads as done). */
 export async function getHygieneStats(now: Date = new Date()): Promise<ProspectHygieneStats> {
   const mergedToday = await getProspectingCounter(counterDay(now), 'dedupe_merge')
+  const chainsRestoredToday = await getProspectingCounter(counterDay(now), 'chain_restore')
   const [resting] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(p)
@@ -374,6 +387,7 @@ export async function getHygieneStats(now: Date = new Date()): Promise<ProspectH
     resting: resting?.n ?? 0,
     lastRefresh: last?.at ? { state: last.state, zipPrefix: last.zipPrefix, at: last.at } : null,
     chainsRemoved: chains?.n ?? 0,
+    chainsRestoredToday,
     earlyRefresh: pulled?.at
       ? { state: pulled.state, zipPrefix: pulled.zipPrefix.slice(0, 3), reason: pulled.reason ?? 'closed practices this month', at: pulled.at }
       : null,

@@ -3,11 +3,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 /**
  * FIT — the group work (P-04): the chain sweep over shared hosts / phones
  * (every member flagged, a customer never, an overridden row never, a
- * generic host never; the drip stopped and the caller's slot freed), the
- * owner's "Not a chain" (the override stored for good, the row back where
- * it was, the quality recomputed), the chains count, and the callers'
- * freshness pull (a hot territory's refresh pulled forward with its
- * reason; a cold one untouched; a pulled task never pulled twice).
+ * generic host never; the drip stopped and the caller's slot freed; a
+ * resting member set aside like a live one), the sweep's own un-flag (a
+ * flagged group under the threshold is restored), the owner's "Not a
+ * chain" (the override stored for good, the row back where it was, the
+ * quality recomputed, the drip resumed, the follow-up put back), the
+ * chains count, and the callers' freshness pull (the pull stamps and
+ * nothing else; an enabled state only; a pulled task never pulled twice).
  */
 
 const state = {
@@ -75,12 +77,12 @@ vi.mock('@/lib/services/prospect-dedupe', async () => {
   return { tenDigitPhoneSql: () => sql`phone_key` }
 })
 
-import { clearChainFlag, countChains, findChainGroups, sweepChains } from '@/lib/services/prospect-fit'
+import { CHAIN_STOP_REASON, clearChainFlag, countChains, findChainGroups, priorFollowUpOf, sweepChains } from '@/lib/services/prospect-fit'
 import { pullForwardHotTerritories } from '@/lib/services/prospect-discovery'
 import { PROSPECTING_DEFAULTS } from '@/lib/types/prospecting'
 
 const NOW = new Date('2026-11-10T12:00:00Z')
-const DAY = 24 * 60 * 60 * 1000
+const enrollmentUpdates = () => state.updates.filter((u) => u.table === 'outreachEnrollment')
 const LIVE = { ...PROSPECTING_DEFAULTS, killSwitch: false, enabledStates: ['TX'] }
 const AT = '2026-11-01T00:00:00.000Z'
 const prospectUpdates = () => state.updates.filter((u) => u.table === 'prospect')
@@ -123,7 +125,7 @@ describe('sweepChains', () => {
       ],
     )
     const r = await sweepChains({ now: NOW })
-    expect(r).toEqual({ groups: 1, flagged: 1, noted: 1, errors: 0 })
+    expect(r).toEqual({ groups: 1, flagged: 1, noted: 1, restored: 0, errors: 0 })
     const writes = prospectUpdates()
     expect(writes).toHaveLength(2)
     const a = writes[0].values
@@ -134,6 +136,7 @@ describe('sweepChains', () => {
     // The prior signals survive the flag.
     expect((a.verification as { npi: { status: string } }).npi.status).toBe('active')
     // The hold: the drip stops, the system follow-up clears, the caller's slot frees.
+    expect(CHAIN_STOP_REASON).toBe('verify_chain')
     expect(mocks.stop).toHaveBeenCalledWith('a', 'verify_chain', NOW)
     expect(mocks.clear).toHaveBeenCalledWith('a', NOW)
     expect(mocks.release).toHaveBeenCalledWith('a', NOW)
@@ -151,7 +154,7 @@ describe('sweepChains', () => {
       [{ id: 'p1', status: 'disqualified', suppressedReason: 'chain', verification: { fit: { chain: { status: 'shared_phone', detail: null, checkedAt: AT, source: 'our_data', count: 3, priorStatus: 'queued' } } } }],
     )
     const r = await sweepChains({ now: NOW })
-    expect(r).toEqual({ groups: 1, flagged: 0, noted: 1, errors: 0 })
+    expect(r).toEqual({ groups: 1, flagged: 0, noted: 1, restored: 0, errors: 0 })
     const w = prospectUpdates()[0].values
     expect(w).not.toHaveProperty('status')
     expect((w.verification as { fit: { chain: { priorStatus: string } } }).fit.chain.priorStatus).toBe('queued')
@@ -160,8 +163,92 @@ describe('sweepChains', () => {
 
   it('no groups, no writes', async () => {
     state.selectQueue.push([], [])
-    expect(await sweepChains({ now: NOW })).toEqual({ groups: 0, flagged: 0, noted: 0, errors: 0 })
+    expect(await sweepChains({ now: NOW })).toEqual({ groups: 0, flagged: 0, noted: 0, restored: 0, errors: 0 })
     expect(state.updates).toHaveLength(0)
+  })
+
+  it('a RESTING member is set aside like a live one — its memory of where it came from kept, the flag remembering "dormant" (E.6)', async () => {
+    state.selectQueue.push(
+      [],
+      [{ key: '4045551212', addresses: 3, ids: ['d1'] }],
+      [{ id: 'd1', status: 'dormant', suppressedReason: null, verification: null, nextFollowUpAt: null, followUpReason: null }],
+    )
+    const r = await sweepChains({ now: NOW })
+    expect(r).toMatchObject({ flagged: 1, noted: 0 })
+    const w = prospectUpdates()[0].values
+    expect(w).toMatchObject({ status: 'disqualified', suppressedReason: 'chain' })
+    expect(w).not.toHaveProperty('dormantFromStatus')
+    expect((w.verification as { fit: { chain: { priorStatus: string } } }).fit.chain.priorStatus).toBe('dormant')
+    expect(mocks.stop).toHaveBeenCalledWith('d1', 'verify_chain', NOW)
+  })
+
+  it('a fresh flag remembers the system follow-up it clears; a refreshed flag keeps what it remembered — never a stale status from an earlier flag', async () => {
+    const due = new Date('2026-11-12T15:00:00Z')
+    state.selectQueue.push(
+      [],
+      [{ key: '4045551212', addresses: 3, ids: ['q1', 'q2'] }],
+      [
+        { id: 'q1', status: 'queued', suppressedReason: null, verification: null, nextFollowUpAt: due, followUpReason: 'No answer — try again' },
+        {
+          id: 'q2',
+          status: 'disqualified',
+          suppressedReason: 'chain',
+          verification: { fit: { chain: { status: 'shared_phone', detail: null, checkedAt: AT, source: 'our_data', count: 3, priorStatus: 'contacted', priorFollowUp: { at: due.toISOString(), reason: 'Left a voicemail — circle back' } } } },
+          nextFollowUpAt: null,
+          followUpReason: null,
+        },
+      ],
+    )
+    await sweepChains({ now: NOW })
+    const [q1, q2] = prospectUpdates().map((u) => (u.values.verification as { fit: { chain: Record<string, unknown> } }).fit.chain)
+    expect(q1).toMatchObject({ priorStatus: 'queued', priorFollowUp: { at: due.toISOString(), reason: 'No answer — try again' } })
+    expect(q2).toMatchObject({ priorStatus: 'contacted', priorFollowUp: { at: due.toISOString(), reason: 'Left a voicemail — circle back' } })
+    // A callback a human promised is not the system's to remember or restore.
+    expect(priorFollowUpOf({ nextFollowUpAt: due, followUpReason: 'They asked for a callback' })).toBeNull()
+    expect(priorFollowUpOf({ nextFollowUpAt: null, followUpReason: 'No answer — try again' })).toBeNull()
+  })
+
+  it('the un-flag (E.4): a row the SWEEP flagged whose group fell under the threshold is RESTORED — the signal reads cleared, the drip resumes; an overridden row and a DSO-named row are never touched', async () => {
+    const swept = (over: Record<string, unknown>) => ({
+      id: 'x',
+      verification: { fit: { chain: { status: 'shared_phone', detail: 'shares', checkedAt: AT, source: 'our_data', kind: 'shared_phone', count: 3, key: '4045551212', priorStatus: 'contacted' } } },
+      ...over,
+    })
+    state.selectQueue.push(
+      [],
+      [], // no group holds anyone any more
+      [
+        swept({ id: 'gone' }),
+        swept({ id: 'kept', verification: { fit: { chain: { status: 'shared_phone', detail: null, checkedAt: AT, source: 'our_data', count: 3 }, chainOverride: { status: 'not_a_chain', detail: null, checkedAt: AT, source: 'owner' } } } }),
+        swept({ id: 'dso', verification: { fit: { chain: { status: 'shared_phone', detail: null, checkedAt: AT, source: 'our_data', count: 3 }, dso: { status: 'match', detail: null, checkedAt: AT, source: 'dso_list', name: 'Aspen Dental', priorStatus: 'queued' } } } }),
+      ],
+      // the restore's read of `gone`
+      [
+        {
+          id: 'gone',
+          status: 'disqualified',
+          suppressedReason: 'chain',
+          verification: swept({}).verification,
+          verifiedAt: null,
+          phoneStatus: 'unknown',
+          phoneLineType: null,
+          businessStatus: null,
+          reviewCount: null,
+          websiteUrl: null,
+        },
+      ],
+    )
+    const r = await sweepChains({ now: NOW })
+    expect(r).toEqual({ groups: 0, flagged: 0, noted: 0, restored: 1, errors: 0 })
+    const w = prospectUpdates()
+    expect(w).toHaveLength(1)
+    expect(w[0].values).toMatchObject({ status: 'contacted', suppressedReason: null, suppressedAt: null, qualityScore: null })
+    const chain = (w[0].values.verification as { fit: { chain: Record<string, unknown> } }).fit.chain
+    expect(chain).toMatchObject({ status: 'cleared', clearedAt: NOW.toISOString(), kind: 'shared_phone', priorStatus: 'contacted' })
+    expect(chain.detail).toMatch(/restored/)
+    // The drip the flag stopped goes back to active, from now.
+    expect(enrollmentUpdates()).toHaveLength(1)
+    expect(enrollmentUpdates()[0].values).toEqual({ status: 'active', nextSendAt: NOW, stoppedAt: null, stopReason: null })
   })
 })
 
@@ -197,7 +284,7 @@ describe('clearChainFlag — "Not a chain"', () => {
     expect(state.updates).toHaveLength(0)
   })
 
-  it('stores the override, returns the row to where it was, clears the suppression and recomputes quality from the stored signals', async () => {
+  it('stores the override, returns the row to where it was, clears the suppression, recomputes quality from the stored signals — and RESUMES the drip the flag stopped (F.1)', async () => {
     state.selectQueue.push([row()])
     const r = await clearChainFlag('pros_1', NOW)
     expect(r).toEqual({ ok: true, status: 'contacted' })
@@ -208,6 +295,46 @@ describe('clearChainFlag — "Not a chain"', () => {
     expect(fit.dso.status).toBe('match') // the record of what was found stays; the override outranks it
     // 35 + 20 + 15 + 10 + 10 = 90 — the pass's signals, scored again under the restored status.
     expect(w).toMatchObject({ qualityScore: 90, qualityBand: 'best' })
+    // No system follow-up was remembered: none is invented.
+    expect(w).not.toHaveProperty('nextFollowUpAt')
+    // The enrollment the flag stopped (stop_reason verify_chain) is active again, its next step from now.
+    expect(enrollmentUpdates()).toHaveLength(1)
+    expect(enrollmentUpdates()[0].values).toEqual({ status: 'active', nextSendAt: NOW, stoppedAt: null, stopReason: null })
+  })
+
+  it('a queued row with an active drip: flagged → overridden → the drip active again AND the system follow-up back (due now when its time has passed) — the toast’s promise is true', async () => {
+    const past = '2026-11-08T15:00:00.000Z'
+    state.selectQueue.push([
+      row({
+        verification: { ...GOOD, fit: { chain: { status: 'shared_phone', detail: null, checkedAt: AT, source: 'our_data', count: 3, priorStatus: 'queued', priorFollowUp: { at: past, reason: 'No answer — try again' } } } },
+      }),
+    ])
+    const r = await clearChainFlag('pros_1', NOW)
+    expect(r).toEqual({ ok: true, status: 'queued' })
+    expect(prospectUpdates()[0].values).toMatchObject({ status: 'queued', nextFollowUpAt: NOW, followUpReason: 'No answer — try again' })
+    expect(enrollmentUpdates()[0].values).toMatchObject({ status: 'active', nextSendAt: NOW })
+    // A follow-up still ahead keeps its time.
+    state.updates = []
+    const ahead = '2026-11-20T15:00:00.000Z'
+    state.selectQueue.push([
+      row({ verification: { ...GOOD, fit: { dso: { status: 'match', detail: 'x', checkedAt: AT, source: 'dso_list', name: 'Aspen Dental', priorStatus: 'contacted', priorFollowUp: { at: ahead, reason: 'Reached the desk — try for the decision maker' } } } } }),
+    ])
+    await clearChainFlag('pros_1', NOW)
+    expect(prospectUpdates()[0].values).toMatchObject({ nextFollowUpAt: new Date(ahead), followUpReason: 'Reached the desk — try for the decision maker' })
+  })
+
+  it('a resting row set aside returns to RESTING with its origin intact, and the resting sentence goes back in front (E.6)', async () => {
+    state.selectQueue.push(
+      [row({ verification: { fit: { chain: { status: 'shared_phone', detail: null, checkedAt: AT, source: 'our_data', count: 3, priorStatus: 'dormant' } } }, verifiedAt: null })],
+      // the reconcile's read, after the restore
+      [{ status: 'dormant', qualityScore: null, qualityReasons: null, createdAt: new Date('2026-01-01T00:00:00Z'), lastTouchAt: '2026-07-13T15:00:00.000Z' }],
+    )
+    const r = await clearChainFlag('pros_1', NOW)
+    expect(r).toEqual({ ok: true, status: 'dormant' })
+    const [restore, resting] = prospectUpdates()
+    expect(restore.values).toMatchObject({ status: 'dormant', suppressedReason: null })
+    expect(restore.values).not.toHaveProperty('dormantFromStatus')
+    expect((resting.values.qualityReasons as string[])[0]).toBe('No touch since Jul 13, 2026 UTC — resting')
   })
 
   it('a never-verified row reads "not verified yet" again; a sweep flag with no prior status goes back to enriched', async () => {
@@ -242,25 +369,24 @@ describe('countChains', () => {
 })
 
 describe('pullForwardHotTerritories — callers steer freshness', () => {
-  it('pulls a territory with ≥3 closed practices forward: the refresh stamp set back past the clock, the pull stamped with its reason; a cold one untouched', async () => {
+  const newest = new Date('2026-11-09T18:00:00Z')
+  it('pulls a hot territory forward: the pull stamped with its honest reason and NOTHING ELSE moved (never last_refreshed_at — D.1); a cold one, a disabled state (C13) and a nameless one untouched', async () => {
     state.selectQueue.push([
-      { state: 'TX', zipPrefix: '787', closed: 3 },
-      { state: 'GA', zipPrefix: '303', closed: 2 },
-      { state: null, zipPrefix: '111', closed: 9 },
+      { state: 'TX', zipPrefix: '787', closed: 3, closedPractices: 2, newest },
+      { state: 'TX', zipPrefix: '786', closed: 2, closedPractices: 2, newest },
+      { state: 'GA', zipPrefix: '303', closed: 4, closedPractices: 4, newest }, // GA is not enabled
+      { state: null, zipPrefix: '111', closed: 9, closedPractices: 9, newest },
     ])
     state.returning.push([{ id: 'pdt_1' }, { id: 'pdt_2' }])
     const r = await pullForwardHotTerritories({ now: NOW, config: LIVE })
-    expect(r).toEqual([{ state: 'TX', zipPrefix: '787', closed: 3, tasks: 2 }])
+    expect(r).toEqual([{ state: 'TX', zipPrefix: '787', closed: 3, tasks: 2, reason: '2 closed, 1 disconnected this month' }])
     const w = state.updates.filter((u) => u.table === 'prospectDiscoveryTask')
     expect(w).toHaveLength(1)
-    expect(w[0].values).toEqual({
-      lastRefreshedAt: new Date(NOW.getTime() - (LIVE.hygiene.discoveryRefreshDays + 1) * DAY),
-      refreshPulledAt: NOW,
-      refreshPulledReason: '3 closed practices this month',
-    })
+    expect(w[0].values).toEqual({ refreshPulledAt: NOW, refreshPulledReason: '2 closed, 1 disconnected this month' })
+    expect(w[0].values).not.toHaveProperty('lastRefreshedAt')
   })
-  it('a territory whose tasks were all already pulled or already due reports nothing', async () => {
-    state.selectQueue.push([{ state: 'TX', zipPrefix: '787', closed: 5 }])
+  it('a territory whose tasks were all already pulled, or swept since the newest call, reports nothing', async () => {
+    state.selectQueue.push([{ state: 'TX', zipPrefix: '787', closed: 5, closedPractices: 0, newest }])
     state.returning.push([])
     expect(await pullForwardHotTerritories({ now: NOW, config: LIVE })).toEqual([])
   })

@@ -12,7 +12,7 @@ import {
   type ProspectPhoneSource,
   type VerificationSignalId,
 } from '@/lib/types/prospecting'
-import { SINGLE_SOURCE_TURN_ON, isFullyVerified } from '@/lib/prospect-quality'
+import { CARRIER_ONLY_LINE, SINGLE_SOURCE_TURN_ON, isFullyVerified } from '@/lib/prospect-quality'
 import { QualityPill } from './quality-pills'
 
 /**
@@ -74,12 +74,14 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 /** The phone line's "who says so" (P-04): the sources that state the
- *  number and its standing — or, on a row the P-04 pass has not seen, the
- *  legacy "Number from …". */
+ *  number and its standing — the carrier alone says only that the line is
+ *  in service (fix pass, G.1) — or, on a row the P-04 pass has not seen,
+ *  the legacy "Number from …". */
 export function phoneSourcesLine(phone: PhoneVerificationSignal | undefined, phoneSource: string | null): string | null {
   const sources = phone?.sources
   if (sources && sources.length > 0) {
     const named = sources.map((s) => PHONE_SOURCE_NAME_LABELS[s]).join(', ')
+    if (sources.length === 1 && sources[0] === 'carrier') return CARRIER_ONLY_LINE
     if (phone?.standing === 'corroborated') return `Stated by ${named} — corroborated`
     if (sources.length === 1 && phone?.lineCheck === 'off') return `${SINGLE_SOURCE_TURN_ON} (${named})`
     return `Only one source lists this number (${named})`

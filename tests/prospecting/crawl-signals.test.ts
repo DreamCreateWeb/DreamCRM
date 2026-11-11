@@ -15,6 +15,7 @@ import {
   findTeamPaths,
   detectStack,
   stackCorpus,
+  stackHosts,
 } from '@/lib/prospect-signals'
 
 const FETCHED = new Date('2026-07-03T12:00:00Z')
@@ -179,27 +180,36 @@ describe('builders (P-04): the dental template vendors, before WordPress', () =>
   })
 })
 
-describe('the competitor stack (P-04) — script / host / iframe, never page copy', () => {
+describe('the competitor stack (P-04) — HOSTS only: script src, link href, iframe src, URLs inside inline scripts; never page copy (I.2)', () => {
   it('fingerprints booking widgets and review engines by their hosts', () => {
     const s = page(`<html><head>
       <script src="https://widget.nexhealth.com/book.js"></script>
       <iframe src="https://birdeye.com/widget/123"></iframe>
-      <script src="https://www.getweave.com/widget/x.js"></script>
+      <script src="//www.getweave.com/widget/x.js"></script>
       <link rel="stylesheet" href="https://cdn.podium.com/widget.css">
-      <script>window.yapi = { key: 'abc' }</script>
-    </head><body><a href="https://janeapp.com/book/smile">book</a></body></html>`)
+      <script>window.__cfg = { api: "https://api.yapiapp.com/v1" }</script>
+    </head><body><iframe src="https://smile.janeapp.com/book"></iframe></body></html>`)
     expect(s.stack).toEqual(['NexHealth', 'Weave', 'Birdeye', 'Podium', 'Yapi', 'Jane'])
   })
-  it('a vendor named in the copy is not an install; a look-alike host is not Weave; a clean page is an empty list', () => {
+  it('a vendor named in the copy, in JSON-LD, in a hydration payload or in an article link is not an install; a look-alike host is not Weave or LocalMed; a clean page is an empty list', () => {
     expect(page('<html><body><p>We love Weave and Birdeye, and we book with NexHealth.</p></body></html>').stack).toEqual([])
-    expect(page('<html><body><script src="https://interweave.com/a.js"></script></body></html>').stack).toEqual([])
+    expect(page('<html><head><script type="application/ld+json">{"@type":"Dentist","description":"we moved off NexHealth and Solutionreach"}</script></head></html>').stack).toEqual([])
+    expect(page('<html><head><script id="__NEXT_DATA__" type="application/json">{"props":{"blog":"Why we left NexHealth for the phone"}}</script></head></html>').stack).toEqual([])
+    expect(page('<html><body><article><a href="https://www.revenuewell.com">RevenueWell</a> is who we used to use.</article></body></html>').stack).toEqual([])
+    expect(page('<html><body><script src="https://interweave.com/a.js"></script><script src="https://cdn.localmedia.com/x.js"></script><img src="https://localmedical.org/l.png"></body></html>').stack).toEqual([])
     expect(page('<html><body><p>Hi</p></body></html>').stack).toEqual([])
     expect(detectStack('')).toEqual([])
+    // A real LocalMed host still reads.
+    expect(page('<html><head><script src="https://www.localmed.com/widget.js"></script></head></html>').stack).toEqual(['LocalMed'])
   })
-  it('the corpus is URLs, inline scripts and iframe tags only', () => {
-    const corpus = stackCorpus('<html><body><p>Solutionreach rocks</p><script>var a = "smilereminder"</script><iframe src="https://x.com"></iframe></body></html>')
-    expect(corpus).toContain('smilereminder')
-    expect(corpus).toContain('https://x.com')
+  it('the corpus is hosts: one a line, from the tags that load code or frames and from URLs inside inline scripts — nothing from the copy', () => {
+    const html = '<html><body><p>Solutionreach rocks</p><script>var a = "smilereminder"; fetch("https://app.smilereminder.com/x")</script><iframe src="https://x.com/embed"></iframe><a href="https://ignored.example/page">no</a></body></html>'
+    // The tags that load code or frames first, then the URLs inside inline scripts.
+    expect(stackHosts(html)).toEqual(['x.com', 'app.smilereminder.com'])
+    const corpus = stackCorpus(html)
+    expect(corpus).toBe('x.com\napp.smilereminder.com')
     expect(corpus).not.toContain('Solutionreach rocks')
+    expect(corpus).not.toContain('ignored.example')
+    expect(detectStack(html)).toEqual(['Solutionreach'])
   })
 })

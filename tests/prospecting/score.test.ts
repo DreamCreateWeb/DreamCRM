@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest'
  * heuristic fallback verdict keeps ranking honest when AI is unavailable.
  */
 
-import { computeOpportunityScore, bandForScore, heuristicVerdict, OPPORTUNITY_WEIGHTS } from '@/lib/prospect-scoring'
+import { computeOpportunityScore, bandForScore, heuristicVerdict, rescoreOpportunity, OPPORTUNITY_WEIGHTS } from '@/lib/prospect-scoring'
 import type { ProspectAiVerdict, ProspectCrawlSignals } from '@/lib/types/prospecting'
 
 const GOOD_SITE: ProspectAiVerdict = {
@@ -149,6 +149,25 @@ describe('the P-04 weights — the stack, the builder, a new practice, a group',
     expect(computeOpportunityScore({ verdict: GOOD_SITE, ...base, stack: [] }).score).toBe(plain.score)
     // An older crawl (no stack key) moves nothing — the P-01 ladder as it was.
     expect(unknown.score).toBe(44)
+    // A page nobody read (robots.txt refused it: stack null) is not "looked, none" — no credit either (I.1).
+    expect(computeOpportunityScore({ verdict: { ...GOOD_SITE, onlineBooking: false }, ...base, stack: null }).score).toBe(unknown.score)
+  })
+
+  it('rescoreOpportunity (H.3) recomputes from what the row stores — a group practice found later drops it by 10 and the band follows; no verdict, no score', () => {
+    const verdict = { ...GOOD_SITE, websiteQuality: 50, onlineBooking: false, socialPresence: 10 }
+    const row = { aiVerdict: verdict, reviewCount: 22, ratingTenths: 45, enrichment: { stack: [], builder: null } }
+    const at = '2026-11-10T00:00:00.000Z'
+    const solo = rescoreOpportunity({ ...row, verification: { fit: { size: { status: 'solo', detail: null, checkedAt: at, source: 'nppes', dentists: 1 } } } })
+    const group = rescoreOpportunity({ ...row, verification: { fit: { size: { status: 'group', detail: null, checkedAt: at, source: 'nppes', dentists: 6 } } } })
+    // 30 + 4 + 14 + 10 + 6 (22 reviews) + 6 (no stack, no booking) = 70 warm; a group −10 → 60 warm; with 40 reviews 64 → 54 cool.
+    expect(solo).toMatchObject({ score: 70, band: 'warm' })
+    expect(group).toMatchObject({ score: 60, band: 'warm' })
+    expect(group!.reasons).toContain('A group practice — lower priority, not a chain')
+    const fewer = { ...row, reviewCount: 40, enrichment: { stack: null, builder: null } }
+    expect(rescoreOpportunity({ ...fewer, verification: { fit: { size: { status: 'solo', detail: null, checkedAt: at, source: 'nppes' } } } })).toMatchObject({ score: 58, band: 'cool' })
+    expect(rescoreOpportunity({ ...fewer, verification: { fit: { size: { status: 'group', detail: null, checkedAt: at, source: 'nppes' } } } })).toMatchObject({ score: 48, band: 'cool' })
+    expect(rescoreOpportunity({ ...row, aiVerdict: null, verification: {} })).toBeNull()
+    expect(rescoreOpportunity({ ...row, aiVerdict: { junk: true }, verification: {} })).toBeNull()
   })
 
   it('DIY builders +5, dental template vendors +4, WordPress nothing — in words', () => {

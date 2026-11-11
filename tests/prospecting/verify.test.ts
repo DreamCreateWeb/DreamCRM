@@ -167,6 +167,10 @@ beforeEach(() => {
   livenessMock.mockResolvedValue({ status: 'alive', detail: 'smiledental.com is up (200)', finalUrl: 'https://smiledental.com/', httpStatus: 200 })
   driverMock.mockReturnValue('none')
   placesConfiguredMock.mockReturnValue(true)
+  // One dentist at the address unless a test says otherwise — reset every
+  // time, so a test's own answer never leaks into the next.
+  sizeMock.mockReset()
+  sizeMock.mockResolvedValue({ dentists: 1, scanned: 12, capped: false })
 })
 
 describe('verifyProspectSignals — the happy path', () => {
@@ -391,6 +395,43 @@ describe('verifyProspect (standalone) + the sweep', () => {
     expect(r).toMatchObject({ ok: true, placesLookedUp: false })
     expect(candidatesMock).not.toHaveBeenCalled()
     expect(state.updates.at(-1)!.values).toMatchObject({ verifiedAt: NOW })
+  })
+  it('a changed fit read RESCORES the opportunity the row already carries (H.3): a group practice found by the sweep drops it by 10 and the band follows; an unchanged read writes nothing; a never-enriched row nothing', async () => {
+    const verdict = { hasWebsite: true, websiteQuality: 50, websiteReasons: [], socialPresence: 10, onlineBooking: false, weaknesses: [], summary: 'ok' }
+    const scored = {
+      ...PROSPECT,
+      opportunityScore: 64,
+      scoreBand: 'warm',
+      scoreReasons: [],
+      aiVerdict: verdict,
+      enrichment: { stack: null, builder: null },
+      googleRatingTenths: 47,
+      reviewCount: 40,
+      verification: { fit: { size: { status: 'solo', detail: null, checkedAt: '2026-01-01T00:00:00.000Z', source: 'nppes', dentists: 1 } } },
+    }
+    sizeMock.mockResolvedValue({ dentists: 6, scanned: 90, capped: false })
+    state.selectQueue.push([scored])
+    await verifyProspect('pros_1', { now: NOW })
+    const w = state.updates.at(-1)!.values
+    // 30 + 4 + 14 + 10 + 6 (22 reviews on the matched listing) = 64 warm → a group −10 = 54 cool.
+    expect(w).toMatchObject({ opportunityScore: 54, scoreBand: 'cool', scoredAt: NOW })
+    expect(w.scoreReasons as string[]).toContain('A group practice — lower priority, not a chain')
+    // The same read again (the size still group, the practice still established): nothing rewritten.
+    state.updates = []
+    const unchanged = {
+      fit: {
+        size: { ...scored.verification.fit.size, status: 'group', dentists: 6 },
+        newPractice: { status: 'established', detail: null, checkedAt: '2026-01-01T00:00:00.000Z', source: 'nppes', enumeratedAt: '2010-05-05' },
+      },
+    }
+    state.selectQueue.push([{ ...scored, verification: unchanged }])
+    await verifyProspect('pros_1', { now: NOW })
+    expect(state.updates.at(-1)!.values).not.toHaveProperty('opportunityScore')
+    // A row never enriched (no verdict) is never scored by a verify.
+    state.updates = []
+    state.selectQueue.push([{ ...scored, opportunityScore: null, aiVerdict: null }])
+    await verifyProspect('pros_1', { now: NOW })
+    expect(state.updates.at(-1)!.values).not.toHaveProperty('opportunityScore')
   })
   it('the sweep: kill switch skips; otherwise never-verified first, then stale, batch-capped', async () => {
     configMock.mockResolvedValue({ ...LIVE, killSwitch: true })
@@ -736,7 +777,7 @@ describe('fit from the registry and the listing (P-04)', () => {
     const fit = out.patch.verification.fit!
     expect(fit.newPractice).toMatchObject({ status: 'established', detail: 'In the registry since May 2010', enumeratedAt: '2010-05-05', source: 'nppes', checkedAt: NOW.toISOString() })
     expect(fit.size).toMatchObject({ status: 'solo', dentists: 1, official: 'unknown', detail: 'One dentist at this address in the registry' })
-    expect(sizeMock).toHaveBeenCalledWith({ addressLine1: '123 Main St', state: 'GA', postalCode: '30309' })
+    expect(sizeMock).toHaveBeenCalledWith({ addressLine1: '123 Main St', addressLine2: null, state: 'GA', postalCode: '30309' })
     expect(fit.dso).toMatchObject({ status: 'none', source: 'dso_list' })
     expect(out.patch.status).toBeUndefined()
   })
@@ -780,15 +821,38 @@ describe('fit from the registry and the listing (P-04)', () => {
     expect(sizeMock).toHaveBeenCalledTimes(1)
   })
 
-  it('a failed size search fails OPEN: an honest unknown, one nppes_down strike, the score untouched', async () => {
+  it('a failed size search fails OPEN: an honest unknown marked for RETRY, one nppes_down strike, the score untouched — and the NEXT pass asks again whatever the 180-day clock says (H.1)', async () => {
     sizeMock.mockRejectedValue(new Error('NPPES 503'))
     const c = await ctx()
     const out = await verifyProspectSignals(PROSPECT as never, { ok: true, places: [PLACE] }, c)
     await verifyProspectSignals({ ...PROSPECT, id: 'pros_2' } as never, null, c)
-    expect(out.patch.verification.fit?.size).toMatchObject({ status: 'unknown', dentists: null })
+    expect(out.patch.verification.fit?.size).toMatchObject({ status: 'unknown', dentists: null, retry: true })
     expect(out.patch.qualityScore).toBe(90)
     expect(strikeMock).toHaveBeenCalledTimes(1)
     expect(strikeMock).toHaveBeenCalledWith('nppes_down', NOW)
+    // The next pass, a day later: the gate re-runs the search; a real answer replaces the unknown.
+    sizeMock.mockReset()
+    sizeMock.mockResolvedValue({ dentists: 7, scanned: 90, capped: false })
+    const again = await verifyProspectSignals({ ...PROSPECT, verification: out.patch.verification } as never, null, await ctx())
+    expect(sizeMock).toHaveBeenCalledTimes(1)
+    expect(again.patch.verification.fit?.size).toMatchObject({ status: 'group', dentists: 7 })
+    expect(again.patch.verification.fit?.size).not.toHaveProperty('retry')
+    // A completed count is never overwritten by a later outage.
+    sizeMock.mockReset()
+    sizeMock.mockRejectedValue(new Error('NPPES 503'))
+    const old = { fit: { size: { status: 'small', detail: '3 dentists', checkedAt: '2026-01-01T00:00:00.000Z', source: 'nppes', dentists: 3 } } }
+    const kept = await verifyProspectSignals({ ...PROSPECT, verification: old } as never, null, await ctx())
+    expect(kept.patch.verification.fit?.size).toMatchObject({ status: 'small', dentists: 3 })
+  })
+
+  it('a CAPPED ZIP page never yields solo or small — unknown with retry; a group on a capped page still reads group (C24)', async () => {
+    sizeMock.mockResolvedValue({ dentists: 1, scanned: 200, capped: true })
+    const capped = await verifyProspectSignals(PROSPECT as never, null, await ctx())
+    expect(capped.patch.verification.fit?.size).toMatchObject({ status: 'unknown', dentists: null, retry: true })
+    expect(capped.patch.verification.fit?.size?.detail).toMatch(/ZIP page was full/)
+    sizeMock.mockResolvedValue({ dentists: 6, scanned: 200, capped: true })
+    const group = await verifyProspectSignals(PROSPECT as never, null, await ctx())
+    expect(group.patch.verification.fit?.size).toMatchObject({ status: 'group', dentists: 6 })
   })
 
   it('a DSO name on the PRACTICE name disqualifies as a chain — the sentence, the prior status, the stop reason', async () => {
@@ -815,6 +879,49 @@ describe('fit from the registry and the listing (P-04)', () => {
     const listing = await verifyProspectSignals(PROSPECT as never, { ok: true, places: [{ ...PLACE, displayName: 'Smile Brands — Atlanta' }] }, await ctx())
     expect(listing.patch.suppressedReason).toBe('chain')
     expect(listing.patch.verification.fit?.dso).toMatchObject({ name: 'Smile Brands', matchedOn: 'listing' })
+  })
+
+  it('a common-phrase brand (A): "Gentle Dental" is a chain only when the website host is the brand’s — the listing’s host or the row’s; an independent carrying the words stays in the pool', async () => {
+    const gentle = { ...PROSPECT, name: 'Gentle Dental Care of Smithville' }
+    const independent = await verifyProspectSignals(gentle as never, { ok: true, places: [{ ...PLACE, displayName: 'Gentle Dental Care of Smithville', websiteUri: 'https://smithvilledental.com' }] }, await ctx())
+    expect(independent.patch.status).toBeUndefined()
+    expect(independent.patch.verification.fit?.dso).toMatchObject({ status: 'none' })
+    const brand = await verifyProspectSignals(gentle as never, { ok: true, places: [{ ...PLACE, displayName: 'Gentle Dental Smithville', websiteUri: 'https://gentledental.interdent.com/locations/tx' }] }, await ctx())
+    expect(brand.patch).toMatchObject({ status: 'disqualified', suppressedReason: 'chain' })
+    expect(brand.patch.verification.fit?.dso).toMatchObject({ status: 'match', name: 'Gentle Dental', matchedOn: 'practice' })
+    const rowHost = await verifyProspectSignals({ ...gentle, websiteUrl: 'https://www.perfectteeth.com/smithville', name: 'Perfect Teeth Smithville' } as never, null, await ctx())
+    expect(rowHost.patch.verification.fit?.dso).toMatchObject({ status: 'match', name: 'Perfect Teeth' })
+  })
+
+  it('a pass that could NOT re-read the source the match came from keeps the prior match and its prior status (F.3); a re-read that no longer matches downgrades', async () => {
+    const matched = (matchedOn: 'listing' | 'npi' | 'practice', name = 'Smile Brands') => ({
+      ...PROSPECT,
+      status: 'disqualified',
+      verification: { fit: { dso: { status: 'match', detail: `Part of ${name} — a chain; we'll target chains later`, checkedAt: STAMP, source: 'dso_list', name, matchedOn, priorStatus: 'contacted' } } },
+    })
+    // The listing matched, the Places budget is used up this pass: kept, byte for byte.
+    const noPlaces = await verifyProspectSignals(matched('listing') as never, null, await ctx())
+    expect(noPlaces.patch.verification.fit?.dso).toEqual(matched('listing').verification.fit.dso)
+    expect(noPlaces.patch).toMatchObject({ status: 'disqualified', suppressedReason: 'chain' })
+    // The NPI organization matched, the registry cap is hit: kept.
+    const c = await ctx()
+    c.nppesLeft = 0
+    const noNpi = await verifyProspectSignals(matched('npi', 'Heartland Dental') as never, { ok: true, places: [PLACE] }, c)
+    expect(noNpi.patch.verification.fit?.dso).toMatchObject({ status: 'match', name: 'Heartland Dental', priorStatus: 'contacted' })
+    // Everything re-read and nothing matches any more: downgraded honestly.
+    const reread = await verifyProspectSignals(matched('listing') as never, { ok: true, places: [PLACE] }, await ctx())
+    expect(reread.patch.verification.fit?.dso).toMatchObject({ status: 'none' })
+    // A match on a row ALREADY set aside keeps the status it remembered, never "disqualified".
+    const again = await verifyProspectSignals({ ...matched('practice', 'Aspen Dental'), name: 'Aspen Dental of Atlanta' } as never, null, await ctx())
+    expect(again.patch.verification.fit?.dso).toMatchObject({ status: 'match', priorStatus: 'contacted' })
+  })
+
+  it('a DSO flag remembers the system follow-up it clears, so "Not a chain" can put it back (F.1)', async () => {
+    const due = new Date('2026-11-12T15:00:00Z')
+    const out = await verifyProspectSignals({ ...PROSPECT, name: 'Aspen Dental — Atlanta', nextFollowUpAt: due, followUpReason: 'No answer — try again' } as never, null, await ctx())
+    expect(out.patch.verification.fit?.dso).toMatchObject({ priorStatus: 'enriched', priorFollowUp: { at: due.toISOString(), reason: 'No answer — try again' } })
+    const promised = await verifyProspectSignals({ ...PROSPECT, name: 'Aspen Dental — Atlanta', nextFollowUpAt: due, followUpReason: 'They asked for a callback' } as never, null, await ctx())
+    expect(promised.patch.verification.fit?.dso).not.toHaveProperty('priorFollowUp')
   })
 
   it('retired and closed outrank chain; "Not a chain" is never re-flagged; a sweep flag carried on a re-verify stays a chain', async () => {
@@ -847,35 +954,46 @@ describe('fit from the registry and the listing (P-04)', () => {
   })
 })
 
-describe('liveness from the listing (P-04)', () => {
+describe('liveness from the listing (P-04) — the sample is a LOWER BOUND (C)', () => {
   const months = (n: number) => new Date(Date.UTC(NOW.getUTCFullYear(), NOW.getUTCMonth() - n, 10)).toISOString()
-  it('a review inside 6 months is current (10), inside 18 quiet (6), older stale (0) — with hours, the date and the source', async () => {
+  it('a sampled review inside 6 months is current (10); a quiet or stale sample never costs the count rule’s 10 (22 reviews) — with hours, the date, the source, and sentences that say "top reviews"', async () => {
     const recent = await verifyProspectSignals(PROSPECT as never, { ok: true, places: [{ ...PLACE, latestReviewAt: months(2) }] }, await ctx())
     expect(recent.patch.verification.reviews).toMatchObject({ status: 'recent', latestAt: months(2), hours: true, source: 'places', checkedAt: NOW.toISOString() })
     expect(recent.patch.qualityScore).toBe(90)
     const quiet = await verifyProspectSignals(PROSPECT as never, { ok: true, places: [{ ...PLACE, latestReviewAt: months(10) }] }, await ctx())
     expect(quiet.patch.verification.reviews?.status).toBe('quiet')
-    expect(quiet.patch.qualityScore).toBe(86)
+    expect(quiet.patch.verification.reviews?.detail).toMatch(/^Google's top reviews run to /)
+    expect(quiet.patch.qualityScore).toBe(90)
     const stale = await verifyProspectSignals(PROSPECT as never, { ok: true, places: [{ ...PLACE, latestReviewAt: months(24) }] }, await ctx())
     expect(stale.patch.verification.reviews?.status).toBe('stale')
-    expect(stale.patch.qualityScore).toBe(80)
+    expect(stale.patch.verification.reviews?.detail).toMatch(/^Google's top reviews are all older than /)
+    expect(stale.patch.qualityScore).toBe(90)
     expect(stale.patch.qualityBand).toBe('best')
   })
-  it('no review in 18 months AND no hours → "no sign of life since <date>", band at most weak; zero reviews and no hours the same', async () => {
-    const out = await verifyProspectSignals(PROSPECT as never, { ok: true, places: [{ ...PLACE, latestReviewAt: months(24), hasOpeningHours: false }] }, await ctx())
+  it('a 300-review practice whose sampled latest is 2023, no hours → NOT capped (C3); zero reviews and no hours → capped; zero reviews, no hours, a NEW practice → not capped (H.4)', async () => {
+    const out = await verifyProspectSignals(PROSPECT as never, { ok: true, places: [{ ...PLACE, reviewCount: 300, latestReviewAt: '2023-04-01T00:00:00.000Z', hasOpeningHours: false }] }, await ctx())
     expect(out.patch.verification.reviews).toMatchObject({ status: 'stale', hours: false })
     expect(out.patch.verification.reviews?.detail).toMatch(/no opening hours on the listing/)
-    expect(out.patch.qualityBand).toBe('weak')
-    expect(out.patch.qualityScore).toBeLessThanOrEqual(59)
-    expect(out.patch.qualityReasons[0]).toMatch(/^Google shows no sign of life since /)
+    expect(out.patch.qualityBand).toBe('best')
+    expect(out.patch.qualityScore).toBe(90)
+    expect(out.patch.qualityReasons.join(' ')).not.toMatch(/no sign of life/)
     const never = await verifyProspectSignals(PROSPECT as never, { ok: true, places: [{ ...PLACE, reviewCount: 0, latestReviewAt: null, hasOpeningHours: false }] }, await ctx())
     expect(never.patch.verification.reviews?.status).toBe('none')
     expect(never.patch.qualityBand).toBe('weak')
+    expect(never.patch.qualityReasons[0]).toBe('Google shows no sign of life — no reviews and no hours on the listing')
+    lookupNpiMock.mockResolvedValue({ ...NPI_ACTIVE, enumerationDate: '2025-06-15' })
+    const fresh = await verifyProspectSignals(PROSPECT as never, { ok: true, places: [{ ...PLACE, reviewCount: 0, latestReviewAt: null, hasOpeningHours: false }] }, await ctx())
+    expect(fresh.patch.verification.fit?.newPractice?.status).toBe('new')
+    expect(fresh.patch.qualityBand).toBe('best')
+    expect(fresh.patch.qualityReasons).toContain('No Google reviews yet — expected for a practice this new')
   })
-  it('no dates returned is unknown (the count rule); no lookup keeps the prior signal; a cleared listing drops it', async () => {
+  it('no dates returned is unknown (the count rule) — a NULL count too, never "none"; no lookup keeps the prior signal; a cleared listing drops it', async () => {
     const unknown = await verifyProspectSignals(PROSPECT as never, { ok: true, places: [PLACE] }, await ctx())
     expect(unknown.patch.verification.reviews?.status).toBe('unknown')
     expect(unknown.patch.qualityScore).toBe(90)
+    const nullCount = await verifyProspectSignals(PROSPECT as never, { ok: true, places: [{ ...PLACE, reviewCount: null, latestReviewAt: null, hasOpeningHours: false }] }, await ctx())
+    expect(nullCount.patch.verification.reviews?.status).toBe('unknown')
+    expect(nullCount.patch.qualityBand).toBe('best')
     const prior = { ...VERIFIED, verification: { ...VERIFIED.verification, reviews: { status: 'recent', detail: null, checkedAt: STAMP, source: 'places', latestAt: months(1), hours: true } } }
     const kept = await verifyProspectSignals(prior as never, { ok: false, error: 'unavailable' }, await ctx())
     expect(kept.patch.verification.reviews).toEqual(prior.verification.reviews)
@@ -885,15 +1003,39 @@ describe('liveness from the listing (P-04)', () => {
 })
 
 describe('"that clinic’s number" — the two-source rule (P-04)', () => {
-  it('the predicate: two voices, or the carrier plus one, or a human who reached them; else single source', () => {
+  it('the predicate (G.1): two voices, or the carrier plus one voice, or a human who reached them; the carrier ALONE is single source; else single source', () => {
     expect(phoneStanding([], 'unknown')).toBe('single_source')
     expect(phoneStanding(['nppes'], 'unknown')).toBe('single_source')
     expect(phoneStanding(['nppes', 'places'], 'unknown')).toBe('corroborated')
-    expect(phoneStanding(['carrier'], 'valid')).toBe('corroborated')
+    expect(phoneStanding(['carrier'], 'valid')).toBe('single_source')
     expect(phoneStanding(['places', 'carrier'], 'valid')).toBe('corroborated')
+    expect(phoneStanding(['caller', 'carrier'], 'valid')).toBe('corroborated')
     expect(phoneStanding(['caller'], 'valid')).toBe('corroborated')
     expect(phoneStanding(['caller'], 'unknown')).toBe('single_source')
     expect(phoneStanding(['caller', 'nppes'], 'disconnected')).toBe('corroborated')
+  })
+
+  it('the carrier alone — the registry now lists another number, Google has no listing — is in service but nobody’s: single source (C9)', async () => {
+    driverMock.mockReturnValue('aws')
+    lineMock.mockResolvedValue({ ok: true, lineType: 'landline', invalid: false, carrier: 'AT&T', provider: 'aws_pinpoint' })
+    lookupNpiMock.mockResolvedValue({ ...NPI_ACTIVE, location: { ...NPI_ACTIVE.location, phone: '4045559999' } })
+    const out = await verifyProspectSignals(PROSPECT as never, { ok: true, places: [] }, await ctx())
+    expect(out.patch.phone).toBe('4045551212')
+    expect(out.patch.phoneStatus).toBe('valid')
+    expect(out.patch.verification.phone).toMatchObject({ sources: ['carrier'], standing: 'single_source', lineCheck: 'done' })
+    expect(out.patch.phoneSource).toBe('single_source')
+  })
+
+  it('a hand-added row from before the stamp (phone, NO source column, no NPI) keeps its typed number over a listing that lists another (B / C2)', async () => {
+    const typed = { ...PROSPECT, npiNumber: null, phone: '4045550000', phoneSource: null, verification: null }
+    const out = await verifyProspectSignals(typed as never, { ok: true, places: [{ ...PLACE, nationalPhoneNumber: '4045559999' }] }, await ctx())
+    expect(out.patch.phone).toBe('4045550000')
+    expect(out.patch.verification.phone).toMatchObject({ sources: ['caller'], standing: 'single_source' })
+    expect(out.patch.verification.phone?.detail).not.toMatch(/Google lists/)
+    // A registry row with no source column is NOT caller-provided: the listing's number still wins there.
+    const registry = { ...PROSPECT, phoneSource: null, verification: null }
+    const r = await verifyProspectSignals(registry as never, { ok: true, places: [{ ...PLACE, nationalPhoneNumber: '4045559999' }] }, await ctx())
+    expect(r.patch.phone).toBe('4045559999')
   })
 
   it('the carrier saying in service corroborates — alone with the listing, or on top of the registry', async () => {

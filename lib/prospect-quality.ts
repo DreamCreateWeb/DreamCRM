@@ -20,16 +20,23 @@
  *                                                 line check on)
  *     NPI active                             15
  *     website alive, or honestly none        10
- *     Google reviews — recency-aware (P-04):
- *       latest review ≤ 6 months             10
- *       latest review ≤ 18 months             6
- *       older, or none                        0
- *       (no dates returned: 5+ reviews = 10, the P-01 rule)
+ *     Google reviews — recency-aware (P-04), and the SAMPLE IS A LOWER
+ *     BOUND (fix pass): Places returns at most five reviews by RELEVANCE,
+ *     so the newest of them is at least as old as the true latest —
+ *     "recent" is trustworthy, "stale" is not:
+ *       latest sampled review ≤ 6 months     10
+ *       latest sampled review ≤ 18 months    max(6, the count rule)
+ *       older                                the count rule (never a cost)
+ *       none (the listing counts 0)           0
+ *       (the P-01 count rule: 5+ reviews = 10; it is what applies when
+ *        Google returned no dates)
  *     a human reached them on a call          5
  *
- *   no sign of life (P-04): no review in 18 months AND no opening hours on
- *   the listing → "Google shows no sign of life since <date>", band at most
- *   WEAK whatever the sum.
+ *   no sign of life (P-04, narrowed in the fix pass): the listing counts
+ *   ZERO reviews (null is unknown, not "no life") AND states no opening
+ *   hours AND the practice is not NEW in the registry → "Google shows no
+ *   sign of life — no reviews and no hours on the listing", band at most
+ *   WEAK whatever the sum. A stale sample never drives the ceiling.
  *
  * Bands: best ≥ 80 · good ≥ 60 · weak ≥ 40 · parked otherwise. The
  * OPPORTUNITY score (how much they need us) is a different number and is
@@ -96,6 +103,9 @@ export const NO_LIFE_CEILING = 59
 
 /** The sentence the single-source rule puts on the card when the line check is off. */
 export const SINGLE_SOURCE_TURN_ON = 'Only one source lists this number — turn on the line check to confirm it'
+/** The card's sentence when the carrier is the ONLY voice: in service, but
+ *  nobody has said it is this practice's number (fix pass, G.1). */
+export const CARRIER_ONLY_LINE = 'The line is in service — no source yet says it is this practice\'s number'
 
 export function qualityBandForScore(score: number): ProspectQualityBand {
   if (score >= 80) return 'best'
@@ -220,24 +230,34 @@ export function computeQualityScore(input: QualityInput): QualityResult {
   }
 
   // Reviews — recency-aware when the listing gave us dates (P-04), the
-  // P-01 count rule when it did not. A listing with no review in 18 months
-  // and no opening hours shows no sign of life: band at most weak.
+  // P-01 count rule when it did not. The sample is a LOWER BOUND (Google's
+  // five most relevant, never the newest): a current sample is proof of
+  // life, a quiet or stale one never costs what the count rule would give.
+  // No sign of life = the listing counts ZERO reviews and states no hours —
+  // unless the practice is new in the registry (no reviews yet is expected).
   let noLife: string | null = null
   const rv = v.reviews
+  const countRule = input.reviewCount != null && input.reviewCount >= 5 ? QUALITY_WEIGHTS.reviews : 0
+  const newPractice = v.fit?.newPractice?.status === 'new'
   if (v.places?.status === 'matched' && rv && rv.status !== 'unknown') {
     const when = formatMonthYear(rv.latestAt)
     if (rv.status === 'recent') {
       score += QUALITY_WEIGHTS.reviews
       reasons.push(`Google reviews are current — latest ${when ?? 'recently'}`)
     } else if (rv.status === 'quiet') {
-      score += QUALITY_WEIGHTS.reviewsQuiet
-      reasons.push(`Last Google review ${when ?? 'over 6 months ago'}`)
+      score += Math.max(QUALITY_WEIGHTS.reviewsQuiet, countRule)
+      reasons.push(`Google's top reviews run to ${when ?? 'over 6 months ago'}`)
     } else if (rv.status === 'stale') {
-      if (rv.hours === false) noLife = `Google shows no sign of life since ${when ?? 'the last review'}`
-      else reasons.push(`No Google review since ${when ?? 'over 18 months ago'}`)
+      score += countRule
+      reasons.push(`Google's top reviews are all older than ${when ?? '18 months'}`)
     } else if (rv.status === 'none') {
-      if (rv.hours === false) noLife = 'Google shows no sign of life — no reviews and no hours on the listing'
-      else reasons.push('No Google reviews')
+      if (rv.hours === false && input.reviewCount === 0 && !newPractice) {
+        noLife = 'Google shows no sign of life — no reviews and no hours on the listing'
+      } else if (newPractice) {
+        reasons.push('No Google reviews yet — expected for a practice this new')
+      } else {
+        reasons.push('No Google reviews')
+      }
     }
   } else if (input.reviewCount != null && v.places?.status === 'matched') {
     if (input.reviewCount >= 5) {

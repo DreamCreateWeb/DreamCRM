@@ -46,7 +46,7 @@ const mocks = vi.hoisted(() => ({
   dedupe: vi.fn(async () => ({ groups: 0, merged: 0, skipped: 0, errors: 0 })),
   refresh: vi.fn(async () => null as null | Record<string, unknown>),
   // P-04: the chain sweep and the freshness pull ride the same pass.
-  chains: vi.fn(async () => ({ groups: 0, flagged: 0, noted: 0, errors: 0 })),
+  chains: vi.fn(async () => ({ groups: 0, flagged: 0, noted: 0, restored: 0, errors: 0 })),
   pull: vi.fn(async () => [] as Array<Record<string, unknown>>),
   strike: vi.fn(async () => true),
 }))
@@ -219,11 +219,11 @@ describe('runProspectHygiene — the one pass', () => {
     expect(mocks.dedupe).not.toHaveBeenCalled()
   })
 
-  it('runs chains → merges → decay → the freshness pull → refresh in that order, under the caps, and bumps each day counter', async () => {
+  it('runs merges → chains → decay → the freshness pull → refresh in that order (dedupe FIRST — E.1), under the caps, and bumps each day counter (the restored chains too)', async () => {
     const order: string[] = []
     mocks.chains.mockImplementation(async () => {
       order.push('chains')
-      return { groups: 1, flagged: 2, noted: 1, errors: 0 }
+      return { groups: 1, flagged: 2, noted: 1, restored: 1, errors: 0 }
     })
     mocks.dedupe.mockImplementation(async () => {
       order.push('dedupe')
@@ -246,19 +246,22 @@ describe('runProspectHygiene — the one pass', () => {
       rested: 1,
       refreshed: { state: 'GA', zipPrefix: '303', found: 180, imported: 2 },
       chainsFlagged: 2,
+      chainsRestored: 1,
       pulledForward: 1,
       errors: 0,
     })
-    // The pull runs BEFORE the refresh, so the same tick can re-sweep the territory it pulled.
-    expect(order).toEqual(['chains', 'dedupe', 'pull', 'refresh'])
+    // Dedupe folds a duplicate spelling BEFORE the chain rule counts addresses;
+    // the pull runs BEFORE the refresh, so the same tick can re-sweep the territory it pulled.
+    expect(order).toEqual(['dedupe', 'chains', 'pull', 'refresh'])
     expect(prospectUpdates()[0].values.status).toBe('dormant') // decay ran between them
     expect(mocks.chains).toHaveBeenCalledWith({ now: NOW })
     expect(mocks.pull).toHaveBeenCalledWith({ now: NOW, config: LIVE })
     expect(mocks.dedupe).toHaveBeenCalledWith({ now: NOW, cap: MERGES_PER_RUN, config: LIVE }) // the config rides along: a verdict that travels rescores with its clock
     expect(MERGES_PER_RUN).toBe(25)
     expect(mocks.bump.mock.calls).toEqual([
-      ['2026-11-10', 'chain_flag', 2],
       ['2026-11-10', 'dedupe_merge', 3],
+      ['2026-11-10', 'chain_flag', 2],
+      ['2026-11-10', 'chain_restore', 1],
       ['2026-11-10', 'decay', 1],
       ['2026-11-10', 'refresh_pull', 1],
       ['2026-11-10', 'discovery_refresh'],
@@ -273,7 +276,7 @@ describe('runProspectHygiene — the one pass', () => {
     mocks.pull.mockRejectedValue(new Error('pull boom'))
     mocks.refresh.mockRejectedValue(new Error('NPPES 503'))
     const r = await runProspectHygiene({ now: NOW })
-    expect(r).toMatchObject({ merged: 0, rested: 0, refreshed: null, chainsFlagged: 0, pulledForward: 0, errors: 4 })
+    expect(r).toMatchObject({ merged: 0, rested: 0, refreshed: null, chainsFlagged: 0, chainsRestored: 0, pulledForward: 0, errors: 4 })
     expect(mocks.strike).toHaveBeenCalledTimes(1)
     expect(mocks.strike).toHaveBeenCalledWith('hygiene', NOW)
     quiet.mockRestore()
@@ -290,8 +293,8 @@ describe('runProspectHygiene — the one pass', () => {
 })
 
 describe('getHygieneStats', () => {
-  it('merged today from the day counter, resting from the table, the last refresh UTC-stamped upstream — and (P-04) the chains set aside, the territory the callers pulled forward', async () => {
-    mocks.counter.mockResolvedValue(3)
+  it('merged today from the day counter, resting from the table, the last refresh UTC-stamped upstream — and (P-04) the chains set aside, the chains restored today, the territory the callers pulled forward', async () => {
+    mocks.counter.mockResolvedValueOnce(3).mockResolvedValueOnce(2)
     state.selectQueue.push(
       [{ n: 41 }],
       [{ state: 'TX', zipPrefix: '787', at: new Date('2026-11-10T06:00:00Z') }],
@@ -303,15 +306,17 @@ describe('getHygieneStats', () => {
       resting: 41,
       lastRefresh: { state: 'TX', zipPrefix: '787', at: new Date('2026-11-10T06:00:00Z') },
       chainsRemoved: 7,
+      chainsRestoredToday: 2,
       // A zip5 child task's pull reads as its zip3 territory.
       earlyRefresh: { state: 'TX', zipPrefix: '787', reason: '3 closed practices this month', at: new Date('2026-11-10T07:00:00Z') },
     })
     expect(mocks.counter).toHaveBeenCalledWith('2026-11-10', 'dedupe_merge')
+    expect(mocks.counter).toHaveBeenCalledWith('2026-11-10', 'chain_restore')
   })
   it('is honest with nothing pulled and no chains', async () => {
     mocks.counter.mockResolvedValue(0)
     state.selectQueue.push([{ n: 0 }], [], [{ n: 0 }], [])
-    expect(await getHygieneStats(NOW)).toMatchObject({ chainsRemoved: 0, earlyRefresh: null })
+    expect(await getHygieneStats(NOW)).toMatchObject({ chainsRemoved: 0, chainsRestoredToday: 0, earlyRefresh: null })
   })
 })
 

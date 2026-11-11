@@ -90,10 +90,12 @@ export const PHONE_SOURCE_NAME_LABELS: Record<PhoneSourceName, string> = {
   caller: 'a call',
   carrier: 'carrier database',
 }
-/** `corroborated` = the registry and the listing agree (ten digits), or the
- *  carrier says in-service and at least one source states it;
- *  `single_source` = one source, not carrier-checked. No first-dial bucket
- *  (owner ruling 2026-11-11). */
+/** `corroborated` = two non-carrier voices (the registry, the listing, a
+ *  human) state the number, or the carrier says in-service AND at least one
+ *  of them states it, or a human reached the practice on it;
+ *  `single_source` = anything less — the carrier alone says only that the
+ *  line is in service, never whose it is. No first-dial bucket (owner
+ *  ruling 2026-11-11). */
 export type PhoneStanding = 'corroborated' | 'single_source'
 
 /** Plain labels for every call outcome (the call card, Call Mode, the log). */
@@ -259,17 +261,42 @@ export interface ReviewsVerificationSignal extends VerificationSignal {
 export type OfficialTitleKind = 'clinician' | 'executive' | 'unknown'
 export type PracticeSize = 'solo' | 'small' | 'group' | 'unknown'
 
+/** The system follow-up a chain flag cleared, remembered so "Not a chain"
+ *  (or the sweep's own un-flag) can put it back. */
+export interface PriorFollowUp {
+  at: string
+  reason: string
+}
+
 /** Fit (P-04) — stored under `verification.fit.*`, each a signal with its
  *  source and UTC stamp like every other, plus the facts the rule read. */
 export interface ProspectFitSignals {
   /** A DSO / chain name on the practice, the NPI org or the listing
-   *  (status `match` | `none`). */
-  dso?: VerificationSignal & { name?: string | null; matchedOn?: 'practice' | 'npi' | 'listing' | null; priorStatus?: string | null }
+   *  (status `match` | `none`); `priorStatus` / `priorFollowUp` remember
+   *  where the row was when the flag landed. */
+  dso?: VerificationSignal & {
+    name?: string | null
+    matchedOn?: 'practice' | 'npi' | 'listing' | null
+    priorStatus?: string | null
+    priorFollowUp?: PriorFollowUp | null
+  }
   /** Our own data: a website host or a phone shared across ≥3 prospects at
-   *  different addresses (status `shared_host` | `shared_phone` | `none`). */
-  chain?: VerificationSignal & { kind?: 'shared_host' | 'shared_phone' | null; count?: number | null; key?: string | null; priorStatus?: string | null }
-  /** NPI-1 dentists at the org's address (status = PracticeSize). */
-  size?: VerificationSignal & { dentists?: number | null; official?: OfficialTitleKind | null }
+   *  different addresses (status `shared_host` | `shared_phone` | `none`,
+   *  or `cleared` once the sweep found the group under the threshold and
+   *  restored the row — `clearedAt` says when). */
+  chain?: VerificationSignal & {
+    kind?: 'shared_host' | 'shared_phone' | null
+    count?: number | null
+    key?: string | null
+    priorStatus?: string | null
+    priorFollowUp?: PriorFollowUp | null
+    clearedAt?: string | null
+  }
+  /** NPI-1 dentists at the org's address (status = PracticeSize). `retry`
+   *  marks an answer the registry could not give (an outage, a full ZIP
+   *  page that may hide the group) — the next pass asks again, whatever
+   *  the recheck clock says. */
+  size?: VerificationSignal & { dentists?: number | null; official?: OfficialTitleKind | null; retry?: boolean | null }
   /** NPPES enumeration inside NEW_PRACTICE_MONTHS (status `new` | `established` | `unknown`). */
   newPractice?: VerificationSignal & { enumeratedAt?: string | null }
   /** The owner said "Not a chain" — never re-flagged. */
@@ -289,6 +316,12 @@ export type ProspectVerification = Partial<Record<VerificationSignalId, Verifica
   phone?: PhoneVerificationSignal
   reviews?: ReviewsVerificationSignal
   fit?: ProspectFitSignals
+}
+
+function parsePriorFollowUp(v: unknown): PriorFollowUp | null {
+  if (!v || typeof v !== 'object') return null
+  const r = v as Record<string, unknown>
+  return typeof r.at === 'string' && typeof r.reason === 'string' ? { at: r.at, reason: r.reason } : null
 }
 
 function parseSignal(v: unknown): (VerificationSignal & Record<string, unknown>) | null {
@@ -336,6 +369,7 @@ export function parseVerification(raw: unknown): ProspectVerification {
       const sig = parseSignal((fitRaw as Record<string, unknown>)[id])
       if (!sig) continue
       const base: VerificationSignal = { status: sig.status, detail: sig.detail, checkedAt: sig.checkedAt, source: sig.source }
+      const priorFollowUp = parsePriorFollowUp(sig.priorFollowUp)
       switch (id) {
         case 'dso':
           fit.dso = {
@@ -343,6 +377,7 @@ export function parseVerification(raw: unknown): ProspectVerification {
             name: typeof sig.name === 'string' ? sig.name : null,
             matchedOn: sig.matchedOn === 'practice' || sig.matchedOn === 'npi' || sig.matchedOn === 'listing' ? sig.matchedOn : null,
             priorStatus: typeof sig.priorStatus === 'string' ? sig.priorStatus : null,
+            ...(priorFollowUp ? { priorFollowUp } : {}),
           }
           break
         case 'chain':
@@ -352,6 +387,8 @@ export function parseVerification(raw: unknown): ProspectVerification {
             count: typeof sig.count === 'number' ? sig.count : null,
             key: typeof sig.key === 'string' ? sig.key : null,
             priorStatus: typeof sig.priorStatus === 'string' ? sig.priorStatus : null,
+            ...(priorFollowUp ? { priorFollowUp } : {}),
+            ...(typeof sig.clearedAt === 'string' ? { clearedAt: sig.clearedAt } : {}),
           }
           break
         case 'size':
@@ -359,6 +396,7 @@ export function parseVerification(raw: unknown): ProspectVerification {
             ...base,
             dentists: typeof sig.dentists === 'number' ? sig.dentists : null,
             official: sig.official === 'clinician' || sig.official === 'executive' || sig.official === 'unknown' ? sig.official : null,
+            ...(sig.retry === true ? { retry: true } : {}),
           }
           break
         case 'newPractice':
@@ -426,10 +464,11 @@ export interface ProspectCrawlSignals {
    *  pbhs · officite · tntdental · wordpress) or null = custom / unknown. */
   builder: string | null
   /** The competitor stack (P-04): booking widgets and review engines
-   *  fingerprinted by script / host / iframe on the site (STACK names).
-   *  Optional — older crawls lack it; absent means "not looked", [] means
-   *  "looked, none" (a phone number is their only door). */
-  stack?: string[]
+   *  fingerprinted by their HOSTS on the site (STACK names). Optional —
+   *  older crawls lack it; absent or null means "not read" (an older crawl,
+   *  a robots.txt refusal), [] means "read, none" (a phone number is their
+   *  only door). Only [] ever earns the no-stack credit. */
+  stack?: string[] | null
   pageWeightKb: number
   emails: string[] // mailto/contact-page discoveries (never guessed)
   fetchedAt: string // ISO
@@ -869,6 +908,9 @@ export interface ProspectHygieneStats {
   lastRefresh: { state: string; zipPrefix: string; at: Date } | null
   /** Rows set aside as a chain / DSO (status disqualified, reason chain). */
   chainsRemoved: number
+  /** Rows the sweep RESTORED today — a flagged group that fell under the
+   *  threshold (a duplicate merged, a phone corrected) goes back on its own. */
+  chainsRestoredToday: number
   /** The territory whose refresh was pulled forward and has not run yet:
    *  "Refreshing TX 787 early — 3 closed practices this month". */
   earlyRefresh: { state: string; zipPrefix: string; reason: string; at: Date } | null

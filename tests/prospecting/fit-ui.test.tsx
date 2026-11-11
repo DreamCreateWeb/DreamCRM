@@ -56,7 +56,8 @@ import HuntPanel from '@/app/(default)/platform/prospecting/hunt-panel'
 import { VerificationCard, phoneSourcesLine } from '@/app/(default)/platform/prospecting/verification-card'
 import { QualityFloor } from '@/app/(default)/platform/prospecting/settings/settings-panel'
 import { PROSPECTING_DEFAULTS, type ProspectCrawlSignals } from '@/lib/types/prospecting'
-import { TONE_PILL } from '@/lib/ui/encodings'
+import { CARRIER_ONLY_LINE } from '@/lib/prospect-quality'
+import { TONE_PILL, TONE_TEXT } from '@/lib/ui/encodings'
 import type { ProspectDetail, HuntStats } from '@/lib/services/prospecting'
 
 afterEach(() => {
@@ -149,6 +150,25 @@ describe('FitCard', () => {
     expect(screen.queryByRole('button', { name: 'Not a chain' })).toBeNull()
   })
 
+  it('a row that merely CARRIES the signal (a customer, a row that said no) reads "noted — kept where it is" with no button; only a row set aside offers "Not a chain" (E.6)', () => {
+    const noted = { fit: { chain: { status: 'shared_phone', detail: "Shares its phone number with 2 other practices at different addresses — a chain; we'll target chains later", checkedAt: AT, source: 'our_data', kind: 'shared_phone', count: 3 } } }
+    const { container } = render(<FitCard verification={noted} signals={null} prospectId="p" prospectName="Smile" status="not_interested" suppressedReason={null} />)
+    expect(screen.getByText('Chain signal noted — kept where it is')).toBeTruthy()
+    expect(screen.queryByText('Chain — set aside')).toBeNull()
+    expect(container.querySelector('[data-fit-reason]')?.textContent).toMatch(/Shares its phone number/)
+    expect(container.querySelector('[data-not-a-chain]')).toBeNull()
+    cleanup()
+    const r2 = render(<FitCard verification={noted} signals={null} prospectId="p" prospectName="Smile" status="disqualified" suppressedReason="chain" />)
+    expect(screen.getByText('Chain — set aside')).toBeTruthy()
+    expect(r2.container.querySelector('[data-not-a-chain]')).toBeTruthy()
+    cleanup()
+    // A signal the sweep CLEARED is not a chain at all.
+    const cleared = { fit: { chain: { ...noted.fit.chain, status: 'cleared', clearedAt: AT } } }
+    const r3 = render(<FitCard verification={cleared} signals={null} prospectId="p" prospectName="Smile" status="contacted" suppressedReason={null} />)
+    expect(screen.queryByText('Chain signal noted — kept where it is')).toBeNull()
+    expect(r3.container.querySelector('[data-fit-signal="chain"]')?.textContent).toContain('Cleared')
+  })
+
   it('no stack is the opportunity; an older crawl is honest; nothing read is honest (no "coming soon")', () => {
     const { container } = render(
       <FitCard verification={{ fit: { dso: { status: 'none', detail: 'Not on the DSO / chain list', checkedAt: AT, source: 'dso_list' } } }} signals={{ ...SIGNALS, stack: [], builder: null }} prospectId="p" prospectName="Smile" status="enriched" suppressedReason={null} />,
@@ -221,19 +241,24 @@ describe('the hunt panel', () => {
         config={config}
         env={env}
         quality={quality}
-        hygiene={{ mergedToday: 0, resting: 0, lastRefresh: null, chainsRemoved: 7, earlyRefresh: { state: 'TX', zipPrefix: '787', reason: '3 closed practices this month', at: new Date('2026-11-10T06:05:00Z') } }}
+        hygiene={{ mergedToday: 0, resting: 0, lastRefresh: null, chainsRemoved: 7, chainsRestoredToday: 2, earlyRefresh: { state: 'TX', zipPrefix: '787', reason: '2 closed, 1 disconnected this month', at: new Date('2026-11-10T06:05:00Z') } }}
       />,
     )
     expect(screen.getByText('Chains removed')).toBeTruthy()
     expect(screen.getByText('7')).toBeTruthy()
+    expect(container.textContent).toContain('2 restored today')
     const line = container.querySelector('[data-early-refresh]')!
-    expect(line.textContent).toContain('Refreshing TX 787 early — 3 closed practices this month')
+    expect(line.textContent).toContain('Refreshing TX 787 early — 2 closed, 1 disconnected this month')
     expect(line.textContent).toContain('Nov 10, 2026 · 06:05 UTC')
+    // The warn ink is the registry's (J.2), never a local amber.
+    for (const cls of TONE_TEXT.warn.split(' ')) expect(line.className).toContain(cls)
+    expect(line.className).not.toContain('text-amber-700')
     expect(container.textContent).toContain('floor 70')
   })
-  it('no line without a pull', () => {
-    const { container } = render(<HuntPanel stats={stats} config={config} env={env} quality={quality} hygiene={{ mergedToday: 0, resting: 0, lastRefresh: null, chainsRemoved: 0, earlyRefresh: null }} />)
+  it('no line without a pull; no "restored" without a restore', () => {
+    const { container } = render(<HuntPanel stats={stats} config={config} env={env} quality={quality} hygiene={{ mergedToday: 0, resting: 0, lastRefresh: null, chainsRemoved: 0, chainsRestoredToday: 0, earlyRefresh: null }} />)
     expect(container.querySelector('[data-early-refresh]')).toBeNull()
+    expect(container.textContent).not.toContain('restored today')
   })
 })
 
@@ -244,6 +269,9 @@ describe('the Verification card’s phone line (the two-source rule)', () => {
     expect(phoneSourcesLine({ ...base, sources: ['places', 'carrier'], standing: 'corroborated', lineCheck: 'done' }, 'corroborated')).toBe('Stated by Google listing, carrier database — corroborated')
     expect(phoneSourcesLine({ ...base, sources: ['nppes'], standing: 'single_source', lineCheck: 'off' }, 'single_source')).toBe('Only one source lists this number — turn on the line check to confirm it (NPI registry)')
     expect(phoneSourcesLine({ ...base, sources: ['places'], standing: 'single_source', lineCheck: 'skipped' }, 'single_source')).toBe('Only one source lists this number (Google listing)')
+    // The carrier alone (G.1): in service, but nobody has said it is this practice's number.
+    expect(phoneSourcesLine({ ...base, sources: ['carrier'], standing: 'single_source', lineCheck: 'done' }, 'single_source')).toBe(CARRIER_ONLY_LINE)
+    expect(CARRIER_ONLY_LINE).toBe("The line is in service — no source yet says it is this practice's number")
     expect(phoneSourcesLine(base, 'places')).toBe('Number from Google listing')
     expect(phoneSourcesLine(undefined, null)).toBeNull()
   })
@@ -287,13 +315,15 @@ describe('the sources', () => {
     expect(svc).toContain("ne(schema.prospect.suppressedReason, 'chain')")
   })
   it('no raw <button>, no hand-rolled pill, every tone from the registry, every await through runAction', () => {
-    for (const f of ['app/(default)/platform/prospecting/fit-card.tsx', 'app/(default)/platform/prospecting/not-a-chain-button.tsx']) {
+    for (const f of ['app/(default)/platform/prospecting/fit-card.tsx', 'app/(default)/platform/prospecting/not-a-chain-button.tsx', 'app/(default)/platform/prospecting/hunt-panel.tsx']) {
       const src = read(f)
       expect(src, f).not.toMatch(/<button/)
       expect(src, f).not.toMatch(/rounded-full[^"']*(bg-(rose|amber|emerald|teal|violet)-)/)
       for (const m of Array.from(src.matchAll(/tone="([a-z]+)"/g))) expect(Object.keys(TONE_PILL), `${f}: tone ${m[1]}`).toContain(m[1])
       expect(src).not.toMatch(/coming soon/i)
     }
+    // The early-refresh line's ink comes from the registry (J.2).
+    expect(read('app/(default)/platform/prospecting/hunt-panel.tsx')).not.toMatch(/text-amber-700/)
     const button = read('app/(default)/platform/prospecting/not-a-chain-button.tsx')
     expect(button).toContain('runAction(() => clearChainFlagAction(prospectId))')
     expect(button.indexOf('await confirm(')).toBeLessThan(button.indexOf('startTransition('))

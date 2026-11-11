@@ -207,8 +207,11 @@ describe('parseNpiLookup (P-01 — NPI liveness)', () => {
       enumerationType: null,
       enumerationDate: null,
       organizationName: 'SMILE DENTAL PC',
-      location: { addressLine1: '123 Main St', city: 'Atlanta', state: 'GA', postalCode: '30309', phone: '4045551212' },
+      // The suite line rides along for the practice-size count (P-04 fix pass).
+      location: { addressLine1: '123 Main St', addressLine2: null, city: 'Atlanta', state: 'GA', postalCode: '30309', phone: '4045551212' },
     })
+    const suite = parseNpiLookup({ results: [{ ...RAW, addresses: RAW.addresses.map((a) => (a.address_purpose === 'LOCATION' ? { ...a, address_2: 'STE 210' } : a)) }] })
+    expect(suite.location?.addressLine2).toBe('STE 210')
   })
   it('carries the entity type and the enumeration date for the fit read (P-04)', () => {
     const r = parseNpiLookup({ results: [{ ...RAW, enumeration_type: 'NPI-2', basic: { ...RAW.basic, enumeration_date: '2025-06-15' } }] })

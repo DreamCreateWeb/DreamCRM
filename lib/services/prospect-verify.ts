@@ -5,12 +5,15 @@ import { lookupNpi, searchDentistsAtAddress, type NpiLookupResult } from '@/lib/
 import { findDentalPlaceCandidates, placesConfigured, type PlaceResult, type PlacesSearchOutcome } from '@/lib/google-places'
 import { pickMatchingPlace, type PlaceMatch } from '@/lib/prospect-match'
 import { NANP_FAILURE_LABELS, nanpDigits, validateNanp } from '@/lib/phone-nanp'
+import { SYSTEM_FOLLOWUP_REASONS } from '@/lib/prospect-followup'
 import { computeQualityScore, qualityInput } from '@/lib/prospect-quality'
 import {
+  GROUP_PRACTICE_DENTISTS,
   SIZE_RECHECK_DAYS,
   chainSentence,
   fitVerdict,
   formatMonthYear,
+  isDomainClassDso,
   isNewPractice,
   matchDso,
   monthsBetween,
@@ -19,7 +22,9 @@ import {
   practiceSize,
   practiceSizeSentence,
   signalOlderThan,
+  websiteHost,
 } from '@/lib/prospect-fit'
+import { rescoreOpportunity } from '@/lib/prospect-scoring'
 import {
   PARKED_RECHECK_DAYS,
   VERIFY_STALE_DAYS,
@@ -75,11 +80,15 @@ import {
  *             and whether the listing states hours — rides the same call
  *   reach     written only by logCallOutcome — a human got through
  *   fit.*     (P-04) a DSO / chain name on any of the three names we hold
+ *             (a common-phrase brand only with the website host agreeing)
  *             → disqualified `chain`; the practice size from the registry
- *             (NPI-1 dentists at the address, ≤50 requests a run); a NEW
- *             practice (enumerated < 18 months); the owner's "Not a chain"
- *             override, never re-flagged. The shared-host / shared-phone
- *             chain sweep is group work and lives in prospect-fit.ts.
+ *             (NPI-1 dentists at the address, ≤50 requests a run; an
+ *             answer the registry could not give is asked again next
+ *             pass); a NEW practice (enumerated < 18 months); the owner's
+ *             "Not a chain" override, never re-flagged. The shared-host /
+ *             shared-phone chain sweep is group work and lives in
+ *             prospect-fit.ts. A changed size / new-practice read rescores
+ *             the opportunity the row already carries.
  *
  * Every signal is stored with its source and checked-at, the quality score
  * is computed from the stored signals (lib/prospect-quality.ts), and the
@@ -129,8 +138,9 @@ export type VerifiableProspect = Pick<
 > &
   /** The stored listing facts — what the score reads when no fresh lookup
    *  ran — and where the website came from (a listing's goes with the listing).
-   *  The official's title corroborates the fit read (P-04). */
-  Partial<Pick<ProspectRow, 'businessStatus' | 'reviewCount' | 'websiteSource' | 'authorizedOfficialTitle'>>
+   *  The official's title corroborates the fit read (P-04); the follow-up
+   *  columns let a chain flag remember the system nudge it clears. */
+  Partial<Pick<ProspectRow, 'businessStatus' | 'reviewCount' | 'websiteSource' | 'authorizedOfficialTitle' | 'nextFollowUpAt' | 'followUpReason'>>
 
 /** Per-run context — budgets, the once-a-run failure strikes, the
  *  crawl-blocked tally. One per cron run; the drawer action makes its own. */
@@ -330,14 +340,16 @@ function sig(status: string, detail: string | null, source: string, now: Date): 
 /**
  * THE TWO-SOURCE PREDICATE (P-04), pure: `corroborated` when two of the
  * registry / the listing / a human state the number, or the carrier says
- * in service and at least one source states it (the row itself counts as
- * that source), or a human REACHED the practice on it (`caller` stated and
- * the status is valid); `single_source` otherwise.
+ * in service AND at least one of them states it, or a human REACHED the
+ * practice on it (`caller` stated and the status is valid);
+ * `single_source` otherwise. The carrier ALONE is never corroboration
+ * (fix pass, G.1): "in service" says the line rings, not whose it is — the
+ * owner's ruling needs ACTIVE and THIS CLINIC'S.
  */
 export function phoneStanding(stated: readonly PhoneSourceName[], phoneStatus: string | null): PhoneStanding {
   const voices = stated.filter((s) => s !== 'carrier')
   if (voices.length >= 2) return 'corroborated'
-  if (stated.includes('carrier')) return 'corroborated'
+  if (stated.includes('carrier') && voices.length >= 1) return 'corroborated'
   if (stated.includes('caller') && phoneStatus === 'valid') return 'corroborated'
   return 'single_source'
 }
@@ -376,9 +388,13 @@ export async function verifyProspectSignals(
   // prior signal's sources, or the legacy column on a row the P-04 pass has
   // not seen. A number a human typed or reached is `caller`-provided — no
   // registry or listing replaces it.
+  // A hand-added row from before the fix pass carries its typed number with
+  // NO source column and no NPI — the P-01 guard: that number is the
+  // caller's too.
+  const typedBeforeTheStamp = Boolean(p.phone) && !p.phoneSource && !p.npiNumber && !prior.phone?.sources
   const legacyStated: PhoneSourceName[] =
     prior.phone?.sources ??
-    (p.phoneSource === 'nppes' || p.phoneSource === 'places' || p.phoneSource === 'caller' ? [p.phoneSource] : [])
+    (p.phoneSource === 'nppes' || p.phoneSource === 'places' || p.phoneSource === 'caller' ? [p.phoneSource] : typedBeforeTheStamp ? ['caller'] : [])
   const callerProvided = p.phoneSource === 'caller' || legacyStated.includes('caller')
 
   const patch: VerifyPatch = {
@@ -470,17 +486,28 @@ export async function verifyProspectSignals(
     }
     if (npi.enumerationType === 'NPI-1') {
       fit.size = { ...sig('solo', 'A solo dentist — an individual NPI', 'nppes', now), dentists: 1, official }
-    } else if (ctx.fitNppesLeft > 0 && (!fit.size || signalOlderThan(fit.size.checkedAt, now, SIZE_RECHECK_DAYS))) {
+    } else if (ctx.fitNppesLeft > 0 && (!fit.size || fit.size.retry || signalOlderThan(fit.size.checkedAt, now, SIZE_RECHECK_DAYS))) {
+      // The 180-day clock gates only a COMPLETED, uncapped count; an answer
+      // the registry could not give (`retry`) is asked again next pass.
       ctx.fitNppesLeft--
       try {
-        const r = await searchDentistsAtAddress({ addressLine1, state, postalCode })
+        const r = await searchDentistsAtAddress({ addressLine1, addressLine2: npi.location?.addressLine2 ?? null, state, postalCode })
         if (r) {
-          const size = practiceSize(r.dentists)
-          fit.size = { ...sig(size, practiceSizeSentence(size, r.dentists, official), 'nppes', now), dentists: r.dentists, official }
+          if (r.capped && r.dentists < GROUP_PRACTICE_DENTISTS) {
+            // A full ZIP page may hide the rest of the group: never "solo"
+            // or "small" from a page that was cut.
+            fit.size = { ...sig('unknown', 'Registry size check incomplete — the ZIP page was full; will check again', 'nppes', now), dentists: null, official, retry: true }
+          } else {
+            const size = practiceSize(r.dentists)
+            fit.size = { ...sig(size, practiceSizeSentence(size, r.dentists, official), 'nppes', now), dentists: r.dentists, official }
+          }
         }
       } catch (err) {
         console.warn('[prospect-verify] NPPES size search failed', p.id, err instanceof Error ? err.message : err)
-        if (!fit.size) fit.size = { ...sig('unknown', 'Registry size check unavailable — will check again', 'nppes', now), dentists: null, official }
+        // A completed count stands; an unknown stays an unknown that retries.
+        if (!fit.size || fit.size.retry) {
+          fit.size = { ...sig('unknown', 'Registry size check unavailable — will check again', 'nppes', now), dentists: null, official, retry: true }
+        }
         await strike(ctx, 'nppes_down')
       }
     }
@@ -561,6 +588,10 @@ export async function verifyProspectSignals(
   // The latest review's date and whether the listing states hours ride the
   // same Places call. A cleared listing takes its reviews with it; no lookup
   // keeps the prior signal.
+  // Places returns at most five reviews by RELEVANCE, never the newest: the
+  // sample's latest is a LOWER BOUND on the true latest, so "recent" is
+  // proof of life and "stale" is only "Google's top reviews are old". A
+  // listing that counts ZERO reviews is "none"; a null count is unknown.
   if (place) {
     const latest = place.latestReviewAt
     const hours = place.hasOpeningHours
@@ -569,14 +600,20 @@ export async function verifyProspectSignals(
     let detail: string
     if (latest) {
       const months = monthsBetween(new Date(latest), now)
+      const when = formatMonthYear(latest) ?? latest
       status = months < REVIEWS_RECENT_MONTHS ? 'recent' : months < REVIEWS_STALE_MONTHS ? 'quiet' : 'stale'
-      detail = `Latest Google review ${formatMonthYear(latest) ?? latest}${noHours}`
-    } else if ((place.reviewCount ?? 0) === 0) {
+      detail =
+        status === 'recent'
+          ? `Latest Google review ${when}${noHours}`
+          : status === 'quiet'
+            ? `Google's top reviews run to ${when}${noHours}`
+            : `Google's top reviews are all older than ${when}${noHours}`
+    } else if (place.reviewCount === 0) {
       status = 'none'
       detail = `No Google reviews yet${noHours}`
     } else {
       status = 'unknown'
-      detail = `${place.reviewCount} Google reviews — Google returned no review dates${noHours}`
+      detail = `${place.reviewCount ?? 'Some'} Google reviews — Google returned no review dates${noHours}`
     }
     v.reviews = { ...sig(status, detail, 'places', now), latestAt: latest, hours }
   } else if (listing === 'kept' && prior.reviews) {
@@ -584,17 +621,45 @@ export async function verifyProspectSignals(
   }
 
   // ── The DSO / chain name (P-04) ───────────────────────────────────────────
-  // Three names, one list; the owner's "Not a chain" stands for good.
+  // Three names, one list; a common-phrase brand needs the website host
+  // (the row's, or the matched listing's) to agree; the owner's "Not a
+  // chain" stands for good. A pass that could NOT re-read the source the
+  // prior match came from (no registry lookup, no listing answer) keeps
+  // that match — nothing is downgraded from "unchecked" (fix pass, F.3).
   if (!fit.chainOverride) {
-    const hit = matchDso({ practice: p.name, npi: npi?.organizationName ?? null, listing: place?.displayName ?? null })
-    fit.dso = hit
-      ? {
-          ...sig('match', chainSentence({ dso: hit.name }), 'dso_list', now),
-          name: hit.name,
-          matchedOn: hit.matchedOn,
-          priorStatus: prior.fit?.dso?.priorStatus ?? (p.status === 'disqualified' ? null : p.status),
-        }
-      : { ...sig('none', 'Not on the DSO / chain list', 'dso_list', now), name: null, matchedOn: null, priorStatus: null }
+    const hosts = [websiteHost(p.websiteUrl), websiteHost(place?.websiteUri)]
+    const hit = matchDso({ practice: p.name, npi: npi?.organizationName ?? null, listing: place?.displayName ?? null, hosts })
+    const priorDso = prior.fit?.dso
+    const reread =
+      priorDso?.matchedOn === 'npi'
+        ? npiLookupRan
+        : priorDso?.matchedOn === 'listing'
+          ? placesAnswered
+          : priorDso?.matchedOn === 'practice'
+            ? !isDomainClassDso(priorDso.name) || placesAnswered
+            : true
+    if (hit) {
+      // A fresh match remembers where the row IS; a match on a row already
+      // set aside keeps what the prior match remembered.
+      const priorStatus = p.status === 'disqualified' ? (priorDso?.priorStatus ?? null) : p.status
+      const priorFollowUp =
+        p.status === 'disqualified'
+          ? (priorDso?.priorFollowUp ?? null)
+          : p.nextFollowUpAt && p.followUpReason && SYSTEM_FOLLOWUP_REASONS.includes(p.followUpReason)
+            ? { at: p.nextFollowUpAt.toISOString(), reason: p.followUpReason }
+            : null
+      fit.dso = {
+        ...sig('match', chainSentence({ dso: hit.name }), 'dso_list', now),
+        name: hit.name,
+        matchedOn: hit.matchedOn,
+        priorStatus,
+        ...(priorFollowUp ? { priorFollowUp } : {}),
+      }
+    } else if (priorDso?.status === 'match' && !reread) {
+      fit.dso = priorDso
+    } else {
+      fit.dso = { ...sig('none', 'Not on the DSO / chain list', 'dso_list', now), name: null, matchedOn: null, priorStatus: null }
+    }
   }
 
   // ── Website liveness ─────────────────────────────────────────────────────
@@ -850,6 +915,37 @@ async function writePatch(prospectId: string, patch: VerifyPatch, extra: Partial
 }
 
 /**
+ * The opportunity columns a verify pass rewrites when its fit read MOVED
+ * (the practice size, the new-practice read) on a row that already carries
+ * an opportunity score — the −10 the Fit card promises a group practice is
+ * real without a re-enrich (fix pass, H.3). Nothing for a row never
+ * enriched, a row the pass disqualified, or a read that did not change.
+ */
+export function opportunityRescore(
+  p: Pick<ProspectRow, 'verification' | 'opportunityScore' | 'aiVerdict' | 'enrichment' | 'reviewCount' | 'googleRatingTenths'>,
+  out: Pick<VerifyOutcome, 'patch'>,
+  listing: Partial<Pick<ProspectRow, 'reviewCount' | 'googleRatingTenths'>>,
+  now: Date,
+): Partial<Pick<ProspectRow, 'opportunityScore' | 'scoreBand' | 'scoreReasons' | 'scoredAt'>> {
+  if (p.opportunityScore == null || out.patch.status === 'disqualified') return {}
+  const before = parseVerification(p.verification).fit
+  const after = out.patch.verification.fit
+  const moved =
+    (before?.size?.status ?? null) !== (after?.size?.status ?? null) ||
+    (before?.newPractice?.status ?? null) !== (after?.newPractice?.status ?? null)
+  if (!moved) return {}
+  const rescored = rescoreOpportunity({
+    aiVerdict: p.aiVerdict,
+    reviewCount: 'reviewCount' in listing ? (listing.reviewCount ?? null) : (p.reviewCount ?? null),
+    ratingTenths: 'googleRatingTenths' in listing ? (listing.googleRatingTenths ?? null) : (p.googleRatingTenths ?? null),
+    enrichment: p.enrichment,
+    verification: out.patch.verification,
+  })
+  if (!rescored) return {}
+  return { opportunityScore: rescored.score, scoreBand: rescored.band, scoreReasons: rescored.reasons, scoredAt: now }
+}
+
+/**
  * Verify one prospect on its own — a Places lookup (metered, only with a
  * key), then every signal, then the write. The matched listing's reputation
  * + website are refreshed too (nothing of an unmatched candidate is ever
@@ -889,7 +985,8 @@ export async function verifyProspect(
 
   const priorQuality = p.qualityScore
   const out = await verifyProspectSignals(p, places, ctx)
-  await writePatch(p.id, out.patch, listingColumns(out))
+  const listing = listingColumns(out)
+  await writePatch(p.id, out.patch, { ...listing, ...opportunityRescore(p, out, listing, ctx.now) })
   // The hold on its outreach: gone stops the drip (as a logged "closed"
   // call does), a reversible park pauses it, a recovered signal resumes it.
   await applyOutreachHold(p.id, out.patch, ctx.now)
