@@ -51,6 +51,7 @@ vi.mock('@/lib/db', () => {
       prospectCallLog: table('prospect_call_log'),
       outreachEnrollment: table('outreach_enrollment'),
       prospectingConfig: table('prospecting_config'),
+      prospectingCounter: table('prospecting_counter'),
     },
   }
 })
@@ -63,7 +64,18 @@ vi.mock('drizzle-orm', () => {
   }
 })
 
+// The W3 path runs the REAL verify pass on either side of a caller's
+// verdict; its network edges are spies (no registry, no Places, no line
+// check — the test hands the listing in).
+vi.mock('@/lib/nppes', () => ({ lookupNpi: vi.fn(), searchDentistsAtAddress: vi.fn() }))
+vi.mock('@/lib/google-places', () => ({ findDentalPlaceCandidates: vi.fn(), placesConfigured: () => true }))
+vi.mock('@/lib/services/prospect-site-liveness', () => ({ checkSiteLiveness: vi.fn() }))
+vi.mock('@/lib/services/phone-validate', () => ({ phoneValidateDriver: () => 'none', validatePhoneLine: vi.fn() }))
+vi.mock('@/lib/services/engine-failures', () => ({ reportProspectingFailure: vi.fn(async () => true) }))
+
 import { logCallOutcome, updateProspectPhone } from '@/lib/services/prospecting'
+import { newVerifyRunCtx, verifyProspectSignals } from '@/lib/services/prospect-verify'
+import { PROSPECTING_DEFAULTS, parseVerification } from '@/lib/types/prospecting'
 import { SINGLE_SOURCE_TURN_ON } from '@/lib/prospect-quality'
 
 const VERIFIED_ROW = {
@@ -222,6 +234,120 @@ describe('logCallOutcome — a human got through', () => {
   })
 })
 
+describe('W3: "a typed number is never replaced" is durable through every write to verification.phone', () => {
+  const NOW = new Date('2026-11-10T12:00:00Z')
+  const TYPED = {
+    id: 'pros_1',
+    name: 'Smile Dental PC',
+    npiNumber: null,
+    addressLine1: '123 Main St',
+    city: 'Atlanta',
+    state: 'GA',
+    postalCode: '30309',
+    phone: '4045550000',
+    phoneSource: 'caller',
+    phoneStatus: null,
+    websiteUrl: null,
+    verification: null,
+    status: 'enriched',
+  }
+  const LISTING = {
+    placeId: 'place_1',
+    displayName: 'Smile Dental',
+    formattedAddress: '123 Main St, Atlanta, GA 30309, USA',
+    nationalPhoneNumber: '4045559999',
+    websiteUri: null,
+    ratingTenths: 47,
+    reviewCount: 22,
+    businessStatus: 'OPERATIONAL',
+    googleMapsUri: 'https://maps.google.com/x',
+    latestReviewAt: null,
+    hasOpeningHours: true,
+  }
+  const SENTENCE = 'Google lists (404) 555-9999 — kept the number you typed'
+
+  it('a wrong-number / disconnected verdict writes sources: union(prior, caller) exactly as a reach does — and carries the listing’s other number and its sentence', async () => {
+    state.selectQueue.push([LIVE_ROW], [
+      {
+        ...VERIFIED_ROW,
+        phone: '4045550000',
+        phoneStatus: 'unknown',
+        phoneLineType: null,
+        verification: {
+          ...VERIFIED_ROW.verification,
+          phone: { status: 'well_formed', detail: `Well-formed US number — the line check is off; ${SENTENCE}`, checkedAt: '2026-11-01T00:00:00.000Z', source: 'nanp', sources: ['caller'], standing: 'single_source', lineCheck: 'off', alt: { number: '4045559999', source: 'places', at: '2026-11-01T00:00:00.000Z' } },
+        },
+      },
+    ])
+    await logCallOutcome({ prospectId: 'pros_1', outcome: 'wrong_number' })
+    const w = prospectUpdates().at(-1)!.values
+    const v = w.verification as { phone: Record<string, unknown> }
+    expect(v.phone).toMatchObject({ status: 'wrong_number', source: 'caller', sources: ['caller'], alt: { number: '4045559999', source: 'places', at: '2026-11-01T00:00:00.000Z' } })
+    expect(v.phone.detail).toMatch(/^Wrong number on \w{3} \d{1,2}, \d{4} \(heard on a call\); Google lists \(404\) 555-9999 — kept the number you typed$/)
+    // A registry row's verdict unions the caller in beside the registry.
+    state.selectQueue.push([LIVE_ROW], [{ ...VERIFIED_ROW, verification: { ...VERIFIED_ROW.verification, phone: { ...VERIFIED_ROW.verification.phone, sources: ['nppes'], standing: 'single_source' } } }])
+    await logCallOutcome({ prospectId: 'pros_1', outcome: 'disconnected' })
+    const d = (prospectUpdates().at(-1)!.values.verification as { phone: Record<string, unknown> }).phone
+    expect(d).toMatchObject({ status: 'disconnected', source: 'caller', sources: ['nppes', 'caller'] })
+    expect(d).not.toHaveProperty('alt')
+    expect(d.detail).not.toMatch(/Google lists/)
+  })
+
+  it('the exact path: pass 0 (column → single_source) → wrong_number verdict → pass 1 with a differing listing → the typed number stays, the human’s wrong-number signal stands, alt + the sentence attached', async () => {
+    // Pass 0: the hand-added row's first verify — the listing lists another
+    // number; the typed one is kept, the column now reads the standing.
+    const ctx0 = await newVerifyRunCtx({ ...PROSPECTING_DEFAULTS, killSwitch: false }, NOW)
+    const pass0 = await verifyProspectSignals(TYPED as never, { ok: true, places: [LISTING] }, ctx0)
+    expect(pass0.patch.phone).toBe('4045550000')
+    expect(pass0.patch.phoneSource).toBe('single_source')
+    expect(pass0.patch.verification.phone).toMatchObject({ sources: ['caller'], standing: 'single_source', alt: { number: '4045559999' } })
+
+    // The verdict: a caller logs wrong_number on the row as pass 0 left it.
+    state.selectQueue = []
+    state.updates = []
+    state.selectQueue.push([LIVE_ROW], [
+      {
+        status: 'enriched',
+        verification: JSON.parse(JSON.stringify(pass0.patch.verification)),
+        verifiedAt: NOW,
+        phone: '4045550000',
+        phoneStatus: pass0.patch.phoneStatus,
+        phoneLineType: null,
+        businessStatus: 'OPERATIONAL',
+        reviewCount: 22,
+        websiteUrl: null,
+      },
+    ])
+    await logCallOutcome({ prospectId: 'pros_1', outcome: 'wrong_number' })
+    const written = prospectUpdates().at(-1)!.values
+    expect(written).toMatchObject({ phoneStatus: 'wrong_number' })
+    expect(written).not.toHaveProperty('phoneSource') // the column still reads single_source
+    const afterVerdict = parseVerification(written.verification)
+    expect(afterVerdict.phone).toMatchObject({ status: 'wrong_number', source: 'caller', sources: ['caller'], alt: { number: '4045559999' } })
+
+    // Pass 1: the column reads single_source, the listing still lists
+    // another number — before W3 the guard read `sources` off a verdict
+    // that had none, and the listing's number REPLACED the typed one.
+    const row1 = { ...TYPED, phoneSource: 'single_source', phoneStatus: 'wrong_number', verification: afterVerdict }
+    const pass1 = await verifyProspectSignals(row1 as never, { ok: true, places: [LISTING] }, await newVerifyRunCtx({ ...PROSPECTING_DEFAULTS, killSwitch: false }, NOW))
+    expect(pass1.patch.phone).toBe('4045550000')
+    expect(pass1.patch.phoneStatus).toBe('wrong_number')
+    expect(pass1.patch.verification.phone).toMatchObject({
+      status: 'wrong_number',
+      source: 'caller',
+      sources: ['caller'],
+      checkedAt: afterVerdict.phone!.checkedAt,
+      alt: { number: '4045559999', source: 'places', at: NOW.toISOString() },
+    })
+    expect(pass1.patch.verification.phone?.detail).toMatch(/^Wrong number on \w{3} \d{1,2}, \d{4} \(heard on a call\); Google lists \(404\) 555-9999 — kept the number you typed$/)
+    expect(pass1.patch.verification.phone?.detail).not.toMatch(/the registry had/)
+    // …and a pass 2 with no lookup keeps all of it.
+    const pass2 = await verifyProspectSignals({ ...row1, verification: pass1.patch.verification } as never, null, await newVerifyRunCtx({ ...PROSPECTING_DEFAULTS, killSwitch: false }, NOW))
+    expect(pass2.patch.phone).toBe('4045550000')
+    expect(pass2.patch.verification.phone).toEqual(pass1.patch.verification.phone)
+  })
+})
+
 describe('a human reaching them outranks a database "invalid" (C16)', () => {
   it('gatekeeper on a carrier-flagged invalid number re-validates it as valid (source: a call) and rescores', async () => {
     state.selectQueue.push([LIVE_ROW], [
@@ -340,13 +466,22 @@ describe('the parked clock is the config’s on every rescore (P-03 fix pass 2 �
 })
 
 describe('the right number, from the drawer (C11)', () => {
-  it('stores NANP ten digits with source caller, resets the standing, clears the old verdict, rescores', async () => {
-    state.selectQueue.push([{ ...VERIFIED_ROW, phoneStatus: 'disconnected' }])
+  it('stores NANP ten digits with source caller, resets the standing, clears the old verdict, rescores — and the OLD number’s listing alt goes with it', async () => {
+    state.selectQueue.push([
+      {
+        ...VERIFIED_ROW,
+        phoneStatus: 'disconnected',
+        verification: { ...VERIFIED_ROW.verification, phone: { ...VERIFIED_ROW.verification.phone, status: 'disconnected', source: 'caller', sources: ['caller'], alt: { number: '4045559999', source: 'places', at: '2026-11-01T00:00:00.000Z' } } },
+      },
+    ])
     const r = await updateProspectPhone('pros_1', '+1 (404) 555-9999')
     expect(r).toEqual({ ok: true, phone: '4045559999' })
     const w = prospectUpdates().at(-1)!.values
     expect(w).toMatchObject({ phone: '4045559999', phoneSource: 'caller', phoneStatus: 'unknown', phoneLineType: null, phoneValidatedAt: null })
-    expect((w.verification as { phone: { status: string; source: string } }).phone).toMatchObject({ status: 'well_formed', source: 'caller' })
+    expect((w.verification as { phone: { status: string; source: string } }).phone).toMatchObject({ status: 'well_formed', source: 'caller', sources: ['caller'] })
+    // The alt was a fact about the number that was replaced (W2): a fresh signal, no alt, no sentence.
+    expect((w.verification as { phone: Record<string, unknown> }).phone).not.toHaveProperty('alt')
+    expect((w.verification as { phone: { detail: string } }).phone.detail).not.toMatch(/Google lists/)
     // 35 + 12 (well-formed) + 15 + 10 + 10 — back from the hard zero.
     expect(w.qualityScore).toBe(82)
     expect(w.qualityBand).toBe('best')

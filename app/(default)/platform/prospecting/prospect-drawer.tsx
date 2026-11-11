@@ -23,9 +23,9 @@ import DuplicateCard from './duplicate-card'
 import DemoFollowupDrafter from './demo-followup-drafter'
 import ContactsPanel from './contacts-panel'
 import { VerificationCard } from './verification-card'
-import { FitCard } from './fit-card'
+import { FitCard, unreadStackTitle } from './fit-card'
 import PhoneEditor from './phone-editor'
-import { BUILDER_LABELS } from '@/lib/types/prospecting'
+import { BUILDER_LABELS, crawlWasRead } from '@/lib/types/prospecting'
 import { PhoneStandingPill, QualityPill, isBadPhone } from './quality-pills'
 import { formatProspectPhone } from '@/lib/types/prospecting'
 
@@ -283,7 +283,16 @@ export default function ProspectDrawer({
               )}
             </span>
           </div>
-          {signals && (
+          {/* An UNREAD crawl (robots refused us, the site could not be read)
+              claims no page fact — one line names the reason instead of the
+              yes / no rows (fix pass III, W4). */}
+          {signals && !crawlWasRead(signals) && (
+            <div className={ROW} data-site-unread>
+              <span className={KEY}>Online presence</span>
+              <span className={VAL}>Site not read — {unreadStackTitle(signals.error)}</span>
+            </div>
+          )}
+          {crawlWasRead(signals) && (
             <>
               <div className={ROW}>
                 <span className={KEY}>HTTPS / mobile-ready</span>
@@ -319,7 +328,7 @@ export default function ProspectDrawer({
         {/* Deal room — who we'd displace + the consolidation math */}
         <div className={SECTION}>
           <div className={SECTION_TITLE}>💰 Deal room</div>
-          <DealRoom vendors={(signals?.vendors ?? []) as DetectedVendor[]} crawled={Boolean(signals)} />
+          <DealRoom vendors={(crawlWasRead(signals) ? (signals.vendors ?? []) : []) as DetectedVendor[]} crawled={crawlWasRead(signals)} />
         </div>
 
         {/* Why this score */}

@@ -47,6 +47,10 @@ const fitMocks = vi.hoisted(() => ({
   restore: vi.fn<typeof import('@/lib/services/prospect-fit').restoreChainFlagged>(async () => ({ ok: true as const, status: 'contacted' })),
 }))
 vi.mock('@/lib/services/prospect-fit', () => ({ restoreChainFlagged: fitMocks.restore }))
+// The engine's failure registry (W8: a restore that throws after the merge
+// committed is a strike, never a throw out of the merge).
+const strikeMock = vi.hoisted(() => vi.fn(async (_cls: string, _at?: Date, _context?: unknown) => true))
+vi.mock('@/lib/services/engine-failures', () => ({ reportProspectingFailure: strikeMock }))
 
 vi.mock('@/lib/db', async () => {
   const schema = await vi.importActual<Record<string, unknown>>('@/lib/db/schema')
@@ -556,6 +560,59 @@ describe('mergeProspects — the merge', () => {
     expect(cooldown.values).toEqual({ callerCooldownUntil: new Date(NOW.getTime() + 3 * DAY), updatedAt: NOW })
     expect(render(cooldown.where).sql).toContain('"prospect"."assigned_caller_id" is null')
     expect(callerMocks.release).toHaveBeenCalledWith('a', NOW)
+  })
+
+  it('W8: the restore THROWS after the merge committed → no throw out of the merge, a strike with one line of context, the hand-over still runs (refused against the still-disqualified row → the cooldown), the release hook runs, the merge result returned', async () => {
+    fitMocks.restore.mockRejectedValueOnce(new Error('connection reset'))
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const AT = '2026-11-09T00:00:00.000Z'
+    const override = { status: 'not_a_chain', detail: 'by hand', checkedAt: AT, source: 'owner' }
+    const flag = { status: 'shared_phone', detail: 'shares', checkedAt: AT, source: 'our_data', kind: 'shared_phone', count: 3, key: '4045551212', priorStatus: 'enriched' }
+    state.selectQueue.push(
+      [
+        prospect({ id: 'a', status: 'disqualified', suppressedReason: 'chain', suppressedAt: new Date(AT), qualityScore: 0, verifiedAt: new Date(AT), verification: { fit: { chain: flag } } }),
+        prospect({ id: 'b', status: 'contacted', qualityScore: 80, verification: { fit: { chainOverride: override } }, assignedCallerId: 'pcal_x', assignedAt: NOW }),
+      ],
+      [], [], [],
+      [], // the hand-over read: the row still reads disqualified — the predicate refuses
+    )
+    let result: unknown
+    try {
+      result = await mergeProspects('a', 'b', { now: NOW })
+    } finally {
+      quiet.mockRestore()
+    }
+    expect(result).toMatchObject({ ok: true, survivorId: 'a', loserId: 'b' })
+    expect(fitMocks.restore).toHaveBeenCalledWith('a', NOW, 'override', { atLeast: 'contacted' })
+    // The strike: the hygiene class, the row and the error in the context.
+    expect(strikeMock).toHaveBeenCalledTimes(1)
+    expect(strikeMock).toHaveBeenCalledWith('hygiene', NOW, { step: 'restore_after_merge', prospectId: 'a', loserId: 'b', error: 'connection reset' })
+    // The hand-over ran against the still-disqualified row, was refused, and
+    // the cooldown was written — X's slot is not lost silently.
+    const [fill, merged, cooldown] = updates('prospect')
+    expect(fill.values).not.toHaveProperty('assignedCallerId')
+    expect(merged.values).toMatchObject({ status: 'merged', mergedIntoProspectId: 'a', assignedCallerId: null })
+    expect(cooldown.values).toEqual({ callerCooldownUntil: new Date(NOW.getTime() + 3 * DAY), updatedAt: NOW })
+    expect(render(cooldown.where).sql).toContain('"prospect"."assigned_caller_id" is null')
+    expect(updates('prospect')).toHaveLength(3)
+    expect(callerMocks.release).toHaveBeenCalledWith('a', NOW)
+    // …and a failing strike itself never escapes either.
+    strikeMock.mockRejectedValueOnce(new Error('ledger down'))
+    fitMocks.restore.mockRejectedValueOnce(new Error('again'))
+    const quiet2 = vi.spyOn(console, 'error').mockImplementation(() => {})
+    state.ops = []
+    state.selectQueue.push(
+      [
+        prospect({ id: 'a', status: 'disqualified', suppressedReason: 'chain', suppressedAt: new Date(AT), qualityScore: 0, verifiedAt: new Date(AT), verification: { fit: { chain: flag } } }),
+        prospect({ id: 'b', status: 'contacted', qualityScore: 80, verification: { fit: { chainOverride: override } } }),
+      ],
+      [], [], [],
+    )
+    try {
+      expect(await mergeProspects('a', 'b', { now: NOW })).toMatchObject({ ok: true })
+    } finally {
+      quiet2.mockRestore()
+    }
   })
 
   it('a loser’s terminal verdict is CARRIED onto a live survivor — status, reason, its threads closed — never overwritten by "merged"', async () => {

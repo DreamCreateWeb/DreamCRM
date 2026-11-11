@@ -1,4 +1,4 @@
-import type { ProspectAiVerdict, ProspectCrawlSignals } from '@/lib/types/prospecting'
+import { crawlWasRead, type ProspectAiVerdict, type ProspectCrawlSignals } from '@/lib/types/prospecting'
 import type { DeepSiteSignals } from '@/lib/practice-scan'
 import { comparableUrl } from '@/lib/gbp-listing'
 
@@ -262,7 +262,7 @@ function gradeWebsite(input: GradeInputs): AxisGrade {
       wins: [],
     }
   }
-  if (enteredUrl && (!signals || signals.error)) {
+  if (enteredUrl && !crawlWasRead(signals)) {
     return {
       score: null,
       findings: [
@@ -490,7 +490,7 @@ function gradeSearch(input: GradeInputs): AxisGrade {
 function buildGradeFacts(input: GradeInputs): GradeFacts {
   const facts: GradeFacts = {}
   const { signals, deep } = input
-  if (signals && !signals.error) {
+  if (crawlWasRead(signals)) {
     // detail is ALWAYS present (null when silent) so a freshly computed
     // grade and its stored-then-parsed twin are structurally identical.
     const checks: GradeCheck[] = [

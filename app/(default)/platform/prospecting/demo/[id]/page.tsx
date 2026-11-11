@@ -11,11 +11,12 @@ import { getProspectDetail } from '@/lib/services/prospecting'
 import { getDemoBrief } from '@/lib/services/demo-brief'
 import { deriveDemoGaps } from '@/lib/demo-gaps'
 import { DEMO_BEATS, suggestDemoTrack, DEMO_TRACKS } from '@/lib/types/demo-script'
-import { ratingLabel } from '@/lib/types/prospecting'
+import { crawlWasRead, ratingLabel } from '@/lib/types/prospecting'
 import type { ProspectAiVerdict, ProspectCrawlSignals } from '@/lib/types/prospecting'
 import { PageFrame } from '@/components/ui/page-frame'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { StatusPill } from '@/components/ui/status-pill'
+import { unreadStackTitle } from '../../fit-card'
 import BriefPanel from './brief-panel'
 import PrepActions from './prep-actions'
 import TrackPicker from './track-picker'
@@ -119,7 +120,7 @@ export default async function DemoPrepPage({
         <div className={SECTION_TITLE}>Demo ammunition — where each gap lands</div>
         {gaps.length === 0 ? (
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            No verified gaps yet — {signals ? 'this practice looks healthy online (sell the time-savings story instead)' : 'tap ↻ Re-enrich in the header to crawl their site first'}.
+            No verified gaps yet — {crawlWasRead(signals) ? 'this practice looks healthy online (sell the time-savings story instead)' : 'tap ↻ Re-enrich in the header to crawl their site first'}.
           </p>
         ) : (
           <ul className="space-y-2">
@@ -141,7 +142,7 @@ export default async function DemoPrepPage({
       {/* Walk-up story — what their presence says today */}
       <section className={SECTION}>
         <div className={SECTION_TITLE}>
-          Walk-up story{signals?.fetchedAt ? ` · ${ageLabel(signals.fetchedAt)}` : ''}
+          Walk-up story{crawlWasRead(signals) && signals.fetchedAt ? ` · ${ageLabel(signals.fetchedAt)}` : signals ? ' · site not read' : ''}
         </div>
         <div className="flex flex-wrap items-center gap-2 mb-3">
           {p.websiteUrl ? (
@@ -156,7 +157,11 @@ export default async function DemoPrepPage({
           ) : (
             <StatusPill tone="urgent" label="No website" />
           )}
-          {signals && (
+          {/* An UNREAD crawl claims no page fact (fix pass III, W4): no
+              "Not mobile-friendly" / "No online booking" for a page nobody
+              read — one neutral pill names the reason. */}
+          {signals && !crawlWasRead(signals) && <StatusPill tone="neutral" label="Site not read" title={unreadStackTitle(signals.error)} />}
+          {crawlWasRead(signals) && (
             <>
               <StatusPill tone={signals.mobileViewport ? 'ok' : 'urgent'} label={signals.mobileViewport ? 'Mobile-ready' : 'Not mobile-friendly'} />
               <StatusPill tone={signals.bookingWidget ? 'ok' : 'warn'} label={signals.bookingWidget ? 'Has online booking' : 'No online booking'} />

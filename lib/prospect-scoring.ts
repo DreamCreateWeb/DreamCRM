@@ -1,5 +1,5 @@
 import type { ProspectAiVerdict, ProspectCrawlSignals, ProspectVerification, PracticeSize } from '@/lib/types/prospecting'
-import { BUILDER_LABELS, DIY_BUILDERS, TEMPLATE_VENDOR_BUILDERS } from '@/lib/types/prospecting'
+import { BUILDER_LABELS, DIY_BUILDERS, TEMPLATE_VENDOR_BUILDERS, crawlWasRead } from '@/lib/types/prospecting'
 import type { ProspectScoreBand } from '@/lib/db/schema/prospecting'
 import { newPracticeSentence, formatMonthYear } from '@/lib/prospect-fit'
 
@@ -233,7 +233,10 @@ export function heuristicVerdict(
   signals: ProspectCrawlSignals | null,
   hasWebsite: boolean,
 ): ProspectAiVerdict {
-  if (!hasWebsite || !signals) {
+  // An unread crawl (robots refused us, the site could not be read) is
+  // judged like no crawl at all — its zeros are not "not mobile-friendly"
+  // (fix pass III, W4).
+  if (!hasWebsite || !crawlWasRead(signals)) {
     return {
       hasWebsite: false,
       websiteQuality: 0,

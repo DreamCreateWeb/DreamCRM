@@ -109,6 +109,33 @@ describe('heuristicVerdict (AI-unavailable fallback)', () => {
     const v = heuristicVerdict(null, false)
     expect(v).toMatchObject({ hasWebsite: false, websiteQuality: 0, weaknesses: ['no website'] })
   })
+
+  it('W4: an UNREAD crawl (robots refused us, the site could not be read) is judged like no crawl — no "not mobile-friendly" from a page nobody read', () => {
+    const unread = {
+      ssl: true,
+      mobileViewport: false,
+      copyrightYear: null,
+      titleTag: null,
+      metaDescription: null,
+      bookingWidget: false,
+      socialLinks: {},
+      builder: null,
+      stack: null,
+      pageWeightKb: 0,
+      emails: [],
+      fetchedAt: '2026-11-10T00:00:00Z',
+      error: 'fetch_failed',
+    }
+    for (const error of ['fetch_failed', 'robots_disallow']) {
+      const v = heuristicVerdict({ ...unread, error }, true)
+      expect(v).toEqual(heuristicVerdict(null, true))
+      expect(v.weaknesses).toEqual([])
+      expect(v.websiteReasons).toEqual([])
+      expect(v.summary).toBe('Website not yet crawled.')
+    }
+    // The same zeros on a page somebody READ are findings.
+    expect(heuristicVerdict({ ...unread, error: undefined, stack: [] }, true).websiteReasons).toContain('Not mobile-friendly')
+  })
 })
 
 // ── P-04: "needs us" gets what we already fetch ─────────────────────────────

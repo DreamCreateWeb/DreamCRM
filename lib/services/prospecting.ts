@@ -7,6 +7,7 @@ import {
   LOSS_REASON_LABELS,
   CALL_OUTCOME_LABELS,
   REACHED_CALL_OUTCOMES,
+  listingAltNote,
   parseVerification,
   type ProspectingConfig,
   type ProspectFilters,
@@ -2047,13 +2048,27 @@ async function applyCallerFeedback(prospectId: string, outcome: string, now: Dat
   let status = row.status
   let phoneStatus = row.phoneStatus
 
+  // EVERY WRITE TO verification.phone PRESERVES `sources` (fix pass III,
+  // W3): the two-source rule's guard — a number a human typed is never
+  // replaced — reads the prior signal's sources once the column reads a
+  // standing, so a caller's verdict unions 'caller' in exactly as a reach
+  // does. The listing's other number (`alt`, V2) and its sentence ride the
+  // caller's write too: a human's verdict never costs the row the trace.
+  const priorPhoneSources = verification.phone?.sources ?? []
+  const callerSources = priorPhoneSources.includes('caller') ? priorPhoneSources : [...priorPhoneSources, 'caller' as const]
+  const priorAlt = verification.phone?.alt ?? null
+  const withAlt = (detail: string) => ({
+    detail: priorAlt ? `${detail}; ${listingAltNote(priorAlt.number)}` : detail,
+    ...(priorAlt ? { alt: priorAlt } : {}),
+  })
+
   if (outcome === 'disconnected' || outcome === 'wrong_number') {
     phoneStatus = outcome
     const detail =
       outcome === 'disconnected'
         ? `Number disconnected on ${utcDate(now)} (heard on a call)`
         : `Wrong number on ${utcDate(now)} (heard on a call)`
-    verification.phone = { status: outcome, detail, checkedAt, source: 'caller' }
+    verification.phone = { status: outcome, ...withAlt(detail), checkedAt, source: 'caller', sources: callerSources }
     patch.phoneStatus = outcome
     patch.phoneLineType = null
   } else if (outcome === 'closed') {
@@ -2086,14 +2101,12 @@ async function applyCallerFeedback(prospectId: string, outcome: string, now: Dat
     // practice never lowers the record.
     if (row.phone) {
       phoneStatus = 'valid'
-      const priorSources = verification.phone?.sources ?? []
-      const sources = priorSources.includes('caller') ? priorSources : [...priorSources, 'caller' as const]
       verification.phone = {
         status: 'valid',
-        detail: `Reached on ${utcDate(now)} — the number works (heard on a call)`,
+        ...withAlt(`Reached on ${utcDate(now)} — the number works (heard on a call)`),
         checkedAt,
         source: 'caller',
-        sources,
+        sources: callerSources,
         standing: 'corroborated',
         ...(verification.phone?.lineCheck ? { lineCheck: verification.phone.lineCheck } : {}),
       }

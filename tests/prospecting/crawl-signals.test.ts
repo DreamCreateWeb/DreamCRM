@@ -14,7 +14,9 @@ import {
   findContactPath,
   findTeamPaths,
   detectStack,
+  isHydrationSink,
   isJavaScriptScriptTag,
+  isScriptShapedToken,
   stackCorpus,
   stackHosts,
 } from '@/lib/prospect-signals'
@@ -188,7 +190,7 @@ describe('the competitor stack (P-04) — HOSTS only: script src, link href, ifr
       <iframe src="https://birdeye.com/widget/123"></iframe>
       <script src="//www.getweave.com/widget/x.js"></script>
       <link rel="stylesheet" href="https://cdn.podium.com/widget.css">
-      <script>window.__cfg = { api: "https://api.yapiapp.com/v1" }</script>
+      <script>loadScript("https://app.yapiapp.com/widget/v1")</script>
     </head><body><iframe src="https://smile.janeapp.com/book"></iframe></body></html>`)
     expect(s.stack).toEqual(['NexHealth', 'Weave', 'Birdeye', 'Podium', 'Yapi', 'Jane'])
   })
@@ -222,14 +224,90 @@ describe('the competitor stack (P-04) — HOSTS only: script src, link href, ifr
     // The tag's src still counts, whatever its type says.
     expect(page('<html><head><script type="application/json" src="https://widget.nexhealth.com/data.json"></script></head></html>').stack).toEqual(['NexHealth'])
   })
-  it('the corpus is hosts: one a line, from the tags that load code or frames and from URLs inside inline scripts — nothing from the copy', () => {
-    const html = '<html><body><p>Solutionreach rocks</p><script>var a = "smilereminder"; fetch("https://app.smilereminder.com/x")</script><iframe src="https://x.com/embed"></iframe><a href="https://ignored.example/page">no</a></body></html>'
-    // The tags that load code or frames first, then the URLs inside inline scripts.
+  it('the corpus is hosts: one a line, from the tags that load code or frames and from SCRIPT-SHAPED URLs inside inline scripts — nothing from the copy, nothing a script merely fetches', () => {
+    const html =
+      '<html><body><p>Solutionreach rocks</p><script>var a = "smilereminder"; fetch("https://api.ignored.example/x"); var s = document.createElement("script"); s.src = "https://app.smilereminder.com/x"</script><iframe src="https://x.com/embed"></iframe><a href="https://ignored.example/page">no</a></body></html>'
+    // The tags that load code or frames first, then the script-shaped URLs inside inline scripts.
     expect(stackHosts(html)).toEqual(['x.com', 'app.smilereminder.com'])
     const corpus = stackCorpus(html)
     expect(corpus).toBe('x.com\napp.smilereminder.com')
     expect(corpus).not.toContain('Solutionreach rocks')
     expect(corpus).not.toContain('ignored.example')
     expect(detectStack(html)).toEqual(['Solutionreach'])
+  })
+
+  it('W5: every JavaScript MIME type the browser executes is a JS body — a legacy-typed Podium loader is fingerprinted (application/x-javascript, text/ecmascript, …), module and the empty type too, a ;charset suffix tolerated', () => {
+    const loader = (type: string) => `<html><head><script type="${type}">var s=document.createElement('script');s.src='https://connect.podium.com/widget.js'</script></head></html>`
+    expect(page(loader('application/x-javascript')).stack).toEqual(['Podium'])
+    expect(page(loader('text/ecmascript')).stack).toEqual(['Podium'])
+    expect(page(loader('application/ecmascript')).stack).toEqual(['Podium'])
+    expect(page(loader('text/x-javascript')).stack).toEqual(['Podium'])
+    expect(page(loader('text/jscript')).stack).toEqual(['Podium'])
+    expect(page(loader('text/javascript1.5; charset=utf-8')).stack).toEqual(['Podium'])
+    for (const type of [
+      'application/ecmascript',
+      'application/javascript',
+      'application/x-ecmascript',
+      'application/x-javascript',
+      'text/ecmascript',
+      'text/javascript',
+      'text/javascript1.0',
+      'text/javascript1.1',
+      'text/javascript1.2',
+      'text/javascript1.3',
+      'text/javascript1.4',
+      'text/javascript1.5',
+      'text/jscript',
+      'text/livescript',
+      'text/x-ecmascript',
+      'text/x-javascript',
+      'module',
+    ]) {
+      expect(isJavaScriptScriptTag(` type="${type}"`), type).toBe(true)
+      expect(isJavaScriptScriptTag(` type="${type.toUpperCase()}; charset=utf-8"`), type).toBe(true)
+    }
+    expect(isJavaScriptScriptTag(' type=""')).toBe(true)
+    for (const type of ['application/json', 'application/ld+json', 'importmap', 'speculationrules', 'text/template', 'text/babel', 'text/plain']) {
+      expect(isJavaScriptScriptTag(` type="${type}"`), type).toBe(false)
+    }
+  })
+
+  it('W6: a hydration payload that lives in a JavaScript body (Next App Router flight, Nuxt, Remix, the preloaded-state idiom, SvelteKit) is skipped whole; in any other JS body a URL counts ONLY when it is script-shaped', () => {
+    // (a) the sinks — a vendor article link in the page's data is not an install.
+    const flight =
+      '<html><head><script>self.__next_f.push([1,"3:[\\"$\\",\\"article\\",null,{\\"children\\":[\\"$\\",\\"a\\",null,{\\"href\\":\\"https://www.revenuewell.com/blog\\",\\"children\\":\\"why we left\\"}]}]"])</script></head></html>'
+    expect(page(flight).stack).toEqual([])
+    expect(stackHosts(flight)).toEqual([])
+    expect(page('<html><head><script>(self.__next_f=self.__next_f||[]).push([0,"https://widget.nexhealth.com/x.js"])</script></head></html>').stack).toEqual([])
+    const nuxt = '<html><head><script>window.__NUXT__={data:{post:{body:"<a href=\\"https://www.nexhealth.com/x\\">bye</a>"}}}</script></head></html>'
+    expect(page(nuxt).stack).toEqual([])
+    const remix = '<html><head><script>window.__remixContext={"state":{"loaderData":{"routes/blog":{"html":"<a href=\\"https://birdeye.com/x\\">left</a>"}}}}</script></head></html>'
+    expect(page(remix).stack).toEqual([])
+    for (const sink of ['window.__INITIAL_STATE__', 'window.__APOLLO_STATE__', 'window.__PRELOADED_STATE__', 'window.__NEXT_DATA__', '__sveltekit_1abc']) {
+      expect(page(`<html><head><script>\n  ${sink} = {"u":"https://widget.nexhealth.com/book.js"}</script></head></html>`).stack, sink).toEqual([])
+      expect(isHydrationSink(`  ${sink} = {}`), sink).toBe(true)
+    }
+    expect(isHydrationSink('var s = document.createElement("script")')).toBe(false)
+    // (b) script-shaped: a .js / .mjs path, or a loader anchor within 120 characters before the token.
+    expect(page("<html><head><script>var s=document.createElement('script');s.src='https://connect.podium.com/widget.js';document.head.appendChild(s)</script></head></html>").stack).toEqual(['Podium'])
+    expect(page('<html><head><script>var s=document.createElement("script");s.src="https://app.birdeye.com/embed/v1";document.body.appendChild(s)</script></head></html>').stack).toEqual(['Birdeye'])
+    expect(page('<html><head><script>import("https://widget.nexhealth.com/x.mjs")</script></head></html>').stack).toEqual(['NexHealth'])
+    expect(page('<html><head><script>loadScript("https://app.yapiapp.com/widget")</script></head></html>').stack).toEqual(['Yapi'])
+    expect(page('<html><head><script>var el = { src: "https://widget.zocdoc.com/plugin" }</script></head></html>').stack).toEqual(['Zocdoc'])
+    expect(page('<html><head><script>var u="https://widget.nexhealth.com/x.js?v=3#boot"</script></head></html>').stack).toEqual(['NexHealth'])
+    // A bare URL string the code renders — a link, a config endpoint — is not an install.
+    const bare = '<html><head><script>var link = "https://www.nexhealth.com/practices/x"; render(link)</script></head></html>'
+    expect(page(bare).stack).toEqual([])
+    expect(stackHosts(bare)).toEqual([])
+    expect(page('<html><head><script>window.__cfg = { api: "https://api.yapiapp.com/v1" }</script></head></html>').stack).toEqual([])
+    const body = 'var s=document.createElement("script"); s.src="https://connect.podium.com/w"'
+    expect(isScriptShapedToken(body, body.indexOf('https://'), 'https://connect.podium.com/w')).toBe(true)
+    expect(isScriptShapedToken('fetch("https://api.podium.com/v1")', 7, 'https://api.podium.com/v1')).toBe(false)
+    expect(isScriptShapedToken('x', 0, 'https://api.podium.com/a.js')).toBe(true)
+    // The anchor must sit INSIDE the window — 120 characters, not the whole body.
+    const far = `var s=document.createElement("script");${' '.repeat(130)}var link="https://www.nexhealth.com/practices/x"`
+    expect(isScriptShapedToken(far, far.indexOf('https://'), 'https://www.nexhealth.com/practices/x')).toBe(false)
+    // src / href / iframe hosts still count whatever the tag's type says.
+    expect(page('<html><head><script type="application/json" src="https://widget.nexhealth.com/data.json"></script></head></html>').stack).toEqual(['NexHealth'])
   })
 })

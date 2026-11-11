@@ -10,7 +10,7 @@
 // the demo skin so the pitch says THEIR practice's name. Editing the demo
 // = editing this registry (typed, reviewed, versioned).
 
-import type { ProspectAiVerdict, ProspectCrawlSignals } from '@/lib/types/prospecting'
+import { crawlWasRead, type ProspectAiVerdict, type ProspectCrawlSignals } from '@/lib/types/prospecting'
 import { getQuotedPlan } from '@/lib/stripe-config'
 import { socialAddonPriceCents } from '@/lib/types/social-entitlements'
 
@@ -388,7 +388,8 @@ export function suggestDemoTrack(
   if (!verdict || !verdict.hasWebsite) return 'website'
   if (verdict.websiteQuality < 40) return 'website'
   // Site is fine but the presence around it is quiet — lead with found-everywhere.
-  const socialLinks = signals ? Object.values(signals.socialLinks ?? {}).filter(Boolean).length : 0
+  // An unread crawl is nothing read: the same answer as no crawl (W4).
+  const socialLinks = crawlWasRead(signals) ? Object.values(signals.socialLinks ?? {}).filter(Boolean).length : 0
   const weakReputation =
     (places?.ratingTenths != null && places.ratingTenths < 42) ||
     (places?.reviewCount != null && places.reviewCount < 50)
