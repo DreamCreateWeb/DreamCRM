@@ -243,25 +243,39 @@ export const ADDRESS_WORDS: ReadonlyArray<readonly [string, string]> = [
  *  "Suite B", "Unit #4") — read AFTER the word table folded the long
  *  spellings, so only the short ones are listed. */
 export const SUITE_TOKEN_PATTERN = '(ste|unit|apt|fl|rm|bldg)'
+/** The unit-like tokens a KEPT suite folds to ONE spelling (fix pass II,
+ *  V4): '#300', 'STE 300', 'Suite 300', 'Unit 300', 'Apt 300', 'Rm 300'
+ *  all read 'ste 300', so the suite VALUE is what compares — 'STE 300' and
+ *  'STE 301' stay two. A floor or a building is a different kind of line
+ *  and keeps its own word. */
+export const SUITE_FOLD_PATTERN = '(ste|unit|apt|rm)'
 
 /**
  * THE ONE ADDRESS KEY: lower-case; the common street (and suite) words
  * folded to their abbreviations; the suite / unit / floor token and its
  * value dropped (unless `keepSuite` — the practice-size count keeps them,
- * they ARE the distinguishing token in a building); ZIP5 only; then
- * letters and digits. '123 MAIN ST STE 200' / '787011234' and '123 Main
- * Street Suite 200' / '78701' are ONE address; '100 Main St' and '200 Main
- * St' are two.
+ * they ARE the distinguishing token in a building, folded to one spelling
+ * so the value compares); ZIP5 only; then letters and digits. '123 MAIN
+ * ST STE 200' / '787011234' and '123 Main Street Suite 200' / '78701' are
+ * ONE address; '100 Main St' and '200 Main St' are two. NULL when there is
+ * no street (fix pass II, V8): a phone-only stub with a ZIP is not an
+ * address, so `count(distinct …)` skips it and it never makes two offices
+ * a chain. Mirrored in SQL by `addressKeySql`.
  */
-export function addressKey(line1: string | null | undefined, postalCode: string | null | undefined, opts: { keepSuite?: boolean } = {}): string {
+export function addressKey(line1: string | null | undefined, postalCode: string | null | undefined, opts: { keepSuite?: boolean } = {}): string | null {
   let s = (line1 ?? '').toLowerCase()
   for (const [word, abbr] of ADDRESS_WORDS) s = s.replace(new RegExp(`\\b${word}\\b`, 'g'), abbr)
-  if (!opts.keepSuite) {
+  if (opts.keepSuite) {
+    s = s.replace(new RegExp(`\\b${SUITE_FOLD_PATTERN}\\b\\.?\\s*#?\\s*`, 'g'), 'ste ')
+    s = s.replace(/#\s*/g, 'ste ')
+  } else {
     s = s.replace(new RegExp(`\\b${SUITE_TOKEN_PATTERN}\\b\\.?\\s*#?\\s*[a-z0-9-]+`, 'g'), ' ')
     s = s.replace(/#\s*[a-z0-9-]+/g, ' ')
   }
+  const street = s.replace(/[^a-z0-9]/g, '')
+  if (!street) return null
   const zip = (postalCode ?? '').replace(/\D/g, '').slice(0, 5)
-  return `${s}${zip}`.replace(/[^a-z0-9]/g, '')
+  return `${street}${zip}`
 }
 
 // ── Chains from our own data ───────────────────────────────────────────────

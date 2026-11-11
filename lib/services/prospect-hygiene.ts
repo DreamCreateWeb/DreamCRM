@@ -346,11 +346,21 @@ export async function runProspectHygiene(opts: { now?: Date; config?: Prospectin
   return out
 }
 
+/** The early-refresh line's read (fix pass II, V6): a pull still set, on a
+ *  territory whose state is ENABLED — a pull stamped on a state that was
+ *  then turned off is nothing anyone is refreshing, and the tile never
+ *  says so. */
+export function earlyRefreshWhere(enabledStates: readonly string[]): SQL {
+  return and(isNotNull(schema.prospectDiscoveryTask.refreshPulledAt), inArray(schema.prospectDiscoveryTask.state, [...enabledStates])) as SQL
+}
+
 /** The hunt panel's tile: merged today, resting now, the last refresh (a
  *  refresh that HAPPENED — a pull never writes that stamp) — and (P-04) the
  *  chains set aside, the chains restored today, the territory the callers
- *  pulled forward and have not refreshed yet (a cleared pull reads as done). */
-export async function getHygieneStats(now: Date = new Date()): Promise<ProspectHygieneStats> {
+ *  pulled forward and have not refreshed yet (a cleared pull reads as done;
+ *  a pull on a state since turned off is not shown — V6). */
+export async function getHygieneStats(now: Date = new Date(), opts: { config?: ProspectingConfig } = {}): Promise<ProspectHygieneStats> {
+  const config = opts.config ?? (await getProspectingConfig())
   const mergedToday = await getProspectingCounter(counterDay(now), 'dedupe_merge')
   const chainsRestoredToday = await getProspectingCounter(counterDay(now), 'chain_restore')
   const [resting] = await db
@@ -371,17 +381,20 @@ export async function getHygieneStats(now: Date = new Date()): Promise<ProspectH
     .select({ n: sql<number>`count(*)::int` })
     .from(p)
     .where(and(eq(p.status, 'disqualified'), eq(p.suppressedReason, 'chain')))
-  const [pulled] = await db
-    .select({
-      state: schema.prospectDiscoveryTask.state,
-      zipPrefix: schema.prospectDiscoveryTask.zipPrefix,
-      reason: schema.prospectDiscoveryTask.refreshPulledReason,
-      at: schema.prospectDiscoveryTask.refreshPulledAt,
-    })
-    .from(schema.prospectDiscoveryTask)
-    .where(isNotNull(schema.prospectDiscoveryTask.refreshPulledAt))
-    .orderBy(desc(schema.prospectDiscoveryTask.refreshPulledAt))
-    .limit(1)
+  const [pulled] =
+    config.enabledStates.length > 0
+      ? await db
+          .select({
+            state: schema.prospectDiscoveryTask.state,
+            zipPrefix: schema.prospectDiscoveryTask.zipPrefix,
+            reason: schema.prospectDiscoveryTask.refreshPulledReason,
+            at: schema.prospectDiscoveryTask.refreshPulledAt,
+          })
+          .from(schema.prospectDiscoveryTask)
+          .where(earlyRefreshWhere(config.enabledStates))
+          .orderBy(desc(schema.prospectDiscoveryTask.refreshPulledAt))
+          .limit(1)
+      : []
   return {
     mergedToday,
     resting: resting?.n ?? 0,

@@ -50,7 +50,7 @@ vi.mock('@/components/ui/confirm-dialog', () => ({ useConfirm: () => actions.con
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: actions.refresh }) }))
 vi.mock('@/components/ui/use-focus-trap', () => ({ useFocusTrap: () => {} }))
 
-import { FitCard } from '@/app/(default)/platform/prospecting/fit-card'
+import { FitCard, unreadStackTitle } from '@/app/(default)/platform/prospecting/fit-card'
 import ProspectDrawer from '@/app/(default)/platform/prospecting/prospect-drawer'
 import HuntPanel from '@/app/(default)/platform/prospecting/hunt-panel'
 import { VerificationCard, phoneSourcesLine } from '@/app/(default)/platform/prospecting/verification-card'
@@ -186,6 +186,31 @@ describe('FitCard', () => {
     expect(r3.container.textContent).toContain('Nothing read yet')
     expect(r3.container.textContent).not.toMatch(/coming soon/i)
   })
+
+  it('V13: "Not read" says why — robots.txt refused us (never "Re-enrich reads it"), the site did not answer (Re-enrich tries again), or an older crawl; an unread crawl claims no builder', () => {
+    const pill = (c: HTMLElement) => c.querySelector('[data-fit-signal="stack"] [title]') as HTMLElement | null
+    const robots = render(
+      <FitCard verification={null} signals={{ ...SIGNALS, stack: null, builder: null, error: 'robots_disallow' }} prospectId="p" prospectName="Smile" status="enriched" suppressedReason={null} />,
+    )
+    expect(pill(robots.container)?.textContent).toBe('Not read')
+    expect(pill(robots.container)?.getAttribute('title')).toBe('Their robots.txt refuses crawlers — we never read the page')
+    expect(pill(robots.container)?.getAttribute('title')).not.toMatch(/Re-enrich/)
+    expect(robots.container.querySelector('[data-fit-signal="builder"]')).toBeNull()
+    cleanup()
+    const failed = render(
+      <FitCard verification={null} signals={{ ...SIGNALS, stack: null, builder: null, error: 'fetch_failed' }} prospectId="p" prospectName="Smile" status="enriched" suppressedReason={null} />,
+    )
+    expect(pill(failed.container)?.getAttribute('title')).toBe('The site did not answer when we looked — Re-enrich tries again')
+    expect(failed.container.querySelector('[data-fit-signal="builder"]')).toBeNull()
+    cleanup()
+    const { stack: _s, ...older } = SIGNALS
+    const old = render(<FitCard verification={null} signals={older as ProspectCrawlSignals} prospectId="p" prospectName="Smile" status="enriched" suppressedReason={null} />)
+    expect(pill(old.container)?.getAttribute('title')).toBe('An older crawl — Re-enrich reads the stack')
+    expect(old.container.querySelector('[data-fit-signal="builder"]')).toBeTruthy()
+    expect(unreadStackTitle(undefined)).toBe('An older crawl — Re-enrich reads the stack')
+    expect(unreadStackTitle('robots_disallow')).toMatch(/never read the page/)
+    expect(unreadStackTitle('fetch_failed')).toMatch(/did not answer/)
+  })
 })
 
 function detail(over: Partial<ProspectDetail['prospect']> = {}): ProspectDetail {
@@ -291,6 +316,32 @@ describe('the Verification card’s phone line (the two-source rule)', () => {
     expect(container.querySelector('[data-phone-sources]')?.textContent).toBe('Stated by NPI registry, Google listing — corroborated')
     expect(container.querySelector('[data-signal="reviews"]')?.textContent).toContain('Stale')
     expect(container.querySelector('[data-signal="reviews"]')?.textContent).toContain('Google Places · checked Nov 10, 2026 · 09:05 UTC')
+    cleanup()
+    // V2: a caller-provided row whose listing states another number — the
+    // card shows the trace the verify pass wrote.
+    const typed = render(
+      <VerificationCard
+        verification={{
+          phone: {
+            ...base,
+            status: 'well_formed',
+            detail: 'Well-formed US number — the line check is off; Google lists (404) 555-9999 — kept the number you typed',
+            sources: ['caller'],
+            standing: 'single_source',
+            lineCheck: 'off',
+            alt: { number: '4045559999', source: 'places', at: AT },
+          },
+        }}
+        verifiedAt={AT}
+        qualityScore={60}
+        qualityBand="good"
+        qualityReasons={[]}
+        phone="4045550000"
+        phoneSource="single_source"
+        now={new Date(AT)}
+      />,
+    )
+    expect(typed.container.querySelector('[data-signal="phone"]')?.textContent).toContain('Google lists (404) 555-9999 — kept the number you typed')
   })
 })
 

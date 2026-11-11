@@ -48,6 +48,15 @@ const SIZE_LABEL: Record<string, string> = {
   unknown: 'Size unknown',
 }
 
+/** Why the stack reads "Not read" (fix pass II, V13) — the crawl's own
+ *  error first; the older-crawl wording only when there is no error and
+ *  no P-04 stack read. Never a promise Re-enrich cannot keep. */
+export function unreadStackTitle(error: string | null | undefined): string {
+  if (error === 'robots_disallow') return 'Their robots.txt refuses crawlers — we never read the page'
+  if (error) return 'The site did not answer when we looked — Re-enrich tries again'
+  return 'An older crawl — Re-enrich reads the stack'
+}
+
 export function FitCard({
   verification,
   signals,
@@ -194,7 +203,7 @@ export function FitCard({
                   <StatusPill tone="warn" label="None" title="No booking widget, no review engine — a phone number is their only door" />
                 )
               ) : (
-                <StatusPill tone="neutral" label="Not read" title="An older crawl — Re-enrich reads the stack" />
+                <StatusPill tone="neutral" label="Not read" title={unreadStackTitle(signals.error)} />
               )}
             </div>
             <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
@@ -202,7 +211,7 @@ export function FitCard({
             </div>
           </li>
         )}
-        {signals && (
+        {signals && !signals.error && (
           <li className="text-sm" data-fit-signal="builder">
             <div className="flex items-center justify-between gap-2">
               <span className="text-gray-500 dark:text-gray-400">Site builder</span>

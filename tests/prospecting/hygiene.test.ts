@@ -9,7 +9,7 @@ import { PgDialect } from 'drizzle-orm/pg-core'
  */
 
 type Op = { op: string; table: string; values: Record<string, unknown>; where?: unknown }
-const state = { selectQueue: [] as unknown[][], ops: [] as Op[] }
+const state = { selectQueue: [] as unknown[][], ops: [] as Op[], selectWheres: [] as unknown[] }
 
 vi.mock('@/lib/db', async () => {
   const schema = await vi.importActual<Record<string, unknown>>('@/lib/db/schema')
@@ -19,7 +19,11 @@ vi.mock('@/lib/db', async () => {
   }
   const selectChain = () => {
     const obj: any = {}
-    for (const m of ['from', 'where', 'orderBy', 'limit', 'groupBy', 'having']) obj[m] = () => obj
+    for (const m of ['from', 'orderBy', 'limit', 'groupBy', 'having']) obj[m] = () => obj
+    obj.where = (w: unknown) => {
+      state.selectWheres.push(w)
+      return obj
+    }
     obj.then = (onF: (v: unknown) => unknown, onR?: (e: unknown) => unknown) =>
       Promise.resolve(state.selectQueue.shift() ?? []).then(onF, onR)
     return obj
@@ -81,6 +85,7 @@ const render = (q: unknown) => new PgDialect().sqlToQuery(q as never)
 beforeEach(() => {
   state.selectQueue = []
   state.ops = []
+  state.selectWheres = []
   vi.clearAllMocks()
   mocks.config.mockResolvedValue(LIVE)
   mocks.counter.mockResolvedValue(0)
@@ -294,6 +299,7 @@ describe('runProspectHygiene — the one pass', () => {
 
 describe('getHygieneStats', () => {
   it('merged today from the day counter, resting from the table, the last refresh UTC-stamped upstream — and (P-04) the chains set aside, the chains restored today, the territory the callers pulled forward', async () => {
+    mocks.config.mockResolvedValue({ ...LIVE, enabledStates: ['GA', 'TX'] })
     mocks.counter.mockResolvedValueOnce(3).mockResolvedValueOnce(2)
     state.selectQueue.push(
       [{ n: 41 }],
@@ -317,6 +323,30 @@ describe('getHygieneStats', () => {
     mocks.counter.mockResolvedValue(0)
     state.selectQueue.push([{ n: 0 }], [], [{ n: 0 }], [])
     expect(await getHygieneStats(NOW)).toMatchObject({ chainsRemoved: 0, chainsRestoredToday: 0, earlyRefresh: null })
+  })
+  it('V6: the early-refresh line reads only a pull on an ENABLED state — a pull stamped on a state since turned off is not shown; with no enabled state there is no read at all', async () => {
+    // TX was pulled, then turned off: the read is filtered to the enabled
+    // states in SQL, so the stale TX stamp never reaches the tile.
+    mocks.config.mockResolvedValue({ ...LIVE, enabledStates: ['GA'] })
+    mocks.counter.mockResolvedValue(0)
+    state.selectQueue.push([{ n: 0 }], [], [{ n: 0 }], [])
+    expect((await getHygieneStats(NOW)).earlyRefresh).toBeNull()
+    const { sql: text, params } = render(state.selectWheres[3])
+    expect(text).toBe('("prospect_discovery_task"."refresh_pulled_at" is not null and "prospect_discovery_task"."state" in ($1))')
+    expect(params).toEqual(['GA'])
+    // The config can be handed in (the page's one read); a pull on an enabled state still shows.
+    state.selectWheres = []
+    state.selectQueue.push([{ n: 0 }], [], [{ n: 0 }], [{ state: 'GA', zipPrefix: '303', reason: '3 closed practices this month', at: new Date('2026-11-10T07:00:00Z') }])
+    const shown = await getHygieneStats(NOW, { config: { ...LIVE, enabledStates: ['GA'] } })
+    expect(shown.earlyRefresh).toEqual({ state: 'GA', zipPrefix: '303', reason: '3 closed practices this month', at: new Date('2026-11-10T07:00:00Z') })
+    expect(render(state.selectWheres[3]).params).toEqual(['GA'])
+    // Every state off: nothing is refreshing anywhere, so nothing is read — the queued stamp stays unread.
+    state.selectWheres = []
+    state.selectQueue.push([{ n: 0 }], [], [{ n: 0 }], [{ state: 'TX', zipPrefix: '787', reason: '3 closed practices this month', at: new Date('2026-11-10T07:00:00Z') }])
+    const off = await getHygieneStats(NOW, { config: { ...LIVE, enabledStates: [] } })
+    expect(off.earlyRefresh).toBeNull()
+    expect(state.selectWheres).toHaveLength(3)
+    expect(state.selectQueue).toHaveLength(1)
   })
 })
 

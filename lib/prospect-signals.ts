@@ -31,7 +31,8 @@ const BUILDER_FINGERPRINTS: Array<[RegExp, string]> = [
  * THE COMPETITOR STACK (P-04) — booking widgets and review / messaging
  * engines, fingerprinted on HOSTS and nothing else (fix pass): the host of
  * every `<script src>`, `<link href>` and `<iframe src>`, and the host of
- * every URL-shaped token inside an inline script body. Never a bare word —
+ * every URL-shaped token inside an inline JAVASCRIPT body (a JSON or
+ * JSON-LD script body is page copy — fix pass II). Never a bare word —
  * "we moved off NexHealth" in a blog's JSON-LD, a hydration payload or an
  * article link is not a NexHealth install. Each pattern matches a host
  * label at a dot boundary, so "localmedia.com" is not LocalMed and
@@ -72,9 +73,25 @@ function hostOf(url: string): string | null {
   }
 }
 
+/** The script types whose inline body is CODE — the only bodies the token
+ *  scan reads (fix pass II, V12). A `<script type="application/json">`
+ *  hydration payload or an `application/ld+json` block carries the page's
+ *  copy (an article link to a vendor, a sameAs), never an install. */
+const JS_SCRIPT_TYPES = new Set(['text/javascript', 'application/javascript', 'module'])
+
+/** Is this `<script …>` tag's body JavaScript? No type attribute is. */
+export function isJavaScriptScriptTag(attrs: string): boolean {
+  const m = attrs.match(/\stype\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i)
+  if (!m) return true
+  const type = (m[1] ?? m[2] ?? m[3] ?? '').trim().toLowerCase().split(';')[0].trim()
+  return type === '' || JS_SCRIPT_TYPES.has(type)
+}
+
 /** The hosts a page loads code or frames from: `<script src>`, `<link
- *  href>`, `<iframe src>`, and every URL inside an inline script body.
- *  Exported for tests. */
+ *  href>`, `<iframe src>` (whatever the tag's type), and every URL inside
+ *  an inline script body WHEN that body is JavaScript (no type,
+ *  text/javascript, application/javascript, module) — a JSON or JSON-LD
+ *  body is page copy and is skipped. Exported for tests. */
 export function stackHosts(html: string): string[] {
   const hosts = new Set<string>()
   const add = (url: string) => {
@@ -82,8 +99,9 @@ export function stackHosts(html: string): string[] {
     if (h) hosts.add(h)
   }
   for (const m of Array.from(html.matchAll(/<(?:script|link|iframe)\b[^>]*?\s(?:src|href)\s*=\s*["']([^"']{1,500})["']/gi))) add(m[1])
-  for (const m of Array.from(html.matchAll(/<script\b[^>]*>([\s\S]{0,20000}?)<\/script>/gi))) {
-    for (const u of Array.from(m[1].matchAll(/https?:\/\/[a-z0-9.-]+/gi))) add(u[0])
+  for (const m of Array.from(html.matchAll(/<script\b([^>]*)>([\s\S]{0,20000}?)<\/script>/gi))) {
+    if (!isJavaScriptScriptTag(m[1])) continue
+    for (const u of Array.from(m[2].matchAll(/https?:\/\/[a-z0-9.-]+/gi))) add(u[0])
   }
   return Array.from(hosts)
 }

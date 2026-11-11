@@ -32,6 +32,7 @@ import {
   parseVerification,
   type PhoneSourceName,
   type PhoneStanding,
+  type PhoneVerificationSignal,
   type ProspectFitSignals,
   type ProspectVerification,
   type ProspectingConfig,
@@ -140,7 +141,12 @@ export type VerifiableProspect = Pick<
    *  ran — and where the website came from (a listing's goes with the listing).
    *  The official's title corroborates the fit read (P-04); the follow-up
    *  columns let a chain flag remember the system nudge it clears. */
-  Partial<Pick<ProspectRow, 'businessStatus' | 'reviewCount' | 'websiteSource' | 'authorizedOfficialTitle' | 'nextFollowUpAt' | 'followUpReason'>>
+  Partial<
+    Pick<
+      ProspectRow,
+      'businessStatus' | 'reviewCount' | 'websiteSource' | 'authorizedOfficialTitle' | 'nextFollowUpAt' | 'followUpReason' | 'phoneLineType' | 'phoneValidatedAt'
+    >
+  >
 
 /** Per-run context — budgets, the once-a-run failure strikes, the
  *  crawl-blocked tally. One per cron run; the drawer action makes its own. */
@@ -415,6 +421,8 @@ export async function verifyProspectSignals(
   let postalCode = p.postalCode ?? null
   const originalPhone = p.phone ?? null
   const phoneNotes: string[] = []
+  // The matched listing's DIFFERENT number on a caller-provided row (V2).
+  let phoneAlt: PhoneVerificationSignal['alt'] = null
   // The registry's current number and name, when the lookup ran.
   let npi: NpiLookupResult | null = null
   let npiLookupRan = false
@@ -556,6 +564,12 @@ export async function verifyProspectSignals(
       if (match.phoneDiffers && !callerProvided) {
         phoneNotes.push(`Google lists ${formatProspectPhone(match.phoneDiffers)}; the registry had ${formatProspectPhone(patch.phone) ?? 'none'}`)
         patch.phone = match.phoneDiffers
+      } else if (match.phoneDiffers) {
+        // A typed number is never replaced (B / C2) — but the listing's
+        // differing number is kept on the signal and said out loud, so a
+        // typo has a trace (fix pass II, V2).
+        phoneAlt = { number: match.phoneDiffers, source: 'places', at: now.toISOString() }
+        phoneNotes.push(`Google lists ${formatProspectPhone(match.phoneDiffers)} — kept the number you typed`)
       }
     }
   }
@@ -722,8 +736,13 @@ export async function verifyProspectSignals(
   } else if (callerVerdictStands && priorPhone) {
     // What the caller heard beats every database; the number is unchanged.
     // (A number a human reached is `valid` for as long as they say so.)
+    // The carrier's line facts the row already holds survive the reach —
+    // a human reaching the practice never costs the record its line type
+    // (fix pass II, V9); the carrier check is not run again.
     v.phone = priorPhone
     patch.phoneStatus = p.phoneStatus as ProspectPhoneStatus
+    patch.phoneLineType = (p.phoneLineType as ProspectPhoneLineType | null | undefined) ?? null
+    patch.phoneValidatedAt = p.phoneValidatedAt ?? null
   } else {
     const nanp = validateNanp(phone)
     if (!nanp.valid) {
@@ -796,7 +815,7 @@ export async function verifyProspectSignals(
     if (callerProvided && sameAsOriginal) stated.push('caller')
     if (carrierInService) stated.push('carrier')
     const standing: PhoneStanding = phoneStanding(stated, patch.phoneStatus)
-    v.phone = { ...v.phone, sources: stated, standing, lineCheck }
+    v.phone = { ...v.phone, sources: stated, standing, lineCheck, ...(phoneAlt ? { alt: phoneAlt } : {}) }
     patch.phoneSource = standing
   } else if (patch.phone && v.phone) {
     // The caller's verdict stands, signal untouched; the column says what

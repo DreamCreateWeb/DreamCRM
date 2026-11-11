@@ -14,6 +14,7 @@ import {
   findContactPath,
   findTeamPaths,
   detectStack,
+  isJavaScriptScriptTag,
   stackCorpus,
   stackHosts,
 } from '@/lib/prospect-signals'
@@ -201,6 +202,25 @@ describe('the competitor stack (P-04) — HOSTS only: script src, link href, ifr
     expect(detectStack('')).toEqual([])
     // A real LocalMed host still reads.
     expect(page('<html><head><script src="https://www.localmed.com/widget.js"></script></head></html>').stack).toEqual(['LocalMed'])
+  })
+  it('V12: a vendor URL inside a hydration payload or a JSON-LD sameAs is page copy, not an install — only a JavaScript body is token-scanned; a src / href host counts whatever the type', () => {
+    const nextData = '<html><head><script id="__NEXT_DATA__" type="application/json">{"props":{"post":{"body":"<a href=\\"https://www.revenuewell.com/blog\\">why we left</a>"}}}</script></head></html>'
+    expect(page(nextData).stack).toEqual([])
+    expect(stackHosts(nextData)).toEqual([])
+    const ldJson = '<html><head><script type="application/ld+json">{"@type":"Dentist","sameAs":["https://www.nexhealth.com/practices/smile"]}</script></head></html>'
+    expect(page(ldJson).stack).toEqual([])
+    expect(page("<html><head><script type='application/json'>{\"u\":\"https://birdeye.com/x\"}</script></head></html>").stack).toEqual([])
+    // A JavaScript body: no type, text/javascript, application/javascript, module.
+    expect(page('<html><head><script>loadWidget("https://widget.nexhealth.com/x.js")</script></head></html>').stack).toEqual(['NexHealth'])
+    expect(page('<html><head><script type="text/javascript">var u="https://widget.nexhealth.com/x.js"</script></head></html>').stack).toEqual(['NexHealth'])
+    expect(page('<html><head><script type="application/javascript">var u="https://widget.nexhealth.com/x.js"</script></head></html>').stack).toEqual(['NexHealth'])
+    expect(page('<html><head><script type="module">import("https://widget.nexhealth.com/x.js")</script></head></html>').stack).toEqual(['NexHealth'])
+    expect(isJavaScriptScriptTag('')).toBe(true)
+    expect(isJavaScriptScriptTag(' type="text/javascript; charset=utf-8"')).toBe(true)
+    expect(isJavaScriptScriptTag(' type="application/ld+json"')).toBe(false)
+    expect(isJavaScriptScriptTag(" id='x' type=application/json")).toBe(false)
+    // The tag's src still counts, whatever its type says.
+    expect(page('<html><head><script type="application/json" src="https://widget.nexhealth.com/data.json"></script></head></html>').stack).toEqual(['NexHealth'])
   })
   it('the corpus is hosts: one a line, from the tags that load code or frames and from URLs inside inline scripts — nothing from the copy', () => {
     const html = '<html><body><p>Solutionreach rocks</p><script>var a = "smilereminder"; fetch("https://app.smilereminder.com/x")</script><iframe src="https://x.com/embed"></iframe><a href="https://ignored.example/page">no</a></body></html>'

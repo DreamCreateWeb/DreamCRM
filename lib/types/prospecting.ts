@@ -247,6 +247,12 @@ export interface PhoneVerificationSignal extends VerificationSignal {
   /** off = the line check is not configured; skipped = it was configured
    *  but did not run (budget, refused, unavailable); done = it answered. */
   lineCheck?: 'off' | 'skipped' | 'done' | null
+  /** A DIFFERENT number the matched listing states for a caller-provided
+   *  row (fix pass II, V2): the typed number is never replaced, but the
+   *  listing's is kept here — ten digits, as the signal stores numbers —
+   *  so a typo has a trace ("Google lists (404) 555-9999 — kept the number
+   *  you typed"). */
+  alt?: { number: string; source: 'places'; at: string } | null
 }
 
 /** Liveness from the listing (P-04): the latest review's publish time and
@@ -324,6 +330,12 @@ function parsePriorFollowUp(v: unknown): PriorFollowUp | null {
   return typeof r.at === 'string' && typeof r.reason === 'string' ? { at: r.at, reason: r.reason } : null
 }
 
+function parsePhoneAlt(v: unknown): PhoneVerificationSignal['alt'] {
+  if (!v || typeof v !== 'object') return null
+  const r = v as Record<string, unknown>
+  return typeof r.number === 'string' && r.source === 'places' && typeof r.at === 'string' ? { number: r.number, source: 'places', at: r.at } : null
+}
+
 function parseSignal(v: unknown): (VerificationSignal & Record<string, unknown>) | null {
   if (!v || typeof v !== 'object') return null
   const r = v as Record<string, unknown>
@@ -351,7 +363,8 @@ export function parseVerification(raw: unknown): ProspectVerification {
         : undefined
       const standing = sig.standing === 'corroborated' || sig.standing === 'single_source' ? sig.standing : null
       const lineCheck = sig.lineCheck === 'off' || sig.lineCheck === 'skipped' || sig.lineCheck === 'done' ? sig.lineCheck : null
-      out.phone = { ...base, ...(sources ? { sources } : {}), ...(standing ? { standing } : {}), ...(lineCheck ? { lineCheck } : {}) }
+      const alt = parsePhoneAlt(sig.alt)
+      out.phone = { ...base, ...(sources ? { sources } : {}), ...(standing ? { standing } : {}), ...(lineCheck ? { lineCheck } : {}), ...(alt ? { alt } : {}) }
     } else if (id === 'reviews') {
       out.reviews = {
         ...base,
@@ -472,6 +485,9 @@ export interface ProspectCrawlSignals {
   pageWeightKb: number
   emails: string[] // mailto/contact-page discoveries (never guessed)
   fetchedAt: string // ISO
+  /** Set when NOBODY READ THE PAGE: `robots_disallow` (their robots.txt
+   *  refused crawlers) or `fetch_failed` (the site did not answer). The
+   *  Fit card's "Not read" names which; a builder is never claimed. */
   error?: string
   // Brand capture (added for presenter mode — optional, older crawls lack
   // them; jsonb tolerates absence, re-enrich backfills).

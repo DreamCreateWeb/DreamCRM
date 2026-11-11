@@ -379,10 +379,12 @@ export const prospectDiscoveryTask = pgTable(
     // to the back of the line without leaving it (P-03 fix pass 2).
     lastRefreshErrorAt: timestamp('last_refresh_error_at', { withTimezone: true }),
     // Callers steer freshness (P-04): a territory with ≥3 closed /
-    // disconnected practices inside 30 days has its refresh pulled forward
-    // — last_refreshed_at is set back past the clock, and these two say so
-    // until the refresh runs (the hunt tile's "Refreshing TX 787 early — 3
-    // closed practices this month"); the refresh that happens clears them.
+    // disconnected practices inside 30 days has its refresh pulled forward.
+    // The pull stamps THESE TWO and nothing else — last_refreshed_at is
+    // never touched (it records a refresh that happened, never a pull) —
+    // and they say so until the refresh runs (the hunt tile's "Refreshing
+    // TX 787 early — 3 closed practices this month"); the refresh that
+    // succeeds stamps last_refreshed_at and clears both.
     refreshPulledAt: timestamp('refresh_pulled_at', { withTimezone: true }),
     refreshPulledReason: text('refresh_pulled_reason'),
     createdAt: timestamp('created_at').notNull().defaultNow(),

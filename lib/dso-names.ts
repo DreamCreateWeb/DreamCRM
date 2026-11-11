@@ -42,9 +42,12 @@ export const DSO_ENTRIES: readonly DsoEntry[] = [
   { name: 'Familia Dental', domains: ['familiadental.com'] },
   { name: 'Kool Smiles' },
   { name: 'Benevis' },
-  // InterDent's brand: the patient site lives at gentledental.interdent.com
-  // and gentle1.com redirects there.
-  { name: 'Gentle Dental', domains: ['interdent.com', 'gentle1.com'] },
+  // Two DSOs wear this name: 42 North Dental's "Gentle Dental of New
+  // England" (gentledental.com — 40+ MA / NH offices) and InterDent's
+  // West-coast brand (gentledental.interdent.com; gentle1.com redirects
+  // there). Either host corroborates; a "Gentle Dental Care of Smithville"
+  // at its own domain never matches (fix pass II, V1).
+  { name: 'Gentle Dental', domains: ['gentledental.com', 'interdent.com', 'gentle1.com'] },
   { name: 'Bright Now!' },
   { name: 'Castle Dental', domains: ['castledental.com'] },
   { name: 'Midwest Dental', domains: ['midwest-dental.com'] },

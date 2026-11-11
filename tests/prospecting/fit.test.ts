@@ -46,7 +46,7 @@ import {
   websiteHost,
 } from '@/lib/prospect-fit'
 import { latestReviewTime, normalizePlace, statesOpeningHours } from '@/lib/google-places'
-import { countDentistsAt } from '@/lib/nppes'
+import { countDentistsAt, sizeAddressKey } from '@/lib/nppes'
 import { parseVerification } from '@/lib/types/prospecting'
 
 const NOW = new Date('2026-11-10T12:00:00Z')
@@ -70,7 +70,9 @@ describe('the DSO list', () => {
 
   it('every common-phrase brand carries its own web domains — the fix-pass rule; a distinct brand carries none', () => {
     const domains = (name: string) => DSO_ENTRIES.find((e) => e.name === name)?.domains ?? null
-    expect(domains('Gentle Dental')).toEqual(['interdent.com', 'gentle1.com'])
+    // Both DSOs that wear the name (V1): 42 North's New England brand at
+    // gentledental.com, InterDent's West-coast one at interdent.com / gentle1.com.
+    expect(domains('Gentle Dental')).toEqual(['gentledental.com', 'interdent.com', 'gentle1.com'])
     expect(domains('Perfect Teeth')).toEqual(['perfectteeth.com'])
     expect(domains('Dentistry for Children')).toEqual(['dentistryforchildrenus.com'])
     expect(domains('Sage Dental')).toEqual(['mysagedental.com'])
@@ -141,6 +143,10 @@ describe('the DSO list', () => {
     // The brands themselves: the host equals or sits under a brand domain.
     expect(matchDsoName('Gentle Dental of Decatur', ['gentledental.interdent.com'])).toBe('Gentle Dental')
     expect(matchDsoName('Gentle Dental of Decatur', ['www.gentle1.com'])).toBe('Gentle Dental')
+    // V1: 42 North Dental's New England brand — a listing at gentledental.com
+    // (NPI org "GENTLE DENTAL OF NEW ENGLAND") is a DSO office, set aside.
+    expect(matchDso({ practice: 'Gentle Dental Attleboro', npi: 'GENTLE DENTAL OF NEW ENGLAND', listing: 'Gentle Dental Attleboro', hosts: ['www.gentledental.com'] })).toEqual({ name: 'Gentle Dental', matchedOn: 'practice' })
+    expect(matchDsoName('Gentle Dental Attleboro', ['gentledental.com'])).toBe('Gentle Dental')
     expect(matchDsoName('Perfect Teeth Family Dentistry', ['perfectteeth.com'])).toBe('Perfect Teeth')
     expect(matchDsoName('Dentistry for Children of Lodi', ['dentistryforchildrenus.com'])).toBe('Dentistry for Children')
     expect(matchDsoName('Sage Dental of Kennesaw', ['mysagedental.com'])).toBe('Sage Dental')
@@ -304,7 +310,12 @@ describe('the address key — one spelling per address (E.2)', () => {
     }
     expect(addressKey('123 MAIN ST STE 200', '787011234')).toBe('123mainst78701')
     expect(addressKey('100 United Way Dr', '78701')).toBe('100unitedwaydr78701') // "United" is not a unit token
-    expect(addressKey(null, null)).toBe('')
+    // V8: no street is NO key — a phone-only stub with a ZIP is not an address.
+    expect(addressKey(null, null)).toBeNull()
+    expect(addressKey('', '78701')).toBeNull()
+    expect(addressKey('  ', '78701')).toBeNull()
+    expect(addressKey('STE 200', '78701')).toBeNull() // a suite line alone is no street either
+    expect(addressKey('#', '78701')).toBeNull()
     expect(ADDRESS_WORDS.map(([w]) => w)).toEqual([
       'street', 'avenue', 'road', 'drive', 'boulevard', 'lane', 'court', 'parkway', 'highway', 'place', 'circle', 'north', 'south', 'east', 'west',
       'suite', 'floor', 'building', 'apartment', 'room',
@@ -313,6 +324,40 @@ describe('the address key — one spelling per address (E.2)', () => {
   it('with the suite KEPT (the size count), the suite tells two practices apart', () => {
     expect(addressKey('100 Medical Plaza Dr STE 101', null, { keepSuite: true })).not.toBe(addressKey('100 Medical Plaza Dr STE 102', null, { keepSuite: true }))
     expect(addressKey('100 Medical Plaza Drive Suite 101', null, { keepSuite: true })).toBe(addressKey('100 MEDICAL PLAZA DR STE 101', null, { keepSuite: true }))
+  })
+  it('V4: a KEPT suite folds every unit-like token to one spelling, so the suite VALUE compares — #300, STE 300, Suite 300, Unit 300, Apt 300 are one; STE 300 and STE 301 are two', () => {
+    const keep = (line: string) => addressKey(line, null, { keepSuite: true })
+    const one = keep('100 Medical Plaza Dr STE 300')
+    expect(one).toBe('100medicalplazadrste300')
+    for (const spelling of ['#300', '# 300', 'STE 300', 'Ste. 300', 'STE #300', 'Suite 300', 'Unit 300', 'Apt 300', 'Apartment 300', 'Rm 300', 'Room 300']) {
+      expect(keep(`100 Medical Plaza Dr ${spelling}`), spelling).toBe(one)
+    }
+    expect(keep('100 Medical Plaza Dr STE 301')).not.toBe(one)
+    expect(keep('100 Medical Plaza Dr #301')).not.toBe(one)
+    // A floor or a building is its own kind of line: kept, never folded into a suite.
+    expect(keep('100 Medical Plaza Dr FL 3')).toBe('100medicalplazadrfl3')
+    expect(keep('100 Medical Plaza Dr Floor 3')).toBe('100medicalplazadrfl3')
+    expect(keep('100 Medical Plaza Dr FL 3')).not.toBe(keep('100 Medical Plaza Dr STE 3'))
+    // The dropped-suite key (the chain rule) is untouched by the fold.
+    expect(addressKey('100 Medical Plaza Dr #300', '78701')).toBe('100medicalplazadr78701')
+    expect(addressKey('100 Medical Plaza Dr Unit 300', '78701')).toBe('100medicalplazadr78701')
+  })
+  it('V8: two real offices + a phone-only hand-added stub on one desk line are NOT a chain — the stub has no address key, so it never counts as a third address', () => {
+    const rows = [
+      { addressLine1: '123 Main St', postalCode: '78701' },
+      { addressLine1: null, postalCode: '78701' }, // the hand-added stub: phone + ZIP, no street
+      { addressLine1: '200 Oak Ave', postalCode: '78701' },
+    ]
+    const keys = rows.map((r) => addressKey(r.addressLine1, r.postalCode))
+    expect(keys).toEqual(['123mainst78701', null, '200oakave78701'])
+    // What count(distinct …) counts: the non-null keys.
+    const addresses = new Set(keys.filter((k): k is string => k != null)).size
+    expect(addresses).toBe(2)
+    expect(chainGroupVerdict({ kind: 'shared_phone', key: '4045551212', addresses })).toBe(false)
+    // A third REAL office makes it one.
+    const third = addressKey('300 Pine Rd', '78701')
+    expect(new Set([...keys, third].filter((k): k is string => k != null)).size).toBe(3)
+    expect(chainGroupVerdict({ kind: 'shared_phone', key: '4045551212', addresses: 3 })).toBe(true)
   })
 })
 
@@ -406,6 +451,27 @@ describe('dentists at an address (the registry)', () => {
     expect(countDentistsAt(body, '100 Medical Plaza Dr').dentists).toBe(0)
     const group = { result_count: 6, results: [1, 2, 3, 4, 5].map((n) => suite(n, 'STE 300')).concat([suite(9, 'STE 301')]) }
     expect(countDentistsAt(group, '100 Medical Plaza Drive', 'Ste 300').dentists).toBe(5)
+  })
+  it('V4: eight dentists in one suite, four registered "STE 300" and four "#300", count as eight — a group; "STE 301" next door still does not', () => {
+    const suite = (n: number, line2: string) => {
+      const d = dentist(n, '100 Medical Plaza Dr')
+      return { ...d, addresses: [{ ...d.addresses[0], address_2: line2 }] }
+    }
+    const body = {
+      result_count: 9,
+      results: [1, 2, 3, 4].map((n) => suite(n, 'STE 300')).concat([5, 6, 7, 8].map((n) => suite(n, '#300'))).concat([suite(9, 'STE 301')]),
+    }
+    const org = countDentistsAt(body, '100 Medical Plaza Dr', 'STE 300')
+    expect(org).toEqual({ dentists: 8, scanned: 9, capped: false })
+    expect(practiceSize(org.dentists)).toBe('group')
+    // The org's own spelling does not matter either.
+    expect(countDentistsAt(body, '100 Medical Plaza Drive', 'Suite 300').dentists).toBe(8)
+    expect(countDentistsAt(body, '100 Medical Plaza Dr', '#300').dentists).toBe(8)
+    expect(countDentistsAt(body, '100 Medical Plaza Dr', 'Unit 300').dentists).toBe(8)
+    expect(countDentistsAt(body, '100 Medical Plaza Dr', 'STE 301').dentists).toBe(1)
+    // The exported key agrees, and a record with no street has none.
+    expect(sizeAddressKey('100 Medical Plaza Dr', '#300')).toBe(sizeAddressKey('100 Medical Plaza Drive', 'Suite 300'))
+    expect(sizeAddressKey(null, 'STE 300')).toBeNull()
   })
   it('a full page is capped — more may exist past it', () => {
     expect(countDentistsAt({ result_count: 200, results: [] }, '123 Main St').capped).toBe(true)

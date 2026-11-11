@@ -143,7 +143,7 @@ vi.mock('@/lib/ai', () => ({
   aiConfigured: aiConfiguredMock,
 }))
 
-import { runEnrichment, reEnrichProspect } from '@/lib/services/prospect-enrich'
+import { runEnrichment, reEnrichProspect, unreadCrawlSignals } from '@/lib/services/prospect-enrich'
 import { PROSPECTING_DEFAULTS } from '@/lib/types/prospecting'
 
 const NOW = new Date('2026-07-07T00:00:00Z')
@@ -493,6 +493,31 @@ describe('P-04 in the enrich pass', () => {
     expect(final.scoreReasons as string[]).not.toContain('No booking widget, no review engine — a phone number is their only door')
     const prompt = (aiMock.mock.calls[0][0] as { messages: Array<{ content: string }> }).messages[0].content
     expect(prompt).toContain('Booking / review tools fingerprinted on the site: not read (robots)')
+  })
+
+  it('V13: a page that does not answer is stored as an UNREAD crawl (stack null, error fetch_failed) — the card can say why; no AI call, no verdict from a page nobody read, no +6', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      const u = String(url)
+      if (u.endsWith('/robots.txt')) return { ok: true, body: bodyStream('User-agent: *\nAllow: /'), text: async () => 'User-agent: *\nAllow: /', url } as unknown as Response
+      throw new Error('ECONNRESET')
+    })
+    const quiet = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    state.selectQueue.push([PROSPECT])
+    placeMock.mockResolvedValue(found(PLACE))
+    const r = await runEnrichment()
+    quiet.mockRestore()
+    expect(r.enriched).toBe(1)
+    const final = state.updates.find((u) => u.values.enrichment)!.values
+    const enrichment = final.enrichment as { stack: unknown; error: string; builder: unknown; fetchedAt: string; ssl: boolean }
+    expect(enrichment.stack).toBeNull()
+    expect(enrichment.error).toBe('fetch_failed')
+    expect(enrichment.builder).toBeNull()
+    expect(enrichment.ssl).toBe(true)
+    expect(typeof enrichment.fetchedAt).toBe('string')
+    expect(aiMock).not.toHaveBeenCalled()
+    expect(final.scoreReasons as string[]).not.toContain('No booking widget, no review engine — a phone number is their only door')
+    expect(unreadCrawlSignals('https://smiledental.com', 'fetch_failed', new Date('2026-11-10T12:00:00Z'))).toMatchObject({ stack: null, error: 'fetch_failed', fetchedAt: '2026-11-10T12:00:00.000Z', ssl: true })
+    expect(unreadCrawlSignals('http://smiledental.com', 'robots_disallow').ssl).toBe(false)
   })
 
   it('the crawl fingerprints the competitor stack across the hops and the score names it', async () => {

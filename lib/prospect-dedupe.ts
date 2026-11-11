@@ -252,3 +252,26 @@ export function pickSurvivor<T extends DedupeRow>(rows: T[]): T {
 export function duplicateReasons(a: DedupeRow, b: DedupeRow): string[] {
   return sharedKeys(a, b).map((k) => DEDUPE_KEY_LABELS[k])
 }
+
+/** How far along the pipeline a status is — a merge never moves the
+ *  survivor BACKWARD, and the one restore honours a merge's "at least"
+ *  (fix pass II, V11). A terminal or resting status has no rank here: a
+ *  resting row ranks by the status it came from (`wakeStatus`). */
+export const STATUS_RANK: Record<string, number> = {
+  discovered: 0,
+  enriching: 0,
+  enriched: 1,
+  queued: 2,
+  contacted: 3,
+  engaged: 4,
+  call_list: 5,
+}
+
+/** `b` when it ranks further along than `a`, else `a` — an unranked
+ *  status (terminal, resting, unknown) never moves anything. */
+export function furtherStatus(a: string, b: string | null | undefined): string {
+  if (!b) return a
+  const ra = STATUS_RANK[a]
+  const rb = STATUS_RANK[b]
+  return ra !== undefined && rb !== undefined && rb > ra ? b : a
+}

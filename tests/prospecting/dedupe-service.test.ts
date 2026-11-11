@@ -32,10 +32,20 @@ vi.mock('@/lib/services/prospect-caller-release', () => ({
   releaseCooldownUntil: (now: Date) => new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000),
 }))
 const configMock = vi.hoisted(() => vi.fn())
-vi.mock('@/lib/services/prospecting', () => ({ getProspectingConfig: configMock }))
+vi.mock('@/lib/services/prospecting', () => ({
+  getProspectingConfig: configMock,
+  // The real restore (run un-mocked in the F.2(b) tests below) imports
+  // these; it never calls them on a restore.
+  stopActiveEnrollments: vi.fn(),
+  clearSystemFollowUp: vi.fn(),
+}))
 // The one chain restore (P-04 fix pass) is its own module with its own
-// tests; here it is a spy, so the merge's writes stay its own.
-const fitMocks = vi.hoisted(() => ({ restore: vi.fn(async (_id: string, _now?: Date, _mode?: string) => ({ ok: true as const, status: 'contacted' })) }))
+// tests; here it is a spy, so the merge's writes stay its own — except in
+// the F.2(b) tests that hand the spy the REAL restore (V10 / V11), so the
+// merge and the restore are seen working on one row together.
+const fitMocks = vi.hoisted(() => ({
+  restore: vi.fn<typeof import('@/lib/services/prospect-fit').restoreChainFlagged>(async () => ({ ok: true as const, status: 'contacted' })),
+}))
 vi.mock('@/lib/services/prospect-fit', () => ({ restoreChainFlagged: fitMocks.restore }))
 
 vi.mock('@/lib/db', async () => {
@@ -418,7 +428,134 @@ describe('mergeProspects — the merge', () => {
     expect(fit.chain).toMatchObject(flag)
     // The loser's live drip is NOT stopped as "merged" on the way in: the survivor is about to be live again.
     expect(updates('outreachEnrollment').some((u) => u.values?.stopReason === 'merged')).toBe(false)
-    expect(fitMocks.restore).toHaveBeenCalledWith('a', NOW, 'override')
+    // Both sides contacted: no "at least" for the restore (V11).
+    expect(fitMocks.restore).toHaveBeenCalledWith('a', NOW, 'override', { atLeast: null })
+  })
+
+  it('F.2(b) with the REAL restore (V10 + V11): survivor sweep-flagged while enriched, loser contacted + override + a live drip + caller X + a promised callback → the merged row is CONTACTED, the drip stays live, the callback survives the restore, and X keeps it through the hand-over on the RESTORED row', async () => {
+    const actual = await vi.importActual<typeof import('@/lib/services/prospect-fit')>('@/lib/services/prospect-fit')
+    fitMocks.restore.mockImplementationOnce((id, now, mode, opts) => actual.restoreChainFlagged(id, now, mode, opts))
+    const AT = '2026-11-09T00:00:00.000Z'
+    const override = { status: 'not_a_chain', detail: 'by hand', checkedAt: AT, source: 'owner' }
+    const flag = {
+      status: 'shared_phone', detail: 'shares', checkedAt: AT, source: 'our_data', kind: 'shared_phone', count: 3, key: '4045551212',
+      priorStatus: 'enriched',
+      // The system nudge the flag cleared — its time has passed.
+      priorFollowUp: { at: '2026-11-05T15:00:00.000Z', reason: 'No answer — try again' },
+    }
+    const signals = {
+      places: { status: 'matched', detail: null, checkedAt: AT, source: 'places' },
+      business: { status: 'open', detail: null, checkedAt: AT, source: 'places' },
+      npi: { status: 'active', detail: null, checkedAt: AT, source: 'nppes' },
+      website: { status: 'alive', detail: null, checkedAt: AT, source: 'crawl' },
+      phone: { status: 'well_formed', detail: null, checkedAt: AT, source: 'nanp', sources: ['nppes', 'places'], standing: 'corroborated' },
+    }
+    const promised = new Date('2026-11-14T15:00:00.000Z')
+    const heldSince = new Date('2026-11-08T00:00:00Z')
+    const survivor = prospect({
+      id: 'a', status: 'disqualified', suppressedReason: 'chain', suppressedAt: new Date(AT), qualityScore: 0, verifiedAt: new Date(AT),
+      verification: { ...signals, fit: { chain: flag } }, nextFollowUpAt: null, followUpReason: null,
+      phoneStatus: 'unknown', phoneLineType: null, businessStatus: 'OPERATIONAL', reviewCount: 40, websiteUrl: 'https://smile.com',
+    })
+    const loser = prospect({
+      id: 'b', status: 'contacted', qualityScore: 80, verification: { fit: { chainOverride: override } },
+      assignedCallerId: 'pcal_x', assignedAt: heldSince,
+      nextFollowUpAt: promised, followUpReason: 'They asked for a callback',
+      intentSignal: 'clicked', intentAt: new Date('2026-11-07T00:00:00Z'), intentSummary: 'Clicked the pricing link',
+    })
+    state.selectQueue.push(
+      [survivor, loser],
+      [], [], [], // no contacts, no live drip on the survivor (the loser's re-points)
+      // The restore's read: the row as the merge left it — still set aside,
+      // the override on it, the loser's callback carried onto it.
+      [
+        {
+          id: 'a', status: 'disqualified', suppressedReason: 'chain', verifiedAt: new Date(AT),
+          verification: { ...signals, fit: { chain: flag, chainOverride: override } },
+          phoneStatus: 'unknown', phoneLineType: null, businessStatus: 'OPERATIONAL', reviewCount: 40, websiteUrl: 'https://smile.com',
+          nextFollowUpAt: promised, followUpReason: 'They asked for a callback', dormantFromStatus: null,
+        },
+      ],
+      // The hand-over read, AFTER the restore: the survivor passes the one predicate.
+      [{ id: 'a' }],
+    )
+    const r = await mergeProspects('a', 'b', { now: NOW })
+    expect(r).toMatchObject({ ok: true, survivorId: 'a', loserId: 'b' })
+
+    const [fill, merged, restore, carry] = updates('prospect')
+    // Inside the transaction: the survivor is NOT moved by status (the restore
+    // owns that), the override lands, the callback and the intent carry, and
+    // no caller is written blind.
+    expect(fill.values).not.toHaveProperty('status')
+    expect((fill.values!.verification as { fit: Record<string, unknown> }).fit.chainOverride).toEqual(override)
+    expect(fill.values).toMatchObject({ nextFollowUpAt: promised, followUpReason: 'They asked for a callback', intentSignal: 'clicked', intentSummary: 'Clicked the pricing link' })
+    expect(fill.values).not.toHaveProperty('assignedCallerId')
+    expect(merged.values).toMatchObject({ status: 'merged', mergedIntoProspectId: 'a', assignedCallerId: null })
+    // The loser's live drip re-points, never stopped as "merged".
+    expect(updates('outreachEnrollment').some((u) => u.values?.stopReason === 'merged')).toBe(false)
+    expect(updates('outreachEnrollment')[0].values).toEqual({ prospectId: 'a' })
+    // The REAL restore ran with the loser's further status as its "at least":
+    // the merged practice is CONTACTED, the suppression clears, quality is
+    // recomputed under the restored status — and the carried callback is
+    // left alone (V10): no stale system nudge over a human's promise.
+    expect(fitMocks.restore).toHaveBeenCalledWith('a', NOW, 'override', { atLeast: 'contacted' })
+    expect(restore.values).toMatchObject({ status: 'contacted', suppressedReason: null, suppressedAt: null, dormantFromStatus: null })
+    expect(restore.values!.qualityScore).toBeGreaterThan(0)
+    expect(restore.values).not.toHaveProperty('nextFollowUpAt')
+    expect(restore.values).not.toHaveProperty('followUpReason')
+    expect((restore.values!.verification as { fit: Record<string, unknown> }).fit.chainOverride).toEqual(override)
+    // The restore's resume of a chain-stopped drip runs (its WHERE keeps it
+    // idle while the loser's drip is live).
+    expect(updates('outreachEnrollment').at(-1)!.values).toEqual({ status: 'active', nextSendAt: NOW, stoppedAt: null, stopReason: null })
+    // The hand-over ran AFTER the restore, against the restored row, through
+    // P-02's one predicate — X keeps the practice.
+    expect(carry.values).toMatchObject({ assignedCallerId: 'pcal_x', assignedAt: heldSince, callerCooldownUntil: null })
+    expect(render(carry.where).sql).toContain('"prospect"."assigned_caller_id" is null')
+    expect(callerMocks.servable).toHaveBeenCalledWith(NOW)
+    const handover = render(state.selectWheres.at(-1))
+    expect(handover.sql).toContain('"prospect"."id" = $1')
+    expect(handover.sql).toContain('"prospect"."assigned_caller_id" is null')
+    expect(handover.params).toEqual(['a'])
+    expect(updates('prospect')).toHaveLength(4) // no cooldown write: the slot was carried
+    expect(callerMocks.release).toHaveBeenCalledWith('a', NOW)
+  })
+
+  it('F.2(b) with the REAL restore, the other way round: the loser is no further along and holds no follow-up → the restore returns the survivor to where it was and puts the remembered system nudge back (due now); a hand-over the restored row REFUSES releases the slot with the cooldown', async () => {
+    const actual = await vi.importActual<typeof import('@/lib/services/prospect-fit')>('@/lib/services/prospect-fit')
+    fitMocks.restore.mockImplementationOnce((id, now, mode, opts) => actual.restoreChainFlagged(id, now, mode, opts))
+    const AT = '2026-11-09T00:00:00.000Z'
+    const override = { status: 'not_a_chain', detail: 'by hand', checkedAt: AT, source: 'owner' }
+    const flag = {
+      status: 'shared_phone', detail: 'shares', checkedAt: AT, source: 'our_data', kind: 'shared_phone', count: 3, key: '4045551212',
+      priorStatus: 'queued',
+      priorFollowUp: { at: '2026-11-05T15:00:00.000Z', reason: 'No answer — try again' },
+    }
+    state.selectQueue.push(
+      [
+        prospect({ id: 'a', status: 'disqualified', suppressedReason: 'chain', suppressedAt: new Date(AT), qualityScore: 0, verifiedAt: null, verification: { fit: { chain: flag } } }),
+        prospect({ id: 'b', status: 'enriched', qualityScore: 70, verification: { fit: { chainOverride: override } }, assignedCallerId: 'pcal_x', assignedAt: NOW }),
+      ],
+      [], [], [],
+      [
+        {
+          id: 'a', status: 'disqualified', suppressedReason: 'chain', verifiedAt: null,
+          verification: { fit: { chain: flag, chainOverride: override } },
+          phoneStatus: 'unknown', phoneLineType: null, businessStatus: null, reviewCount: null, websiteUrl: null,
+          nextFollowUpAt: null, followUpReason: null, dormantFromStatus: null,
+        },
+      ],
+      [], // the hand-over read: the restored row fails the predicate (say, a bad number)
+    )
+    await mergeProspects('a', 'b', { now: NOW })
+    const [fill, merged, restore, cooldown] = updates('prospect')
+    expect(fill.values).not.toHaveProperty('status')
+    expect(merged.values).toMatchObject({ status: 'merged' })
+    // queued (remembered) outranks the loser's enriched: no "at least".
+    expect(fitMocks.restore).toHaveBeenCalledWith('a', NOW, 'override', { atLeast: null })
+    expect(restore.values).toMatchObject({ status: 'queued', suppressedReason: null, qualityScore: null, nextFollowUpAt: NOW, followUpReason: 'No answer — try again' })
+    expect(cooldown.values).toEqual({ callerCooldownUntil: new Date(NOW.getTime() + 3 * DAY), updatedAt: NOW })
+    expect(render(cooldown.where).sql).toContain('"prospect"."assigned_caller_id" is null')
+    expect(callerMocks.release).toHaveBeenCalledWith('a', NOW)
   })
 
   it('a loser’s terminal verdict is CARRIED onto a live survivor — status, reason, its threads closed — never overwritten by "merged"', async () => {
