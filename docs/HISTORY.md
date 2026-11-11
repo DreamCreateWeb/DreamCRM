@@ -7583,3 +7583,13 @@ merged row's drawer folds to a read-only shell). An adversarial review (10
 confirmed, 2 upheld, 21 unverified claims — the usage limit killed the
 skeptics) was fixed in full before merge; every unverified claim was read
 and found real.
+
+## 2026-11-11 — The carrier line check's ON switch (scripts/setup-phone-validate-aws.sh)
+
+P-01's line-type driver ships off (`PHONE_VALIDATE_DRIVER` unset). The one-shot
+script mirrors `setup-sms-aws.sh`: an inline policy allowing
+`mobiletargeting:PhoneNumberValidate` on `DreamCRMAppRunnerInstanceRole`,
+then `PHONE_VALIDATE_DRIVER=aws` merged into the App Runner service's runtime
+environment variables (a rolling deploy of the same image). Pinpoint's phone
+number validate operation is explicitly outside the 2026-10-30 Pinpoint end
+of support, so the driver needs no replacement.
