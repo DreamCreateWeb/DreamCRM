@@ -11,7 +11,7 @@ import { getProspectDetail } from '@/lib/services/prospecting'
 import { getDemoBrief } from '@/lib/services/demo-brief'
 import { deriveDemoGaps } from '@/lib/demo-gaps'
 import { DEMO_BEATS, suggestDemoTrack, DEMO_TRACKS } from '@/lib/types/demo-script'
-import { crawlWasRead, ratingLabel } from '@/lib/types/prospecting'
+import { WEBSITE_NOT_READ, crawlWasRead, isWebsiteUnread, ratingLabel } from '@/lib/types/prospecting'
 import type { ProspectAiVerdict, ProspectCrawlSignals } from '@/lib/types/prospecting'
 import { PageFrame } from '@/components/ui/page-frame'
 import { KpiStat } from '@/components/ui/kpi-stat'
@@ -195,8 +195,11 @@ export default async function DemoPrepPage({
             ))}
           </ul>
         )}
-        {verdict?.summary && (
-          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{verdict.summary}</p>
+        {/* A website nobody read is never summarised as a grade (X1). */}
+        {verdict && (isWebsiteUnread(verdict) || verdict.summary) && (
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400" data-verdict-summary>
+            {isWebsiteUnread(verdict) ? WEBSITE_NOT_READ : verdict.summary}
+          </p>
         )}
       </section>
 

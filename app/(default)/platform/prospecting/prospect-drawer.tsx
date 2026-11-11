@@ -25,7 +25,7 @@ import ContactsPanel from './contacts-panel'
 import { VerificationCard } from './verification-card'
 import { FitCard, unreadStackTitle } from './fit-card'
 import PhoneEditor from './phone-editor'
-import { BUILDER_LABELS, crawlWasRead } from '@/lib/types/prospecting'
+import { BUILDER_LABELS, WEBSITE_NOT_READ, crawlWasRead, isWebsiteUnread } from '@/lib/types/prospecting'
 import { PhoneStandingPill, QualityPill, isBadPhone } from './quality-pills'
 import { formatProspectPhone } from '@/lib/types/prospecting'
 
@@ -343,8 +343,11 @@ export default function ProspectDrawer({
                 </li>
               ))}
             </ul>
-            {verdict.summary && (
-              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{verdict.summary}</p>
+            {/* A website nobody read is never summarised as a grade (X1). */}
+            {(isWebsiteUnread(verdict) || verdict.summary) && (
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400" data-verdict-summary>
+                {isWebsiteUnread(verdict) ? WEBSITE_NOT_READ : verdict.summary}
+              </p>
             )}
           </div>
         )}

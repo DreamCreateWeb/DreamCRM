@@ -1,5 +1,5 @@
 import type { ProspectAiVerdict, ProspectCrawlSignals, ProspectVerification, PracticeSize } from '@/lib/types/prospecting'
-import { BUILDER_LABELS, DIY_BUILDERS, TEMPLATE_VENDOR_BUILDERS, crawlWasRead } from '@/lib/types/prospecting'
+import { BUILDER_LABELS, DIY_BUILDERS, TEMPLATE_VENDOR_BUILDERS, WEBSITE_NOT_READ, crawlWasRead, isWebsiteUnread } from '@/lib/types/prospecting'
 import type { ProspectScoreBand } from '@/lib/db/schema/prospecting'
 import { newPracticeSentence, formatMonthYear } from '@/lib/prospect-fit'
 
@@ -11,6 +11,9 @@ import { newPracticeSentence, formatMonthYear } from '@/lib/prospect-fit'
  *
  * The ladder mirrors what Dream Create sells (websites + CRM + social):
  *   no website at all   → 92–100 (hot)   — they need everything
+ *   website NOT READ    → 60 (+8) (warm) — a URL we could not read: the
+ *                                          score never claims what it did
+ *                                          not see (fix pass IIIb, X1)
  *   bad website (<40)   → 65–89  (warm+) — replace it
  *   decent site, gaps   → 30–89          — booking/social/reviews upsell
  *   dialed-in practice  → <40   (low)
@@ -19,7 +22,22 @@ import { newPracticeSentence, formatMonthYear } from '@/lib/prospect-fit'
  * request), applied after the ladder, website branches capped at 89 so a
  * practice with no website is always the hottest kind:
  *
- *   new practice (NPPES enumerated < 18 months)   +8   (+4 with no website)
+ *   website not read (a known URL, a crawl that
+ *     read nothing — budget, robots, a failed
+ *     fetch)                                       60   base — "Website not
+ *                                                       read — quality
+ *                                                       unknown"; only the
+ *                                                       Google adjustments
+ *                                                       (few reviews +4, a
+ *                                                       weak rating +4), the
+ *                                                       registry's new
+ *                                                       practice at the
+ *                                                       conservative +4 and
+ *                                                       the group −10 apply;
+ *                                                       every website-derived
+ *                                                       branch is skipped
+ *   new practice (NPPES enumerated < 18 months)   +8   (+4 with no website,
+ *                                                       +4 with one unread)
  *   no booking widget and no review engine on
  *     the site AND the verdict says no booking    +6   "a phone number is
  *                                                       their only door"
@@ -43,6 +61,9 @@ import { newPracticeSentence, formatMonthYear } from '@/lib/prospect-fit'
  */
 
 export const OPPORTUNITY_WEIGHTS = {
+  /** A known URL nobody read: the base the Google adjustments ride; no
+   *  website tier, no website bonus or penalty (X1). */
+  unreadWebsiteBase: 60,
   newPractice: 8,
   newPracticeNoSite: 4,
   noStack: 6,
@@ -139,6 +160,11 @@ export function computeOpportunityScore(input: ScoreInput): ScoreResult {
   const fewReviews = reviewCount != null && reviewCount < 20
   const weakRating = ratingTenths != null && ratingTenths < 40
   const hasWebsite = verdict.hasWebsite
+  // A website nobody read (X1): the practice HAS a site, its quality is
+  // unknown. Never "no website", never a website tier from a placeholder 0.
+  const websiteUnread = isWebsiteUnread(verdict)
+  // The website-derived weights below apply only to a site somebody read.
+  const websiteJudged = hasWebsite && !websiteUnread
 
   if (!hasWebsite) {
     score = 92
@@ -150,6 +176,17 @@ export function computeOpportunityScore(input: ScoreInput): ScoreResult {
     if (weakRating || ratingTenths == null) {
       score += 4
       if (weakRating) reasons.push(`Google rating ${(ratingTenths! / 10).toFixed(1)}★`)
+    }
+  } else if (websiteUnread) {
+    score = OPPORTUNITY_WEIGHTS.unreadWebsiteBase
+    reasons.push(WEBSITE_NOT_READ)
+    if (fewReviews) {
+      score += 4
+      reasons.push(`Barely visible on Google (${reviewCount} reviews)`)
+    }
+    if (weakRating) {
+      score += 4
+      reasons.push(`Google rating ${(ratingTenths! / 10).toFixed(1)}★`)
     }
   } else if (verdict.websiteQuality < 40) {
     // 65 at quality 39 … 85 at quality 0.
@@ -187,15 +224,21 @@ export function computeOpportunityScore(input: ScoreInput): ScoreResult {
 
   // ── P-04: what the crawl and the registry already told us ─────────────
   if (input.openedAt) {
-    if (hasWebsite) {
+    if (websiteJudged) {
       score += OPPORTUNITY_WEIGHTS.newPractice
+      reasons.push(`Opened ${formatMonthYear(input.openedAt) ?? 'recently'} — a new practice still setting up`)
+    } else if (websiteUnread) {
+      // The registry's fact stands; the site we did not read earns the
+      // conservative +4 under the sentence that claims nothing about it
+      // ("no website yet" would) — X1.
+      score += OPPORTUNITY_WEIGHTS.newPracticeNoSite
       reasons.push(`Opened ${formatMonthYear(input.openedAt) ?? 'recently'} — a new practice still setting up`)
     } else {
       score += OPPORTUNITY_WEIGHTS.newPracticeNoSite
       reasons.push(newPracticeSentence(input.openedAt))
     }
   }
-  if (hasWebsite && Array.isArray(input.stack)) {
+  if (websiteJudged && Array.isArray(input.stack)) {
     if (input.stack.length > 0) {
       score += Math.max(OPPORTUNITY_WEIGHTS.stackFloor, OPPORTUNITY_WEIGHTS.stackTool * input.stack.length)
       reasons.push(stackSentence(input.stack))
@@ -204,7 +247,7 @@ export function computeOpportunityScore(input: ScoreInput): ScoreResult {
       reasons.push('No booking widget, no review engine — a phone number is their only door')
     }
   }
-  if (hasWebsite && input.builder) {
+  if (websiteJudged && input.builder) {
     const label = BUILDER_LABELS[input.builder] ?? input.builder
     if ((DIY_BUILDERS as readonly string[]).includes(input.builder)) {
       score += OPPORTUNITY_WEIGHTS.diyBuilder
@@ -233,18 +276,31 @@ export function heuristicVerdict(
   signals: ProspectCrawlSignals | null,
   hasWebsite: boolean,
 ): ProspectAiVerdict {
-  // An unread crawl (robots refused us, the site could not be read) is
-  // judged like no crawl at all — its zeros are not "not mobile-friendly"
-  // (fix pass III, W4).
-  if (!hasWebsite || !crawlWasRead(signals)) {
+  if (!hasWebsite) {
     return {
       hasWebsite: false,
       websiteQuality: 0,
       websiteReasons: [],
       socialPresence: 0,
       onlineBooking: false,
-      weaknesses: hasWebsite ? [] : ['no website'],
-      summary: hasWebsite ? 'Website not yet crawled.' : 'No website found.',
+      weaknesses: ['no website'],
+      summary: 'No website found.',
+    }
+  }
+  // A website nobody read — no crawl (budget), robots refused us, the site
+  // could not be read — is an honest UNREAD verdict (X1): the practice has
+  // a site, its quality is unknown; the zeros are placeholders, never
+  // "not mobile-friendly" (W4) and never "no website".
+  if (!crawlWasRead(signals)) {
+    return {
+      hasWebsite: true,
+      websiteRead: false,
+      websiteQuality: 0,
+      websiteReasons: [],
+      socialPresence: 0,
+      onlineBooking: false,
+      weaknesses: [],
+      summary: 'Website not read.',
     }
   }
   let quality = 50

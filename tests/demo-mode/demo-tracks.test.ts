@@ -108,6 +108,15 @@ describe('suggestDemoTrack', () => {
     expect(suggestDemoTrack(verdict(), signals(), { ratingTenths: 47, reviewCount: 220 })).toBe('full')
   })
 
+  it('X1: an UNREAD verdict (a site nobody read, placeholder quality 0) never forces the website story — the presence around it decides', () => {
+    const unread = verdict({ websiteRead: false, websiteQuality: 0, summary: 'Website not read.' })
+    expect(suggestDemoTrack(unread, signals(), { ratingTenths: 47, reviewCount: 220 })).toBe('full')
+    expect(suggestDemoTrack(unread, signals({ socialLinks: NO_SOCIAL }), { ratingTenths: 47, reviewCount: 220 })).toBe('presence')
+    expect(suggestDemoTrack(unread, signals(), { ratingTenths: 38, reviewCount: 200 })).toBe('presence')
+    // A READ 0 is still the rebuild story.
+    expect(suggestDemoTrack(verdict({ websiteQuality: 0 }), signals(), { ratingTenths: 47, reviewCount: 220 })).toBe('website')
+  })
+
   it('W4: an UNREAD crawl is nothing read — the same answer as no crawl, whatever its zeros (or a stale link) say', () => {
     const places = { ratingTenths: 47, reviewCount: 220 }
     const unread = signals({ error: 'fetch_failed' })

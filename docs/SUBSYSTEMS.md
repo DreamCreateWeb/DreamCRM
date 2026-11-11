@@ -848,7 +848,36 @@ template vendor +4; `BUILDER_LABELS` for the UI); the NEW PRACTICE from
 the registry (NPPES `enumeration_date` < 18 months → `fit.newPractice =
 new`, +8 with a website, +4 without, "Opened Jun 2025 — no website yet is
 normal; now is the moment"); a practice WITH a website never beats one
-without (cap 89). LIVENESS FROM THE LISTING: `places.reviews` and
+without (cap 89). AN UNREAD SITE IS NEVER "NO WEBSITE" (fix pass IIIb,
+X1): a practice with a KNOWN URL nobody read — a budget-skipped crawl, a
+robots.txt refusal, a fetch that failed or answered non-2xx — gets an
+honest UNREAD verdict from `heuristicVerdict` (`{hasWebsite: true,
+websiteRead: false, websiteQuality: 0, …, summary: 'Website not read.'}`;
+`websiteRead` is absent — read — on every AI verdict and every heuristic
+from a read page; `isVerdict` unchanged), and `computeOpportunityScore`
+takes its own branch between no-website and weak-website:
+`OPPORTUNITY_WEIGHTS.unreadWebsiteBase` (60, "Website not read — quality
+unknown"), the Google adjustments only (few reviews +4, a weak rating +4;
+an unknown rating earns nothing), the registry's new practice at the
+conservative +4 under the "still setting up" sentence (the "no website
+yet" sentence would claim what we did not see) and the group −10; every
+website-derived branch is skipped (no website tier, no booking +5 / +14,
+no noStack +6, no stack penalty, no builder +5 / +4), the cap stays —
+never 92 "No website at all" for a site that exists, never "Weak website
+(0/100)" from a placeholder. `rescoreOpportunity` keeps the branch while
+the stored verdict is unread; the next crawl that READS the page replaces
+the verdict through the normal enrich path. Every reader of the verdict's
+quality or summary asks `isWebsiteUnread` first and says
+`WEBSITE_NOT_READ` ("Website not read — quality unknown"): the drawer's
+"Why this score" block, the demo prep page, the demo brief prompt ("do
+not describe or judge their site"), the segment router (`weak_presence`
+— the one pitch that claims nothing about the site — never
+`weak_website` on a 0), the call script's angle (`unreadWebsiteAngle`:
+"do not describe or judge their site", never "the site is fine" /
+"dated"), the demo track router (never the rebuild story on a 0);
+`deriveDemoGaps` sees `hasWebsite: true` and raises no "No website at
+all" gap; the practice grade reads a verdict only from a read page.
+LIVENESS FROM THE LISTING: `places.reviews` and
 `places.regularOpeningHours` ride the SAME Places call (the dearer SKU,
 accepted; never a second request) → `verification.reviews = {status:
 recent ≤6 months | quiet ≤18 | stale | none (the listing counts ZERO) |

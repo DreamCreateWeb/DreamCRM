@@ -1,4 +1,4 @@
-import { crawlUnreadReason, crawlWasRead, type ProspectAiVerdict, type ProspectCrawlSignals } from '@/lib/types/prospecting'
+import { crawlUnreadReason, crawlWasRead, isWebsiteUnread, type ProspectAiVerdict, type ProspectCrawlSignals } from '@/lib/types/prospecting'
 import { DEMO_BEATS } from '@/lib/types/demo-script'
 import { effectiveProductKnowledge, type ProspectBrain } from '@/lib/prospect-product-knowledge'
 
@@ -47,7 +47,12 @@ export function buildDemoBriefPrompt(input: DemoBriefPromptInput): {
       : s
         ? [`Site signals: site not read (${crawlUnreadReason(s.error)}).`]
         : ['Site signals: not crawled yet.']),
-    ...(v ? [`Website quality ${v.websiteQuality}/100 · social presence ${v.socialPresence}/100 · verified weaknesses: ${v.weaknesses.join('; ') || 'none recorded'}`] : []),
+    // An unread website's placeholder 0 is never a grade (X1).
+    ...(v
+      ? isWebsiteUnread(v)
+        ? ['Website not read — quality unknown; do not describe or judge their site.']
+        : [`Website quality ${v.websiteQuality}/100 · social presence ${v.socialPresence}/100 · verified weaknesses: ${v.weaknesses.join('; ') || 'none recorded'}`]
+      : []),
     ...(input.scoreReasons.length ? [`Opportunity reasons: ${input.scoreReasons.join('; ')}`] : []),
     '',
     `Demo beats available (use these EXACT beatId values): ${DEMO_BEATS.map((b) => `${b.id} ("${b.title}")`).join(', ')}`,

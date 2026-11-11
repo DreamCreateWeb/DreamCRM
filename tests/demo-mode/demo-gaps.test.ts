@@ -102,6 +102,10 @@ describe('deriveDemoGaps', () => {
     expect(withVerdict.filter((g) => g.source === 'signal').map((g) => g.label)).toEqual(['Google rating 3.8★', 'Only 12 Google reviews'])
     expect(withVerdict.some((g) => g.source === 'ai')).toBe(true)
     expect(deriveDemoGaps({ ...SIGNALS }, null, undefined, 2026).map((g) => g.label)).toContain("Site isn't mobile-friendly")
+    // X1: the UNREAD verdict the enrich pass stores for such a crawl has a
+    // website — never the "No website at all" headline gap.
+    const unreadVerdict: ProspectAiVerdict = { hasWebsite: true, websiteRead: false, websiteQuality: 0, websiteReasons: [], socialPresence: 0, onlineBooking: false, weaknesses: [], summary: 'Website not read.' }
+    expect(deriveDemoGaps(unread, unreadVerdict, undefined, 2026)).toEqual([])
   })
 
   it('a healthy practice yields few or no gaps', () => {

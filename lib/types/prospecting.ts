@@ -549,6 +549,13 @@ export const TEMPLATE_VENDOR_BUILDERS = ['prosites', 'pbhs', 'officite', 'tntden
 // ── AI verdict (prospect.ai_verdict jsonb) ─────────────────────────────────
 export interface ProspectAiVerdict {
   hasWebsite: boolean
+  /** False ONLY for an UNREAD website (P-04 fix pass IIIb, X1): the
+   *  practice has a URL we could not read — a budget-skipped crawl,
+   *  robots.txt refused us, the site could not be read. Absent = true (every
+   *  stored AI verdict, every heuristic from a read page). An unread verdict
+   *  claims nothing about the site: quality 0 is a placeholder, never a
+   *  grade, and every reader says "Website not read" (`isWebsiteUnread`). */
+  websiteRead?: boolean
   websiteQuality: number // 0-100
   websiteReasons: string[]
   socialPresence: number // 0-100
@@ -556,6 +563,17 @@ export interface ProspectAiVerdict {
   weaknesses: string[] // feed personalized outreach copy
   summary: string
 }
+
+/** The practice has a website nobody read: the verdict's quality and
+ *  summary are not findings. The one gate every reader of
+ *  `websiteQuality` / `summary` asks (X1). */
+export function isWebsiteUnread(verdict: ProspectAiVerdict | null | undefined): boolean {
+  return verdict?.hasWebsite === true && verdict.websiteRead === false
+}
+
+/** What every surface says for an unread website — never "Weak website
+ *  (0/100)", never "No website at all". */
+export const WEBSITE_NOT_READ = 'Website not read — quality unknown'
 
 // ── Outreach segments (sequence ↔ prospect matching) ───────────────────────
 export const OUTREACH_SEGMENTS = ['no_website', 'weak_website', 'weak_presence'] as const

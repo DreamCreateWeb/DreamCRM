@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest'
  */
 
 import { computeOpportunityScore, bandForScore, heuristicVerdict, rescoreOpportunity, OPPORTUNITY_WEIGHTS } from '@/lib/prospect-scoring'
-import type { ProspectAiVerdict, ProspectCrawlSignals } from '@/lib/types/prospecting'
+import { isWebsiteUnread, type ProspectAiVerdict, type ProspectCrawlSignals } from '@/lib/types/prospecting'
 
 const GOOD_SITE: ProspectAiVerdict = {
   hasWebsite: true,
@@ -131,10 +131,88 @@ describe('heuristicVerdict (AI-unavailable fallback)', () => {
       expect(v).toEqual(heuristicVerdict(null, true))
       expect(v.weaknesses).toEqual([])
       expect(v.websiteReasons).toEqual([])
-      expect(v.summary).toBe('Website not yet crawled.')
+      expect(v.summary).toBe('Website not read.')
     }
     // The same zeros on a page somebody READ are findings.
     expect(heuristicVerdict({ ...unread, error: undefined, stack: [] }, true).websiteReasons).toContain('Not mobile-friendly')
+  })
+
+  it('X1: a website nobody read (a known URL — no crawl, robots, a failed fetch) is an UNREAD verdict: hasWebsite true, websiteRead false, a placeholder 0, "Website not read." — never "no website"; a read page carries no websiteRead', () => {
+    const unread = { hasWebsite: true, websiteRead: false, websiteQuality: 0, websiteReasons: [], socialPresence: 0, onlineBooking: false, weaknesses: [], summary: 'Website not read.' }
+    expect(heuristicVerdict(null, true)).toEqual(unread)
+    const stub = { ssl: true, mobileViewport: false, copyrightYear: null, titleTag: null, metaDescription: null, bookingWidget: false, socialLinks: {}, builder: null, stack: null, pageWeightKb: 0, emails: [], fetchedAt: '2026-11-10T00:00:00Z', error: 'fetch_failed' }
+    expect(heuristicVerdict(stub, true)).toEqual(unread)
+    expect(heuristicVerdict({ ...stub, error: 'robots_disallow' }, true)).toEqual(unread)
+    expect(isWebsiteUnread(heuristicVerdict(stub, true))).toBe(true)
+    // No URL at all stays the no-website verdict.
+    expect(heuristicVerdict(null, false)).toMatchObject({ hasWebsite: false, weaknesses: ['no website'], summary: 'No website found.' })
+    expect(heuristicVerdict(null, false)).not.toHaveProperty('websiteRead')
+    expect(isWebsiteUnread(heuristicVerdict(null, false))).toBe(false)
+    // A read page: no websiteRead key (absent = read), a real grade.
+    const read = heuristicVerdict({ ...stub, error: undefined, stack: [], mobileViewport: true, metaDescription: 'x' }, true)
+    expect(read).not.toHaveProperty('websiteRead')
+    expect(isWebsiteUnread(read)).toBe(false)
+    expect(isWebsiteUnread(GOOD_SITE)).toBe(false)
+    expect(isWebsiteUnread(null)).toBe(false)
+  })
+})
+
+describe('X1: the score never claims what it did not see — an unread website', () => {
+  const UNREAD: ProspectAiVerdict = { hasWebsite: true, websiteRead: false, websiteQuality: 0, websiteReasons: [], socialPresence: 0, onlineBooking: false, weaknesses: [], summary: 'Website not read.' }
+
+  it('a known URL nobody read scores the 60 base + the Google adjustments only — "Website not read — quality unknown", warm, never "No website at all" at 92, never "Weak website (0/100)"', () => {
+    const plain = computeOpportunityScore({ verdict: UNREAD, reviewCount: 40, ratingTenths: 45 })
+    expect(plain).toEqual({ score: 60, band: 'warm', reasons: ['Website not read — quality unknown'] })
+    expect(OPPORTUNITY_WEIGHTS.unreadWebsiteBase).toBe(60)
+    const few = computeOpportunityScore({ verdict: UNREAD, reviewCount: 8, ratingTenths: 45 })
+    expect(few).toMatchObject({ score: 64, band: 'warm' })
+    expect(few.reasons).toEqual(['Website not read — quality unknown', 'Barely visible on Google (8 reviews)'])
+    const weak = computeOpportunityScore({ verdict: UNREAD, reviewCount: 8, ratingTenths: 36 })
+    expect(weak).toMatchObject({ score: 68, band: 'warm' })
+    expect(weak.reasons).toContain('Google rating 3.6★')
+    // An unknown rating earns nothing here (the no-website branch's +4 for a null rating is its own).
+    expect(computeOpportunityScore({ verdict: UNREAD, reviewCount: 40, ratingTenths: null }).score).toBe(60)
+    for (const r of [plain, few, weak]) {
+      expect(r.reasons.join(' ')).not.toMatch(/No website at all|Weak website|No online booking|Social media unmanaged/)
+    }
+    // The same practice with NO URL is still the hottest kind.
+    const none = computeOpportunityScore({ verdict: { ...UNREAD, hasWebsite: false, websiteRead: undefined }, reviewCount: 40, ratingTenths: 45 })
+    expect(none.score).toBe(92)
+    expect(none.reasons[0]).toBe('No website at all — needs everything we sell')
+    // A read page with a placeholder-looking 0 is still the weak-website tier.
+    expect(computeOpportunityScore({ verdict: { ...UNREAD, websiteRead: undefined }, reviewCount: 40, ratingTenths: 45 }).reasons[0]).toBe('Weak website (0/100)')
+  })
+
+  it('every website-derived branch is skipped — no booking +5 / +14, no noStack +6, no stack penalty, no builder +5 / +4; the registry still speaks: a new practice at the conservative +4 under the "still setting up" sentence, a group −10; the cap stays', () => {
+    const base = { verdict: UNREAD, reviewCount: 40, ratingTenths: 45 }
+    expect(computeOpportunityScore({ ...base, stack: [] }).score).toBe(60)
+    expect(computeOpportunityScore({ ...base, stack: ['NexHealth', 'Birdeye', 'Weave'] }).score).toBe(60)
+    expect(computeOpportunityScore({ ...base, stack: ['NexHealth'] }).reasons).not.toContain('Already on NexHealth')
+    expect(computeOpportunityScore({ ...base, builder: 'wix' }).score).toBe(60)
+    expect(computeOpportunityScore({ ...base, builder: 'prosites' }).reasons.join(' ')).not.toMatch(/template|DIY/)
+    const opened = computeOpportunityScore({ ...base, openedAt: '2025-06-15' })
+    expect(opened.score).toBe(64)
+    expect(opened.reasons).toContain('Opened Jun 2025 — a new practice still setting up')
+    expect(opened.reasons.join(' ')).not.toMatch(/no website yet/)
+    const group = computeOpportunityScore({ ...base, practiceSize: 'group' })
+    expect(group).toMatchObject({ score: 50, band: 'cool' })
+    expect(group.reasons).toContain('A group practice — lower priority, not a chain')
+    // Everything at once stays under the website cap and the no-website floor.
+    const all = computeOpportunityScore({ ...base, reviewCount: 3, ratingTenths: 30, stack: [], builder: 'wix', openedAt: '2025-06-15' })
+    expect(all.score).toBe(72)
+    expect(all.score).toBeLessThanOrEqual(OPPORTUNITY_WEIGHTS.websiteCap)
+  })
+
+  it('rescoreOpportunity keeps the unread branch for a stored unread verdict (a verify pass that moves the fit never re-grades a site nobody read); a later read crawl’s verdict replaces it', () => {
+    const at = '2026-11-10T00:00:00.000Z'
+    const stub = { stack: null, builder: null, error: 'fetch_failed' }
+    const row = { aiVerdict: UNREAD, reviewCount: 40, ratingTenths: 45, enrichment: stub, verification: {} }
+    expect(rescoreOpportunity(row)).toEqual({ score: 60, band: 'warm', reasons: ['Website not read — quality unknown'] })
+    expect(rescoreOpportunity({ ...row, verification: { fit: { size: { status: 'group', detail: null, checkedAt: at, source: 'nppes', dentists: 6 } } } })).toMatchObject({ score: 50, band: 'cool' })
+    // The stored JSON round-trips the flag.
+    expect(rescoreOpportunity({ ...row, aiVerdict: JSON.parse(JSON.stringify(UNREAD)) })!.reasons[0]).toBe('Website not read — quality unknown')
+    // A read crawl's verdict (no websiteRead) scores the ladder as before.
+    expect(rescoreOpportunity({ ...row, aiVerdict: GOOD_SITE, enrichment: { stack: [], builder: null } })!.reasons.join(' ')).not.toMatch(/not read/)
   })
 })
 
@@ -146,6 +224,7 @@ describe('the P-04 weights — the stack, the builder, a new practice, a group',
 
   it('documents the weights', () => {
     expect(OPPORTUNITY_WEIGHTS).toEqual({
+      unreadWebsiteBase: 60,
       newPractice: 8,
       newPracticeNoSite: 4,
       noStack: 6,

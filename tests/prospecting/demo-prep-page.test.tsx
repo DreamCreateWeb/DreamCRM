@@ -101,6 +101,25 @@ describe('the demo prep page (W4)', () => {
     expect(robots.container.textContent).not.toContain('Not mobile-friendly')
   })
 
+  it('X1: an UNREAD verdict (the one the enrich pass stores beside an unread crawl) is summarised as "Website not read — quality unknown", never a grade, and the suggested story is not the rebuild', async () => {
+    detailMock.mockResolvedValueOnce({
+      ...detail(UNREAD),
+      prospect: {
+        ...detail(UNREAD).prospect,
+        aiVerdict: { hasWebsite: true, websiteRead: false, websiteQuality: 0, websiteReasons: [], socialPresence: 0, onlineBooking: false, weaknesses: [], summary: 'Website not read.' },
+        scoreReasons: ['Website not read — quality unknown'],
+        opportunityScore: 60,
+        scoreBand: 'warm',
+      },
+    })
+    const el = await DemoPrepPage({ params: Promise.resolve({ id: 'pros_1' }) })
+    const { container } = render(el)
+    expect(container.querySelector('[data-verdict-summary]')?.textContent).toBe('Website not read — quality unknown')
+    expect(container.textContent).not.toMatch(/Weak website|No website at all|0\/100/)
+    expect(container.textContent).not.toContain('No website')
+    expect(container.textContent).not.toMatch(/website story suggested from their gaps/i)
+  })
+
   it('a READ page keeps its pills — the same zeros on a page somebody read are findings', async () => {
     const { container } = await renderPage({ ...UNREAD, error: undefined, stack: [] })
     expect(container.textContent).toContain('Not mobile-friendly')
