@@ -7606,3 +7606,55 @@ the image at build time), so the confirmation is the prospecting settings
 pill reading on — or the App Runner console — not a build change; and an
 access key shared through a session is exposed the moment it is used, so
 the key behind this flip is on the owner's delete list with the rest.
+
+## 2026-11-11 — P-04: fit and freshness (only practices that need us, with numbers we can stand behind)
+
+The owner's rulings after P-01–P-03: chains and DSOs are OUT (targeted later
+with other features); the quality floor rises to 70; no "first dial" bucket
+— "clinics always answer their phone" — what matters is that the number is
+ACTIVE and IS THAT CLINIC'S. CHAINS OUT by three detectors, each a stored
+signal under `verification.fit.*` (pure `lib/prospect-fit.ts`, the list in
+`lib/dso-names.ts`): a DSO name list in two classes — a distinct brand
+matches as a whole-word sequence on the practice, NPI-org and listing
+names; a common-phrase brand (Gentle Dental, Dentistry for Children, Perfect
+Teeth, …) matches ONLY when the prospect's website host sits under the
+brand's real domain, because hundreds of independents carry those words —
+a chain from our own data (the same website host or ten-digit phone across
+≥3 prospects at distinct NORMALIZED addresses; `sweepChains` in the hygiene
+pass AFTER the exact-dedupe merge, with an un-flag that restores a row
+whose group drops under the threshold) — and practice size from the
+registry (NPI-1 dentists at the same street + suite; ≥5 → group,
+DEPRIORITISED −10, never excluded; a failed or capped search is an honest
+unknown asked again next pass). A hit → `disqualified` / `chain`, the drip
+stopped, the caller released, retired and closed outranking chain; ONE
+restore (`restoreChainFlagged`: the drawer's "Not a chain", the sweep's
+un-flag, a merge carrying the override) puts the status, the drip and the
+system follow-up back. "NEEDS US" from what we already fetch
+(`lib/prospect-scoring.ts`): the competitor stack fingerprinted on HOSTS
+only (script / link / iframe sources and URLs inside inline scripts —
+never page copy; −5 a tool, floor −15; none on a page somebody read +6; a
+robots.txt refusal is `stack: null` and earns nothing), the builder (DIY
++5, template vendor +4), the new practice from NPPES (+8 / +4); a verify
+pass whose fit read moved RESCORES the opportunity so the −10 is real.
+LIVENESS from the listing: reviews and hours ride the same Places call;
+the five-review sample is a LOWER BOUND (relevance-sorted, never the
+newest) so "recent" is proof of life, "stale" never costs, and the no-life
+ceiling (59) needs ZERO reviews AND no hours AND not a new practice. "THAT
+CLINIC'S NUMBER" — the two-source rule (`phoneStanding`): corroborated when
+two non-carrier voices agree, or the carrier says in service AND one of
+them states it, or a human reached the practice on it (`applyCallerFeedback`
+on every reach outcome, the latest human word winning); the carrier alone
+is single-source ("The line is in service — no source yet says it is this
+practice's number"); a typed number is never replaced (`phone_source=
+'caller'` at the write, and the P-01 guard for rows from before it).
+CALLERS STEER FRESHNESS: a territory with ≥3 distinct practices logged
+closed / disconnected in 30 days is pulled forward ONCE per new such call
+(`refresh_pulled_at` / `refresh_pulled_reason`, migration 0196;
+`last_refreshed_at` never mutated backwards; the refresh takes pulled
+territories first and clears the pull on success; the reason says "2
+closed, 1 disconnected this month" truthfully). Readers: territory coverage
+counts exactly as `getBandCounts`; the hunt tile's "Chains removed" and the
+early-refresh line in the registry's warn ink. An adversarial review (34
+raised, 29 confirmed, 1 split, 4 refuted) was fixed in full as the branch's
+second commit (fix groups A–J; `scratchpad` record in the session) and
+confirmed by a verification round before merge.
