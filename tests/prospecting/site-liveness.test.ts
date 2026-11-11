@@ -479,7 +479,44 @@ describe('the guarded session binds the connect to the judged addresses (C13 —
     expect(await fetchGuarded(loop, new URL('https://smiledental.com/'), { method: 'GET', maxRedirects: 2 })).toMatchObject({ kind: 'refused', cause: 'redirects' })
   })
 
-  it('the probe exposes WHY an unknown could not tell: policy / resolver / redirects — and a gone name is dead with no cause', async () => {
+  it('Y1: every dead and parked names its CAUSE — dns · timeout (HEAD or GET) · refused · http · invalid · parked; alive carries none', async () => {
+    const gone = await checkSiteLiveness('https://smiledental.com', deps({ lookup: async () => { throw dnsErr('ENOTFOUND') } }))
+    expect(gone).toMatchObject({ status: 'dead', cause: 'dns' })
+    let calls = 0
+    const headTimesOut = await checkSiteLiveness('https://smiledental.com', deps({ fetchImpl: async () => { calls++; throw timeoutErr() } }))
+    expect(headTimesOut).toMatchObject({ status: 'dead', cause: 'timeout' })
+    expect(headTimesOut.detail).toMatch(/timed out twice/)
+    expect(calls).toBe(2)
+    // HEAD answers, GET hangs twice — still a timeout: the page was never read.
+    let n = 0
+    const getTimesOut = await checkSiteLiveness(
+      'https://smiledental.com',
+      deps({
+        fetchImpl: async (_url, init) => {
+          n++
+          if ((init?.method ?? 'GET') === 'GET') throw timeoutErr()
+          return res(200)
+        },
+      }),
+    )
+    expect(getTimesOut).toMatchObject({ status: 'dead', cause: 'timeout' })
+    expect(n).toBe(3)
+    const refused = await checkSiteLiveness('https://smiledental.com', deps({ fetchImpl: async () => { throw Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' }) } }))
+    expect(refused).toMatchObject({ status: 'dead', cause: 'refused' })
+    expect((await checkSiteLiveness('https://smiledental.com', deps({ fetchImpl: async () => res(503) })))).toMatchObject({ status: 'dead', cause: 'http' })
+    expect((await checkSiteLiveness('https://smiledental.com', deps({ fetchImpl: async () => res(404) })))).toMatchObject({ status: 'dead', cause: 'http' })
+    expect(await checkSiteLiveness('not a url at all', deps({}))).toMatchObject({ status: 'dead', cause: 'invalid' })
+    const parked = await checkSiteLiveness(
+      'https://smiledental.com',
+      deps({ fetchImpl: async () => res(200, 'https://smiledental.com/', '<html>This domain is parked free, courtesy of GoDaddy.com</html>') }),
+    )
+    expect(parked).toMatchObject({ status: 'parked', cause: 'parked' })
+    const alive = await checkSiteLiveness('https://smiledental.com', deps({}))
+    expect(alive.status).toBe('alive')
+    expect(alive).not.toHaveProperty('cause')
+  })
+
+  it('the probe exposes WHY an unknown could not tell: policy / resolver / redirects — and a gone name is dead by dns', async () => {
     const policy = await checkSiteLiveness('http://169.254.170.2/v2/credentials/', deps({ lookup: async () => [{ address: '169.254.170.2' }] }))
     expect(policy).toMatchObject({ status: 'unknown', cause: 'policy' })
     const port = await checkSiteLiveness('http://10.0.1.12:8080/admin', deps({}))
@@ -495,7 +532,7 @@ describe('the guarded session binds the connect to the judged addresses (C13 —
     expect(loop).toMatchObject({ status: 'unknown', cause: 'redirects' })
     const gone = await checkSiteLiveness('https://smiledental.com', deps({ lookup: async () => { throw dnsErr('ENOTFOUND') } }))
     expect(gone.status).toBe('dead')
-    expect(gone).not.toHaveProperty('cause')
+    expect(gone.cause).toBe('dns')
     const alive = await checkSiteLiveness('https://smiledental.com', deps({}))
     expect(alive.status).toBe('alive')
     expect(alive).not.toHaveProperty('cause')

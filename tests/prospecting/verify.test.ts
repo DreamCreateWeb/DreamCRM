@@ -106,7 +106,7 @@ import {
   FIT_NPPES_PER_RUN,
   phoneStanding,
 } from '@/lib/services/prospect-verify'
-import { PROSPECTING_DEFAULTS, parseVerification } from '@/lib/types/prospecting'
+import { PROSPECTING_DEFAULTS, parseVerification, siteGoneWasRead } from '@/lib/types/prospecting'
 
 const NOW = new Date('2026-11-10T12:00:00Z')
 const LIVE = { ...PROSPECTING_DEFAULTS, killSwitch: false }
@@ -248,12 +248,32 @@ describe('the disqualifying zeros and the parked states', () => {
     expect(out.patch.qualityBand).toBe('parked')
     expect(out.patch.qualityReasons[0]).toMatch(/temporarily closed.*30 days/)
   })
-  it('a dead website parks the record — it is NOT "no website"', async () => {
-    livenessMock.mockResolvedValue({ status: 'dead', detail: 'smiledental.com no longer resolves (DNS)', finalUrl: null, httpStatus: null })
+  it('a dead website parks the record — it is NOT "no website"; the probe’s CAUSE is stored on the signal (Y1): dns is gone, a double timeout read nothing', async () => {
+    livenessMock.mockResolvedValue({ status: 'dead', detail: 'smiledental.com no longer resolves (DNS)', finalUrl: null, httpStatus: null, cause: 'dns' })
     const out = await verifyProspectSignals(PROSPECT as never, { ok: true, places: [PLACE] }, await ctx())
     expect(out.patch.qualityBand).toBe('parked')
     expect(out.patch.qualityReasons).toEqual(['smiledental.com no longer resolves (DNS)'])
     expect(out.websiteUrl).toBe('https://smiledental.com')
+    expect(out.patch.verification.website).toEqual({ status: 'dead', detail: 'smiledental.com no longer resolves (DNS)', checkedAt: NOW.toISOString(), source: 'crawl', cause: 'dns' })
+    expect(siteGoneWasRead(out.patch.verification.website)).toBe(true)
+    // A double timeout: the same parked quality (P-01 as built), but the
+    // signal says nothing was read — the opportunity verdict reads it as unread.
+    livenessMock.mockResolvedValue({ status: 'dead', detail: 'smiledental.com timed out twice (6s)', finalUrl: null, httpStatus: null, cause: 'timeout' })
+    const slow = await verifyProspectSignals(PROSPECT as never, { ok: true, places: [PLACE] }, await ctx())
+    expect(slow.patch.qualityBand).toBe('parked')
+    expect(slow.patch.verification.website).toMatchObject({ status: 'dead', cause: 'timeout' })
+    expect(siteGoneWasRead(slow.patch.verification.website)).toBe(false)
+    // The stored JSON reads the cause back; a signal without one reads as gone, as it did.
+    const stored = parseVerification(JSON.parse(JSON.stringify(slow.patch.verification)))
+    expect(stored.website).toMatchObject({ status: 'dead', cause: 'timeout' })
+    expect(siteGoneWasRead(stored.website)).toBe(false)
+    expect(siteGoneWasRead({ status: 'dead', detail: null, checkedAt: STAMP, source: 'crawl' })).toBe(true)
+    expect(siteGoneWasRead({ status: 'parked', detail: null, checkedAt: STAMP, source: 'crawl', cause: 'parked' })).toBe(true)
+    expect(siteGoneWasRead({ status: 'alive', detail: null, checkedAt: STAMP, source: 'crawl' })).toBe(false)
+    expect(siteGoneWasRead(undefined)).toBe(false)
+    livenessMock.mockResolvedValue({ status: 'alive', detail: 'smiledental.com is up (200)', finalUrl: 'https://smiledental.com/', httpStatus: 200 })
+    const up = await verifyProspectSignals(PROSPECT as never, { ok: true, places: [PLACE] }, await ctx())
+    expect(up.patch.verification.website).not.toHaveProperty('cause')
   })
   it('a moved practice location refreshes the address and the registry phone', async () => {
     lookupNpiMock.mockResolvedValue({
@@ -1012,7 +1032,23 @@ describe('"that clinic’s number" — the two-source rule (P-04)', () => {
     expect(phoneStanding(['caller', 'carrier'], 'valid')).toBe('corroborated')
     expect(phoneStanding(['caller'], 'valid')).toBe('corroborated')
     expect(phoneStanding(['caller'], 'unknown')).toBe('single_source')
-    expect(phoneStanding(['caller', 'nppes'], 'disconnected')).toBe('corroborated')
+    // Y3: a BAD number has no standing, whoever listed it.
+    expect(phoneStanding(['caller', 'nppes'], 'disconnected')).toBe('single_source')
+    expect(phoneStanding(['nppes', 'caller'], 'wrong_number')).toBe('single_source')
+    expect(phoneStanding(['nppes', 'places'], 'invalid')).toBe('single_source')
+    expect(phoneStanding(['nppes', 'places', 'carrier'], 'invalid')).toBe('single_source')
+  })
+
+  it('Y3: a caller’s wrong-number verdict that carries both voices (sources [nppes, caller], W3) reads single_source on the next pass — never corroborated for a number a human said is wrong', async () => {
+    const verdict = { status: 'wrong_number', detail: 'Wrong number on Nov 10, 2026 (heard on a call)', checkedAt: STAMP, source: 'caller', sources: ['nppes', 'caller'] }
+    const row = { ...PROSPECT, phoneSource: 'single_source', phoneStatus: 'wrong_number', verification: { phone: verdict } }
+    for (const places of [null, { ok: true as const, places: [PLACE] }]) {
+      const out = await verifyProspectSignals(row as never, places as never, await ctx())
+      expect(out.patch.phoneStatus).toBe('wrong_number')
+      expect(out.patch.phoneSource).toBe('single_source')
+      expect(out.patch.verification.phone).toMatchObject({ status: 'wrong_number', source: 'caller', sources: ['nppes', 'caller'] })
+      expect(out.patch.verification.phone?.standing ?? 'single_source').toBe('single_source')
+    }
   })
 
   it('the carrier alone — the registry now lists another number, Google has no listing — is in service but nobody’s: single source (C9)', async () => {
@@ -1068,7 +1104,9 @@ describe('"that clinic’s number" — the two-source rule (P-04)', () => {
     lineMock.mockResolvedValue({ ok: true, lineType: null, invalid: true, carrier: null, provider: 'aws_pinpoint' })
     const out = await verifyProspectSignals(PROSPECT as never, { ok: true, places: [PLACE] }, await ctx())
     expect(out.patch.phoneStatus).toBe('invalid')
-    expect(out.patch.verification.phone).toMatchObject({ sources: ['nppes', 'places'], standing: 'corroborated', lineCheck: 'done' })
+    // The voices that listed it are kept; a bad number has no standing (Y3).
+    expect(out.patch.verification.phone).toMatchObject({ sources: ['nppes', 'places'], standing: 'single_source', lineCheck: 'done' })
+    expect(out.patch.phoneSource).toBe('single_source')
     expect(out.patch.qualityScore).toBe(0)
   })
 
@@ -1128,6 +1166,22 @@ describe('"that clinic’s number" — the two-source rule (P-04)', () => {
     // A matched listing that states NO number is neither agreeing nor cleared: the alt stays.
     const silent = await verifyProspectSignals(stored as never, { ok: true, places: [{ ...PLACE, nationalPhoneNumber: null }] }, await ctx())
     expect(silent.patch.verification.phone).toMatchObject({ alt: { number: '4045559999' } })
+  })
+
+  it('Y2: a MERGED row carrying both rows’ voices keeps the typed number against a differing listing — the standing shape (column corroborated, sources [caller, nppes]) and the legacy shape (column caller)', async () => {
+    const invalid = { status: 'invalid', detail: 'Carrier database: not an assigned number', checkedAt: STAMP, source: 'aws_pinpoint', sources: ['caller', 'nppes'], standing: 'corroborated', lineCheck: 'done' }
+    for (const column of ['corroborated', 'caller']) {
+      const merged = { ...PROSPECT, npiNumber: null, phone: '4045550000', phoneSource: column, phoneStatus: 'invalid', verification: { phone: invalid } }
+      const out = await verifyProspectSignals(merged as never, { ok: true, places: [{ ...PLACE, nationalPhoneNumber: '4045559999' }] }, await ctx())
+      expect(out.patch.phone, column).toBe('4045550000')
+      expect(out.patch.verification.phone).toMatchObject({ sources: ['nppes', 'caller'], standing: 'corroborated', alt: { number: '4045559999', source: 'places', at: NOW.toISOString() } })
+      expect(out.patch.verification.phone?.detail).toMatch(/Google lists \(404\) 555-9999 — kept the number you typed/)
+      expect(out.patch.verification.phone?.detail).not.toMatch(/the registry had/)
+    }
+    // The CONTROL — the pre-fix merge's signal (the loser's sources alone): the listing's number REPLACED the typed one.
+    const lost = { ...PROSPECT, npiNumber: null, phone: '4045550000', phoneSource: 'single_source', phoneStatus: 'invalid', verification: { phone: { ...invalid, sources: ['nppes'], standing: 'single_source' } } }
+    const replaced = await verifyProspectSignals(lost as never, { ok: true, places: [{ ...PLACE, nationalPhoneNumber: '4045559999' }] }, await ctx())
+    expect(replaced.patch.phone).toBe('4045559999')
   })
 
   it('W2: a pass with NO Places lookup (budget, no key, a 503) carries the stored alt and its sentence on a caller-provided row that stands on no verdict — only a lookup that cleared the listing or found it agreeing drops it', async () => {

@@ -16,7 +16,17 @@ import {
 import { isRestingReason, wakeStatus, withoutRestingReason } from '@/lib/prospect-decay'
 import { chainRestoreStatus } from '@/lib/prospect-fit'
 import { computeQualityScore, qualityInput } from '@/lib/prospect-quality'
-import { parseVerification, type DuplicateCandidate, type ProspectStatus, type ProspectingConfig } from '@/lib/types/prospecting'
+import {
+  listingAltNote,
+  parseVerification,
+  phoneStanding,
+  phoneVoices,
+  unionPhoneVoices,
+  withoutListingAltNote,
+  type DuplicateCandidate,
+  type ProspectStatus,
+  type ProspectingConfig,
+} from '@/lib/types/prospecting'
 import { callerServableWhere, releaseCooldownUntil, releaseIfUnservable } from './prospect-caller-release'
 
 /**
@@ -473,16 +483,60 @@ export async function mergeProspects(
       for (const col of PHONE_VERDICT) (patch as Record<string, unknown>)[col] = loser[col]
       phoneVerdictTaken = true
     }
+    // FILL_COLUMNS copied the loser's WHOLE verification — its phone signal
+    // included — onto a survivor that had none.
+    const verificationFilled = survivor.verification == null && patch.verification != null
     let reachTaken = false
-    if (phoneVerdictTaken || sameNumber) {
+    if (phoneVerdictTaken || sameNumber || verificationFilled) {
       const mine = parseVerification(patch.verification ?? survivor.verification)
       const theirs = parseVerification(loser.verification)
-      if (phoneVerdictTaken && theirs.phone) mine.phone = theirs.phone
+      let changed = false
+      if (phoneVerdictTaken && theirs.phone) {
+        mine.phone = theirs.phone
+        changed = true
+      }
       if (sameNumber && !mine.reach && theirs.reach) {
         mine.reach = theirs.reach
         reachTaken = true
+        changed = true
       }
-      if ((phoneVerdictTaken && theirs.phone) || reachTaken) patch.verification = mine
+      // A MERGE NEVER LOSES PROVENANCE (fix pass IV, Y2). Wherever the
+      // loser's phone signal lands on the survivor — the verdict take, the
+      // fill of a verification-less survivor — and both rows hold the SAME
+      // number, the signal keeps the loser's status / detail / line facts
+      // but its `sources` become the union of both rows' voices (each
+      // row's signal sources AND its legacy column: a survivor's typed
+      // 'caller' statement about this very line survives the merge, so the
+      // next verify pass never replaces the typed number), the standing is
+      // recomputed from the union, the survivor's `alt` is kept (the
+      // loser's when it has none), and the phone_source column stays
+      // 'caller' when EITHER side's column was 'caller' (pre-standing
+      // rows), else the recomputed standing. A loser's signal about ANOTHER
+      // number never lands on a survivor that holds its own: it describes a
+      // line this row does not have.
+      const loserSignalLanded = theirs.phone != null && (phoneVerdictTaken || verificationFilled)
+      if (loserSignalLanded && mine.phone) {
+        if (sameNumber) {
+          const survivorSig = parseVerification(survivor.verification).phone
+          const voices = unionPhoneVoices(phoneVoices(survivorSig?.sources, survivor.phoneSource), phoneVoices(theirs.phone!.sources, loser.phoneSource))
+          const status = (patch.phoneStatus ?? survivor.phoneStatus) as string | null
+          const standing = phoneStanding(voices, status)
+          const alt = survivorSig?.alt ?? mine.phone.alt ?? null
+          const base = withoutListingAltNote(mine.phone.detail)
+          mine.phone = {
+            ...mine.phone,
+            sources: voices,
+            standing,
+            ...(alt ? { alt, detail: base ? `${base}; ${listingAltNote(alt.number)}` : listingAltNote(alt.number) } : {}),
+          }
+          patch.phoneSource = survivor.phoneSource === 'caller' || loser.phoneSource === 'caller' ? 'caller' : standing
+          changed = true
+        } else if (verificationFilled && survivor.phone != null) {
+          delete mine.phone
+          changed = true
+        }
+      }
+      if (changed) patch.verification = mine
     }
     // The override travels onto a survivor that lacks it.
     if (overridden && !survivorFit?.chainOverride && loserFit?.chainOverride) {

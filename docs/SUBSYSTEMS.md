@@ -532,7 +532,12 @@ moved location refreshes the address + phone); website liveness
 (`lib/services/prospect-site-liveness.ts` — DNS / HEAD / GET, 6s ×2,
 DreamCreateBot, robots honoured through `prospect-crawl-policy.ts`;
 alive | dead | parked (registrar fingerprints) | redirected — a dead or
-parked site is a retired-practice signal, NOT "no website"); phone validity
+parked site is a retired-practice signal, NOT "no website"; since P-04 fix
+pass IV the result carries its CAUSE — `dns` · `refused` · `http` ·
+`invalid` · `timeout` on a dead, `parked`, and `policy` · `resolver` ·
+`redirects` on an unknown — stored on `verification.website.cause`, so a
+dead by TIMEOUT, which read nothing, can be told from a site that is
+really gone (Y1)); phone validity
 (`lib/phone-nanp.ts` NANP syntax → `invalid`; then the line type through
 `lib/services/phone-validate.ts` — driver `PHONE_VALIDATE_DRIVER=aws` =
 Amazon Pinpoint `PhoneNumberValidate` via `@aws-sdk/client-pinpoint`
@@ -623,7 +628,18 @@ transaction under `FOR UPDATE` and guards both writes on `status <>
 'merged'`; the NPI MOVES (cleared on the loser before the survivor takes it
 — the unique index never holds it twice); the phone travels WITH its verdict
 (`PHONE_GROUP` + the verification's phone signal — a disconnected number
-never lands as `unknown`); a loser's LIVE drip is stopped, never re-pointed,
+never lands as `unknown`; A MERGE NEVER LOSES PROVENANCE, P-04 fix pass IV
+Y2: wherever the loser's phone signal lands on a survivor holding the SAME
+number — the same-number verdict take, the fill of a verification-less
+survivor — its `sources` become the union of both rows' voices, each row's
+signal sources AND its legacy `phone_source` column (`phoneVoices` /
+`unionPhoneVoices`), the standing is recomputed from the union
+(`phoneStanding`, now in lib/types/prospecting.ts), the survivor's `alt`
+is kept (the loser's when it has none) with its sentence, and the column
+stays `caller` when EITHER side's was, else the recomputed standing — so
+a survivor's typed-number statement survives the merge and the next verify
+pass never replaces it; a loser's signal about ANOTHER number never lands
+on a survivor that holds its own); a loser's LIVE drip is stopped, never re-pointed,
 onto a terminal survivor (not_interested / disqualified / suppressed /
 converted); a loser's terminal verdict is CARRIED onto a live survivor
 (status, lostReason, outcomeAt, its own drip stopped `merged_<status>`) and a
@@ -850,7 +866,12 @@ new`, +8 with a website, +4 without, "Opened Jun 2025 — no website yet is
 normal; now is the moment"); a practice WITH a website never beats one
 without (cap 89). AN UNREAD SITE IS NEVER "NO WEBSITE" (fix pass IIIb,
 X1): a practice with a KNOWN URL nobody read — a budget-skipped crawl, a
-robots.txt refusal, a fetch that failed or answered non-2xx — gets an
+robots.txt refusal, a fetch that failed or answered non-2xx, and (fix pass
+IV, Y1) a liveness `dead` whose cause is a TIMEOUT (`siteGoneWasRead`
+reads `verification.website.cause`: a dead by dns / refused / http /
+invalid, a parked page and a dead stored before the cause was kept WERE
+read and keep the no-website / parked verdict; a double timeout read
+nothing) — gets an
 honest UNREAD verdict from `heuristicVerdict` (`{hasWebsite: true,
 websiteRead: false, websiteQuality: 0, …, summary: 'Website not read.'}`;
 `websiteRead` is absent — read — on every AI verdict and every heuristic
@@ -903,7 +924,17 @@ the carrier says in service AND at least one of them states it OR a human
 reached the practice on it; `single_source` otherwise — the CARRIER ALONE
 is never corroboration (fix pass, G.1: "in service" says the line rings,
 not whose it is; the card then reads "The line is in service — no source
-yet says it is this practice's number"). A logged REACH outcome
+yet says it is this practice's number"), and A BAD NUMBER HAS NO STANDING
+(fix pass IV, Y3): a number in `BAD_PHONE_STATUSES` — invalid,
+disconnected, wrong number — is `single_source` whoever listed it (the
+predicate itself, not a fallback), so a caller's verdict that carries
+both voices after W3 never reads `corroborated`; the Verification card
+words such a signal as a VERDICT, never as sources that "list" it — "A
+call said this number is wrong — the registry listed it", "A call found
+this number disconnected — Google listed it", "The carrier database says
+this number is not assigned — the registry and Google listed it"
+(`badNumberLine`; the clause after the dash names the listing voices and
+is left out when only the call spoke). A logged REACH outcome
 (`applyCallerFeedback`) corroborates the number whatever its prior
 standing — `caller` joins the sources, standing corroborated, phone_status
 valid, phone_source corroborated, the signal the caller's so the next pass
@@ -924,8 +955,13 @@ phone, no source column, no NPI; `addManualProspect` stamps
 `verification.phone` preserves `sources` — `applyCallerFeedback`'s
 verdict branch (wrong number / disconnected) writes `sources:
 union(prior, 'caller')` exactly as its reach branch does,
-`updateProspectPhone` writes `['caller']` — so a verdict logged after
-the column has turned to `single_source` can no longer turn the guard
+`updateProspectPhone` writes `['caller']` (a retyped number is a fresh
+statement), the verify pass carries the prior sources while the number is
+unchanged, and the dedupe merge (fix pass IV, Y2) writes the loser's
+same-number signal with the UNION of both rows' voices — signal sources
+and legacy columns — keeping the column `caller` when either side's was —
+so neither a verdict logged after the column has turned to
+`single_source` nor a merge with the discovery's twin can turn the guard
 off and let the listing's number replace the typed one. When the matched
 listing lists a DIFFERENT number for such a row, that number is kept on
 the signal (`verification.phone.alt = {number, source: 'places', at}`)

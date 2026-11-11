@@ -367,6 +367,34 @@ describe('the Verification card’s phone line (the two-source rule)', () => {
     expect(phoneSourcesLine(base, 'places')).toBe('Number from Google listing')
     expect(phoneSourcesLine(undefined, null)).toBeNull()
   })
+  it('Y3: a bad number is worded as a VERDICT, never as sources that list it — the listing voices after the dash, no clause when only the call spoke; under the Wrong number pill on the card', () => {
+    const wrong = { status: 'wrong_number', detail: 'Wrong number on Nov 10, 2026 (heard on a call)', checkedAt: AT, source: 'caller' }
+    expect(phoneSourcesLine({ ...wrong, sources: ['nppes', 'caller'] }, 'single_source')).toBe('A call said this number is wrong — the registry listed it')
+    expect(phoneSourcesLine({ ...wrong, sources: ['nppes', 'caller'], standing: 'corroborated' }, 'corroborated')).toBe('A call said this number is wrong — the registry listed it')
+    expect(phoneSourcesLine({ ...wrong, sources: ['caller'] }, 'single_source')).toBe('A call said this number is wrong')
+    expect(phoneSourcesLine(wrong, 'caller')).toBe('A call said this number is wrong')
+    expect(phoneSourcesLine({ ...wrong, status: 'disconnected', detail: 'Number disconnected on Nov 10, 2026 (heard on a call)', sources: ['places', 'caller'] }, 'single_source')).toBe('A call found this number disconnected — Google listed it')
+    expect(phoneSourcesLine({ ...wrong, status: 'disconnected', sources: ['nppes', 'places', 'caller', 'carrier'] }, 'single_source')).toBe('A call found this number disconnected — the registry and Google listed it')
+    expect(phoneSourcesLine({ status: 'invalid', detail: 'Carrier database: not an assigned number', checkedAt: AT, source: 'aws_pinpoint', sources: ['nppes', 'places'], standing: 'single_source', lineCheck: 'done' }, 'single_source')).toBe('The carrier database says this number is not assigned — the registry and Google listed it')
+    expect(phoneSourcesLine({ status: 'invalid', detail: 'Too few digits', checkedAt: AT, source: 'nanp' }, null)).toBe('This number cannot ring as written')
+    for (const line of [phoneSourcesLine({ ...wrong, sources: ['nppes', 'caller'] }, 'single_source'), phoneSourcesLine({ ...wrong, sources: ['nppes', 'caller'], standing: 'corroborated' }, 'corroborated')]) {
+      expect(line).not.toMatch(/Only one source|corroborated|lists this number/)
+    }
+    const { container } = render(
+      <VerificationCard
+        verification={{ phone: { ...wrong, sources: ['nppes', 'caller'] } }}
+        verifiedAt={AT}
+        qualityScore={0}
+        qualityBand="parked"
+        qualityReasons={[wrong.detail]}
+        phone="4045551212"
+        phoneSource="single_source"
+        now={new Date(AT)}
+      />,
+    )
+    expect(container.querySelector('[data-signal="phone"]')?.textContent).toContain('Wrong number')
+    expect(container.querySelector('[data-phone-sources]')?.textContent).toBe('A call said this number is wrong — the registry listed it')
+  })
   it('renders the line beside the phone signal', () => {
     const { container } = render(
       <VerificationCard

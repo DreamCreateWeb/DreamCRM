@@ -8,12 +8,36 @@ import {
   VERIFY_STALE_DAYS,
   formatUtcStamp,
   parseVerification,
+  type PhoneSourceName,
   type PhoneVerificationSignal,
   type ProspectPhoneSource,
   type VerificationSignalId,
 } from '@/lib/types/prospecting'
 import { CARRIER_ONLY_LINE, SINGLE_SOURCE_TURN_ON, isFullyVerified } from '@/lib/prospect-quality'
-import { QualityPill } from './quality-pills'
+import { QualityPill, isBadPhone } from './quality-pills'
+
+/** Who LISTED a bad number — the registry, Google; a call or the carrier
+ *  lists nothing, they judge (Y3). */
+const LISTED_BY: Partial<Record<PhoneSourceName, string>> = { nppes: 'the registry', places: 'Google' }
+
+/** A bad-status signal is worded as a VERDICT, never as sources that
+ *  "list" the number (fix pass IV, Y3): "A call said this number is wrong
+ *  — the registry listed it". The listing sources follow the dash; the
+ *  clause is left out when nobody but the call (or the carrier) spoke. */
+export function badNumberLine(phone: PhoneVerificationSignal): string {
+  const verdict =
+    phone.status === 'wrong_number'
+      ? 'A call said this number is wrong'
+      : phone.status === 'disconnected'
+        ? 'A call found this number disconnected'
+        : phone.source === 'aws_pinpoint'
+          ? 'The carrier database says this number is not assigned'
+          : 'This number cannot ring as written'
+  const listed = (phone.sources ?? []).map((s) => LISTED_BY[s]).filter((s): s is string => Boolean(s))
+  if (listed.length === 0) return verdict
+  const who = listed.length === 1 ? listed[0] : `${listed.slice(0, -1).join(', ')} and ${listed[listed.length - 1]}`
+  return `${verdict} — ${who} listed it`
+}
 
 /**
  * The drawer's Verification card (P-01) — every signal with its status, its
@@ -78,6 +102,8 @@ const STATUS_LABEL: Record<string, string> = {
  *  in service (fix pass, G.1) — or, on a row the P-04 pass has not seen,
  *  the legacy "Number from …". */
 export function phoneSourcesLine(phone: PhoneVerificationSignal | undefined, phoneSource: string | null): string | null {
+  // A number a call or the carrier judged bad has no standing to report (Y3).
+  if (phone && isBadPhone(phone.status)) return badNumberLine(phone)
   const sources = phone?.sources
   if (sources && sources.length > 0) {
     const named = sources.map((s) => PHONE_SOURCE_NAME_LABELS[s]).join(', ')

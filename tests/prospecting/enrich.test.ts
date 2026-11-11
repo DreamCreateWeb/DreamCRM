@@ -331,7 +331,7 @@ describe('reEnrichProspect (manual refresh)', () => {
     placeMock.mockResolvedValue(found(PLACE))
     verifyMock.mockImplementationOnce(async () => ({
       patch: {
-        verification: { website: { status: 'dead', detail: 'smiledental.com no longer resolves (DNS)', checkedAt: '2026-07-07T00:00:00.000Z', source: 'crawl' } },
+        verification: { website: { status: 'dead', detail: 'smiledental.com no longer resolves (DNS)', checkedAt: '2026-07-07T00:00:00.000Z', source: 'crawl', cause: 'dns' } },
         verifiedAt: new Date('2026-07-07T00:00:00Z'),
         qualityScore: 0, qualityBand: 'parked', qualityReasons: ['smiledental.com no longer resolves (DNS)'],
         phone: null, phoneStatus: 'unknown', phoneLineType: null, phoneSource: null, phoneValidatedAt: null,
@@ -345,10 +345,47 @@ describe('reEnrichProspect (manual refresh)', () => {
     expect(final.values).toMatchObject({ status: 'enriched', qualityBand: 'parked', websiteUrl: 'https://smiledental.com' })
     // The opportunity score still says "they need a website" — the two scores are never blended.
     expect(final.values.opportunityScore).toBeGreaterThanOrEqual(65)
-    // X1: a DEAD site is not an unread one — its state was read; the verdict
-    // is the no-website one, never "Website not read — quality unknown".
+    // X1: a site that is GONE (dead by dns) is not an unread one — its state
+    // was read; the verdict is the no-website one, never "Website not read".
     expect(final.values.aiVerdict).toMatchObject({ hasWebsite: false, summary: 'No website found.' })
     expect(final.values.scoreReasons as string[]).not.toContain('Website not read — quality unknown')
+  })
+
+  it('Y1: a site the probe marked dead because it TIMED OUT TWICE is UNREAD — the unread verdict (hasWebsite true, websiteRead false, no "no website" weakness), never 92; a parked page and a legacy dead with no cause stay the no-website verdict', async () => {
+    const deadWith = (website: Record<string, unknown>, detail: string) => async () => ({
+      patch: {
+        verification: { website: { status: 'dead', detail, checkedAt: '2026-07-07T00:00:00.000Z', source: 'crawl', ...website } },
+        verifiedAt: new Date('2026-07-07T00:00:00Z'),
+        qualityScore: 0, qualityBand: 'parked', qualityReasons: [detail],
+        phone: null, phoneStatus: 'unknown', phoneLineType: null, phoneSource: null, phoneValidatedAt: null,
+      },
+      place: PLACE, match: null, websiteUrl: PLACE.websiteUri, liveness: null,
+    })
+    state.selectQueue.push([PROSPECT])
+    placeMock.mockResolvedValue(found(PLACE))
+    verifyMock.mockImplementationOnce(deadWith({ cause: 'timeout' }, 'smiledental.com timed out twice (6s)'))
+    mockPageFetches()
+    const r = await runEnrichment()
+    expect(r).toMatchObject({ enriched: 1, crawls: 0, aiScored: 0 })
+    const slow = state.updates.at(-1)!.values
+    expect(slow).toMatchObject({ status: 'enriched', qualityBand: 'parked', websiteUrl: 'https://smiledental.com' })
+    expect(slow.aiVerdict).toMatchObject({ hasWebsite: true, websiteRead: false, weaknesses: [], summary: 'Website not read.' })
+    expect(slow.scoreReasons as string[]).toContain('Website not read — quality unknown')
+    expect(slow.scoreReasons as string[]).not.toContain('No website at all — needs everything we sell')
+    expect(slow.opportunityScore).toBeLessThan(90)
+    expect(slow.scoreBand).not.toBe('hot')
+    // A parked page WAS read: the practice has no working website.
+    state.updates.length = 0
+    state.selectQueue.push([PROSPECT])
+    verifyMock.mockImplementationOnce(deadWith({ status: 'parked', cause: 'parked' }, 'smiledental.com shows a parked-domain page'))
+    await runEnrichment()
+    expect(state.updates.at(-1)!.values.aiVerdict).toMatchObject({ hasWebsite: false, summary: 'No website found.' })
+    // A dead stored before the cause was kept reads as gone, as it did.
+    state.updates.length = 0
+    state.selectQueue.push([PROSPECT])
+    verifyMock.mockImplementationOnce(deadWith({}, 'smiledental.com answers with a server error (503)'))
+    await runEnrichment()
+    expect(state.updates.at(-1)!.values.aiVerdict).toMatchObject({ hasWebsite: false, summary: 'No website found.' })
   })
 
   it('fails soft on budget exhaustion and unknown ids', async () => {
