@@ -535,7 +535,8 @@ alive | dead | parked (registrar fingerprints) | redirected — a dead or
 parked site is a retired-practice signal, NOT "no website"); phone validity
 (`lib/phone-nanp.ts` NANP syntax → `invalid`; then the line type through
 `lib/services/phone-validate.ts` — driver `PHONE_VALIDATE_DRIVER=aws` =
-Amazon Pinpoint `PhoneNumberValidate` via `@aws-sdk/client-pinpoint`,
+Amazon Pinpoint `PhoneNumberValidate` via `@aws-sdk/client-pinpoint`
+(ON in prod since 2026-11-11 — `scripts/setup-phone-validate-aws.sh`),
 ~$0.006 a number, metered by the `phone_validate` month counter against
 `budgets.phoneValidatePerMonth` (default 1,500); **the app role needs the
 IAM action `mobiletargeting:PhoneNumberValidate`** — a refusal is ONE engine

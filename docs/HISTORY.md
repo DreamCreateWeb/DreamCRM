@@ -7593,3 +7593,16 @@ then `PHONE_VALIDATE_DRIVER=aws` merged into the App Runner service's runtime
 environment variables (a rolling deploy of the same image). Pinpoint's phone
 number validate operation is explicitly outside the 2026-10-30 Pinpoint end
 of support, so the driver needs no replacement.
+
+**Flipped the same day, 2026-11-11 (~16:30 UTC).** The owner's shell had no
+`aws` CLI, so the two steps ran from the session container through the AWS
+SDK (the script's node equivalent — same preflight, same policy document,
+same merge into the runtime map): STS preflight as the account's `Claude`
+IAM user, `DreamCRMPhoneValidate` in place on the instance role, App Runner
+update accepted (operation `af78d1962a424b45800f977fbe00dd2b`, a rolling
+deploy of the same image). Two things learned for the next switch: an
+env-only rollout does NOT change `/api/version` (the build id is baked into
+the image at build time), so the confirmation is the prospecting settings
+pill reading on — or the App Runner console — not a build change; and an
+access key shared through a session is exposed the moment it is used, so
+the key behind this flip is on the owner's delete list with the rest.
