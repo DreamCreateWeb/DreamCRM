@@ -268,6 +268,12 @@ describe('the disqualifying zeros and the parked states', () => {
     expect(stored.website).toMatchObject({ status: 'dead', cause: 'timeout' })
     expect(siteGoneWasRead(stored.website)).toBe(false)
     expect(siteGoneWasRead({ status: 'dead', detail: null, checkedAt: STAMP, source: 'crawl' })).toBe(true)
+    // Z2: a cause-less legacy dead whose detail is the probe's own "timed out twice" read nothing; every other legacy detail is gone; a stored cause wins over the detail.
+    expect(siteGoneWasRead({ status: 'dead', detail: 'smiledental.com timed out twice (6s)', checkedAt: STAMP, source: 'crawl' })).toBe(false)
+    expect(siteGoneWasRead({ status: 'dead', detail: 'smiledental.com no longer resolves (DNS)', checkedAt: STAMP, source: 'crawl' })).toBe(true)
+    expect(siteGoneWasRead({ status: 'dead', detail: 'smiledental.com refused the connection', checkedAt: STAMP, source: 'crawl' })).toBe(true)
+    expect(siteGoneWasRead({ status: 'dead', detail: 'smiledental.com timed out twice (6s)', checkedAt: STAMP, source: 'crawl', cause: 'http' })).toBe(true)
+    expect(siteGoneWasRead({ status: 'dead', detail: 'smiledental.com answers with a server error (503)', checkedAt: STAMP, source: 'crawl', cause: 'timeout' })).toBe(false)
     expect(siteGoneWasRead({ status: 'parked', detail: null, checkedAt: STAMP, source: 'crawl', cause: 'parked' })).toBe(true)
     expect(siteGoneWasRead({ status: 'alive', detail: null, checkedAt: STAMP, source: 'crawl' })).toBe(false)
     expect(siteGoneWasRead(undefined)).toBe(false)
