@@ -1,11 +1,12 @@
 import 'server-only'
-import { and, desc, eq, inArray, isNotNull, isNull, ne, notExists, notInArray, or, sql, type SQL } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, notExists, notInArray, or, sql, type SQL } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { BAD_PHONE_STATUSES } from '@/lib/db/schema/prospecting'
 import { computeQualityScore, qualityInput } from '@/lib/prospect-quality'
 import {
   ADDRESS_WORDS,
   CHAIN_SHARED_THRESHOLD,
+  SUITE_FOLD_PATTERN,
   SUITE_TOKEN_PATTERN,
   chainFlaggable,
   chainGroupVerdict,
@@ -15,6 +16,8 @@ import {
   type ChainGroup,
   type ChainKind,
 } from '@/lib/prospect-fit'
+import { STATUS_RANK } from '@/lib/prospect-dedupe'
+import { wakeStatus } from '@/lib/prospect-decay'
 import { SYSTEM_FOLLOWUP_REASONS } from '@/lib/prospect-followup'
 import { parseVerification, type PriorFollowUp, type ProspectFitSignals, type ProspectVerification } from '@/lib/types/prospecting'
 import { tenDigitPhoneSql } from './prospect-dedupe'
@@ -75,19 +78,26 @@ export function websiteHostSql(): SQL<string> {
  * twin of `addressKey` (lib/prospect-fit.ts), built from the same word
  * table in the same order: lower; the common street (and suite) words
  * folded; the suite / unit / floor token and its value dropped (unless
- * `keepSuite`); ZIP5 only; then letters and digits.
+ * `keepSuite`, where the unit-like tokens fold to 'ste' instead); the
+ * street part reduced to letters and digits and NULLIF'd — a row with no
+ * street has NO key (fix pass II, V8: `count(distinct …)` skips NULL, so
+ * a phone-only stub never adds an address); then ZIP5 appended.
  */
-export function addressKeySql(opts: { keepSuite?: boolean } = {}): SQL<string> {
+export function addressKeySql(opts: { keepSuite?: boolean } = {}): SQL<string | null> {
   let s: SQL = sql`lower(coalesce(${p.addressLine1}, ''))`
   for (const [word, abbr] of ADDRESS_WORDS) {
     s = sql`regexp_replace(${s}, ${sql.raw(`'\\m${word}\\M'`)}, ${sql.raw(`'${abbr}'`)}, 'g')`
   }
-  if (!opts.keepSuite) {
+  if (opts.keepSuite) {
+    s = sql`regexp_replace(${s}, ${sql.raw(`'\\m${SUITE_FOLD_PATTERN}\\M\\.?\\s*#?\\s*'`)}, 'ste ', 'g')`
+    s = sql`regexp_replace(${s}, '#\\s*', 'ste ', 'g')`
+  } else {
     s = sql`regexp_replace(${s}, ${sql.raw(`'\\m${SUITE_TOKEN_PATTERN}\\M\\.?\\s*#?\\s*[a-z0-9-]+'`)}, ' ', 'g')`
     s = sql`regexp_replace(${s}, '#\\s*[a-z0-9-]+', ' ', 'g')`
   }
+  const street = sql`nullif(regexp_replace(${s}, '[^a-z0-9]', '', 'g'), '')`
   const zip = sql`left(regexp_replace(coalesce(${p.postalCode}, ''), '\\D', '', 'g'), 5)`
-  return sql<string>`regexp_replace(${s} || ${zip}, '[^a-z0-9]', '', 'g')`
+  return sql<string | null>`${street} || ${zip}`
 }
 
 /** HAVING count(distinct address) >= the chain threshold. */
@@ -266,18 +276,13 @@ export async function sweepChains(opts: { now?: Date; threshold?: number } = {})
       }
     }
   }
-  // The un-flag: a sweep flag whose evidence is gone.
+  // The un-flag: a sweep flag whose evidence is gone. The candidates are
+  // filtered IN SQL (V7) — a DSO-named row or an overridden one never
+  // takes a slot of the cap, so a sweep-flagged row is never starved.
   const held = new Set(groups.flatMap((g) => g.ids))
-  const flagged = await db
-    .select({ id: p.id, verification: p.verification })
-    .from(p)
-    .where(and(eq(p.status, 'disqualified'), eq(p.suppressedReason, 'chain')))
-    .limit(500)
+  const flagged = await chainUnflagCandidatesQuery()
   for (const r of flagged) {
     if (held.has(r.id)) continue
-    const fit = parseVerification(r.verification).fit
-    if (!fit?.chain || (fit.chain.status !== 'shared_host' && fit.chain.status !== 'shared_phone')) continue
-    if (fit.chainOverride || fit.dso?.status === 'match') continue
     try {
       const res = await restoreChainFlagged(r.id, now, 'sweep')
       if (res.ok) out.restored++
@@ -287,6 +292,38 @@ export async function sweepChains(opts: { now?: Date; threshold?: number } = {})
     }
   }
   return out
+}
+
+/** The un-flag reads at most this many candidates a tick — over the
+ *  FILTERED set, oldest write first, so every candidate gets its turn. */
+export const CHAIN_UNFLAG_CANDIDATES_PER_RUN = 500
+
+/** The un-flag's candidates, in SQL (fix pass II, V7): disqualified AS A
+ *  CHAIN by the sweep — `fit.chain.status` shared_host / shared_phone on
+ *  the stored verification — with no owner's override and no DSO name
+ *  match. A row the verify pass set aside for a DSO name is not the
+ *  sweep's to restore and never sits in this set. jsonb path reads,
+ *  literals only — no untyped parameter. Rendered for real in
+ *  tests/prospecting/hygiene-sql.test.ts. */
+export function chainUnflagCandidateWhere(): SQL {
+  return and(
+    eq(p.status, 'disqualified'),
+    eq(p.suppressedReason, 'chain'),
+    sql`${p.verification} #>> '{fit,chain,status}' in ('shared_host', 'shared_phone')`,
+    sql`coalesce(${p.verification} #>> '{fit,chainOverride,status}', '') = ''`,
+    sql`coalesce(${p.verification} #>> '{fit,dso,status}', '') <> 'match'`,
+  ) as SQL
+}
+
+/** The candidate read itself: the filtered set, oldest `updated_at` first
+ *  (the row waiting longest is restored first), capped. */
+export function chainUnflagCandidatesQuery(limit = CHAIN_UNFLAG_CANDIDATES_PER_RUN) {
+  return db
+    .select({ id: p.id, verification: p.verification })
+    .from(p)
+    .where(chainUnflagCandidateWhere())
+    .orderBy(asc(p.updatedAt))
+    .limit(limit)
 }
 
 /** The WHERE of the resume: the LATEST drip the chain flag stopped on this
@@ -320,15 +357,20 @@ export async function resumeChainStoppedEnrollment(prospectId: string, now: Date
  * stored for good) and the sweep's own un-flag (`sweep`: the chain signal
  * reads `cleared`). The row returns to the status it had before the flag
  * (else `enriched`; a resting row returns to resting with its origin
- * intact), its suppression clears, its quality is recomputed from the
- * stored signals when the pass has looked at it, the drip the flag stopped
- * resumes, and the system follow-up the flag cleared is put back (due now
- * if its time has passed).
+ * intact) — or FURTHER, when a merge says the practice already got there
+ * (`atLeast`, fix pass II, V11: the overridden loser's status outranks the
+ * survivor's remembered one) — its suppression clears, its quality is
+ * recomputed from the stored signals when the pass has looked at it, the
+ * drip the flag stopped resumes, and the system follow-up the flag cleared
+ * is put back (due now if its time has passed) ONLY when the row holds no
+ * follow-up now — a callback a human promised while it sat aside, or one a
+ * merge carried onto it, is never overwritten (fix pass II, V10).
  */
 export async function restoreChainFlagged(
   prospectId: string,
   now: Date = new Date(),
   mode: 'override' | 'sweep' = 'override',
+  opts: { atLeast?: string | null } = {},
 ): Promise<{ ok: true; status: string } | { ok: false; reason: 'not_found' | 'merged' | 'not_flagged' }> {
   const [row] = await db
     .select({
@@ -342,6 +384,9 @@ export async function restoreChainFlagged(
       businessStatus: p.businessStatus,
       reviewCount: p.reviewCount,
       websiteUrl: p.websiteUrl,
+      nextFollowUpAt: p.nextFollowUpAt,
+      followUpReason: p.followUpReason,
+      dormantFromStatus: p.dormantFromStatus,
     })
     .from(p)
     .where(eq(p.id, prospectId))
@@ -372,8 +417,20 @@ export async function restoreChainFlagged(
     }
   }
   const next: ProspectVerification = { ...verification, fit }
-  const status = flaggedNow ? chainRestoreStatus(fit.dso?.priorStatus ?? fit.chain?.priorStatus) : row.status
+  let status = flaggedNow ? chainRestoreStatus(fit.dso?.priorStatus ?? fit.chain?.priorStatus) : row.status
   const patch: Partial<typeof schema.prospect.$inferInsert> = { verification: next, status, updatedAt: now }
+  if (flaggedNow && opts.atLeast) {
+    // A merge's "at least": the loser was further along than where this row
+    // was flagged — the merged practice lands there. A resting memory ranks
+    // by where it came from; a lifted resting row wakes.
+    const base = status === 'dormant' ? wakeStatus(row.dormantFromStatus) : status
+    const atLeast = opts.atLeast
+    if ((STATUS_RANK[atLeast] ?? -1) > (STATUS_RANK[base] ?? -1)) {
+      status = atLeast
+      patch.status = status
+      patch.dormantFromStatus = null
+    }
+  }
   if (flaggedNow) {
     patch.suppressedReason = null
     patch.suppressedAt = null
@@ -402,9 +459,11 @@ export async function restoreChainFlagged(
       patch.qualityReasons = null
     }
     // The system follow-up the flag cleared goes back — due now if its
-    // time has passed while the row sat aside.
+    // time has passed while the row sat aside — ONLY when the row holds no
+    // follow-up now (V10): one a human promised, or one a merge carried,
+    // is theirs to keep.
     const prior = fit.dso?.priorFollowUp ?? fit.chain?.priorFollowUp ?? null
-    if (prior && FOLLOWUP_RESTORE_STATUSES.has(status)) {
+    if (prior && FOLLOWUP_RESTORE_STATUSES.has(status) && row.nextFollowUpAt == null) {
       const at = new Date(prior.at)
       patch.nextFollowUpAt = Number.isNaN(at.getTime()) || at.getTime() < now.getTime() ? now : at
       patch.followUpReason = prior.reason

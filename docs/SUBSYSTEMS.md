@@ -670,7 +670,9 @@ name AND the NPI organization name AND the Google listing name
 "Decatur"); a COMMON-PHRASE brand (Gentle Dental, Dentistry for Children,
 Perfect Teeth, Sage, Midwest, Monarch, Familia, Lone Peak, Smile Doctors,
 Castle — words hundreds of independents carry) carries the brand's REAL
-web domains (looked up, never guessed: interdent.com / gentle1.com,
+web domains (looked up, never guessed: gentledental.com — 42 North
+Dental's "Gentle Dental of New England" — with InterDent's interdent.com /
+gentle1.com,
 dentistryforchildrenus.com, perfectteeth.com, mysagedental.com,
 midwest-dental.com, monarchdental.com, familiadental.com,
 lonepeakdentalgroup.com, smiledoctors.com, castledental.com) and matches
@@ -688,7 +690,12 @@ chain — `GENERIC_WEBSITE_HOSTS`); addresses are counted by ONE normalized
 key (`addressKey` / `addressKeySql`: lower, the suite / unit / floor token
 dropped, street words folded from one table, ZIP5, letters and digits —
 '123 MAIN ST STE 200' / '787011234' and '123 Main Street Suite 200' /
-'78701' are one address); the host is lower-cased BEFORE the scheme strip
+'78701' are one address; AN EMPTY STREET IS NO ADDRESS (fix pass II, V8):
+the key is NULL for a row with no `address_line1`, so `count(distinct …)`
+skips it and a phone-only hand-added stub on a practice's line never makes
+two real offices a chain; the size count's KEPT suite folds every
+unit-like token to one spelling — 'STE 300', 'Suite 300', '#300', 'Unit
+300' are one suite, 'STE 301' is another — V4); the host is lower-cased BEFORE the scheme strip
 (an upper-case "HTTPS://" never becomes the host); MEMBERSHIP: a row
 disqualified for retired / closed is not a practice any more and never
 counts, a row disqualified AS A CHAIN still counts (idempotency), the
@@ -703,7 +710,11 @@ duplicate spelling is folded before addresses are counted — fail-open, day
 counters `chain_flag` / `chain_restore`; THE UN-FLAG: a row the sweep
 flagged (no override, no DSO name) whose group no longer meets the
 threshold is RESTORED by the same sweep (`fit.chain.status='cleared'` +
-`clearedAt`, reported as `restored`, the hunt tile's "N restored today");
+`clearedAt`, reported as `restored`, the hunt tile's "N restored today";
+the candidates are read IN SQL — `chainUnflagCandidateWhere`: jsonb path
+predicates for a sweep flag with no override and no DSO match, oldest
+`updated_at` first, the 500 cap on the FILTERED set, so a DSO-named row
+never takes a slot — V7);
 (c) PRACTICE SIZE from the registry — for an NPI-2 organization the NPI-1
 dentists at the same street + SUITE (`searchDentistsAtAddress` in
 `lib/nppes.ts`: ONE request per org, the ZIP's dentists keyed on
@@ -713,7 +724,12 @@ cap so the liveness lookups are never starved, re-searched after 180 days
 for a COMPLETED count only; a failed search or a capped ZIP page that
 could hide the group stores `fit.size = {unknown, retry: true}` and is
 asked again on the next pass; a capped page never yields solo or small;
-≥5 → `fit.size = group`, DEPRIORITISED (−10 opportunity) never excluded; an
+≥5 → `fit.size = group`, DEPRIORITISED (−10 opportunity) never excluded —
+"deprioritised" means the −10 may drop a 60–69 group practice below the
+hot / warm band that gates the owner's phone queue, the My Day phone-first
+list and the auto-enroll pool (gates that predate P-04 and apply to every
+cool row), while P-02's caller pool (the quality floor only, no band gate)
+still serves it (V3, accepted); an
 individual NPI is `solo` without a request; the authorized official's
 title — owner / dentist / DDS / DMD vs CEO / VP / director / manager —
 corroborates in the sentence, never decides). A DSO or chain hit →
@@ -731,10 +747,19 @@ the resting sentence regenerated from the last touch), quality recomputed
 from the stored signals, the drip the flag stopped RESUMED
 (`resumeChainStoppedEnrollment` — the latest `stopped_manual` /
 `verify_chain` enrollment, only while no live one exists), the system
-follow-up put back (due now if its time has passed). A merge honours the
-override on EITHER side (`mergeProspects`): the survivor keeps it, never
-inherits a loser's chain flag, keeps its own status, and a chain-flagged
-survivor that receives the override is restored through the one restore.
+follow-up put back (due now if its time has passed) ONLY when the row
+holds no follow-up — a callback a human promised while it sat aside, or
+one a merge carried onto it, is never overwritten (V10). A merge honours
+the override on EITHER side (`mergeProspects`): the survivor keeps it,
+never inherits a loser's chain flag, keeps its own status, and a
+chain-flagged survivor that receives the override is restored through the
+one restore — ranking, inside the transaction, by the status the restore
+will return it to, never by 'disqualified' (V11): the loser's further
+status becomes the restore's `atLeast` (`STATUS_RANK` in
+`lib/prospect-dedupe.ts`, shared by the merge and the restore), the
+loser's intent carries, and the loser's cold caller is handed over
+against the RESTORED row after the transaction (P-02's one predicate),
+else released with the cooldown.
 The Fit card says "Chain — set aside" (with "Not a chain") ONLY for a row
 that is disqualified / chain; a row that merely carries the signal (a
 customer, a row that said no) reads "Chain signal noted — kept where it
@@ -745,7 +770,11 @@ re-enrich. "NEEDS US" GETS WHAT WE ALREADY FETCH (`lib/prospect-scoring.ts`,
 the weights in its header; never a new request): the COMPETITOR STACK —
 booking widgets and review / messaging engines fingerprinted on HOSTS and
 nothing else: the host of every `<script src>`, `<link href>` and `<iframe
-src>` and of every URL inside an inline script body, each pattern matched
+src>` (whatever the tag's type) and of every URL inside an inline script
+body ONLY when that body is JavaScript — no type, text/javascript,
+application/javascript, module (`isJavaScriptScriptTag`); an
+`application/json` hydration payload or an `application/ld+json` block
+carries the page's copy and is skipped (V12) — each pattern matched
 at a label boundary ("localmedia.com" is not LocalMed; "we moved off
 NexHealth" in a blog's JSON-LD or a hydration payload is not an install;
 `detectStack` in `lib/prospect-signals.ts`:
@@ -757,7 +786,13 @@ accumulated across the crawl's hops) — a modern stack LOWERS opportunity
 booking RAISES it (+6, "No booking widget, no review engine — a phone
 number is their only door") — ONLY for a page somebody read (`stack: []`);
 a robots.txt refusal stores `stack: null` (unknown), earns nothing, and
-the AI prompt says "not read (robots)"; the BUILDER (ProSites · PBHS · Officite · TNT
+the AI prompt says "not read (robots)"; a page that did not answer is
+stored the same way with `error: 'fetch_failed'` (`unreadCrawlSignals` —
+never a null `enrichment` the card is blind to), and the Fit card's "Not
+read" names the reason: "Their robots.txt refuses crawlers — we never read
+the page" / "The site did not answer when we looked — Re-enrich tries
+again" / the older-crawl wording only with no error and no stack read, and
+claims no builder for an unread crawl (V13); the BUILDER (ProSites · PBHS · Officite · TNT
 Dental join Wix · Squarespace · GoDaddy · Weebly · WordPress; DIY +5,
 template vendor +4; `BUILDER_LABELS` for the UI); the NEW PRACTICE from
 the registry (NPPES `enumeration_date` < 18 months → `fit.newPractice =
@@ -805,7 +840,16 @@ signal). A caller-provided number is never replaced by the registry or the
 listing (`callerProvided` reads the prior sources, so the guard survives
 the column reading `single_source`; `addManualProspect` stamps
 `phone_source='caller'` at the write, and a hand-added row from before the
-stamp — a phone, no source column, no NPI — reads as the caller's too). CALLERS STEER FRESHNESS — ONE PULL PER NEW
+stamp — a phone, no source column, no NPI — reads as the caller's too);
+when the matched listing lists a DIFFERENT number for such a row, that
+number is kept on the signal (`verification.phone.alt = {number, source:
+'places', at}`) and the detail says "Google lists (404) 555-9999 — kept the
+number you typed", so a typo has a trace on the Verification card (V2). A
+human REACH on a carrier-validated line keeps the carrier's line facts:
+`applyCallerFeedback` never touches `phone_line_type` /
+`phone_validated_at`, and the next pass's caller-stands branch carries them
+into its patch, so the record reads "Phone validated: landline" (25) plus
+the reach (5) — 95 → 100, never 95 → 87 (V9). CALLERS STEER FRESHNESS — ONE PULL PER NEW
 CLOSED CALL, NOTHING MUTATED BACKWARDS (rebuilt in the fix pass): a
 territory (state × zip3) with ≥3 DISTINCT practices logged `closed` /
 `disconnected` inside 30 days (`hotTerritoriesQuery` — a join of
@@ -828,7 +872,9 @@ reason tells the truth about the mix ("3 closed practices this month", "3
 disconnected numbers this month", "2 closed, 1 disconnected this month");
 step 3 of the hygiene pass, before the refresh step so the same tick
 re-sweeps it; day counter `refresh_pull`; the hunt tile shows the line only
-while the pull is set. THE FLOOR → 70
+while the pull is set AND the territory's state is enabled
+(`earlyRefreshWhere` — a pull stamped on a state since turned off is
+nothing anyone is refreshing; V6). THE FLOOR → 70
 (`PROSPECTING_DEFAULTS.qualityFloor`; a stored config keeps its value; the
 settings slider shows "recommended: 70" beside the value). UI (platform
 voice): the table's "⛓ Chains" chip + count (hidden by default like

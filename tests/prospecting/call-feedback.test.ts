@@ -177,6 +177,30 @@ describe('logCallOutcome — a human got through', () => {
     expect(w.qualityScore).toBe(87)
   })
 
+  it('V9: a reach on a carrier-validated line never touches the carrier’s columns — no phone_line_type / phone_validated_at in the write, lineCheck kept on the signal, 100 with the landline', async () => {
+    state.selectQueue.push([LIVE_ROW], [
+      {
+        ...VERIFIED_ROW,
+        phoneSource: 'corroborated',
+        phoneValidatedAt: new Date('2026-11-01T00:00:00Z'),
+        verification: {
+          ...VERIFIED_ROW.verification,
+          phone: { status: 'valid', detail: 'Carrier database: landline (AT&T)', checkedAt: '2026-11-01T00:00:00.000Z', source: 'aws_pinpoint', sources: ['nppes', 'places', 'carrier'], standing: 'corroborated', lineCheck: 'done' },
+        },
+      },
+    ])
+    await logCallOutcome({ prospectId: 'pros_1', outcome: 'gatekeeper' })
+    const w = prospectUpdates().at(-1)!.values
+    expect(w).not.toHaveProperty('phoneLineType')
+    expect(w).not.toHaveProperty('phoneValidatedAt')
+    expect(w).toMatchObject({ phoneStatus: 'valid', phoneSource: 'corroborated' })
+    const v = w.verification as { phone: Record<string, unknown> }
+    expect(v.phone).toMatchObject({ status: 'valid', source: 'caller', sources: ['nppes', 'places', 'carrier', 'caller'], standing: 'corroborated', lineCheck: 'done' })
+    // 35 + 25 (valid, landline — the column the write left alone) + 15 + 10 + 10 + 5
+    expect(w.qualityReasons as string[]).toContain('Phone validated: landline')
+    expect(w.qualityScore).toBe(100)
+  })
+
   it('a reach on a never-verified row records the signal but invents no score', async () => {
     state.selectQueue.push([LIVE_ROW], [{ ...VERIFIED_ROW, verification: null, verifiedAt: null }])
     await logCallOutcome({ prospectId: 'pros_1', outcome: 'callback' })

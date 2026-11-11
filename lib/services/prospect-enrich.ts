@@ -87,6 +87,32 @@ async function fetchPage(
  * The crawler is not a proxy either: it rides the probe's guarded session
  * (`deps` inject the network edges for the tests).
  */
+/** The crawl errors the record keeps (`enrichment.error`): robots.txt
+ *  refused us, or the page did not answer. Either way NOBODY READ THE
+ *  PAGE: the stack is null (unknown), the builder unknown, nothing earned. */
+export type CrawlError = 'robots_disallow' | 'fetch_failed'
+
+/** An UNREAD crawl, stored so the record says why (fix pass II, V13 — the
+ *  Fit card's "Not read" names the reason; a fetch failure used to leave
+ *  `enrichment` null and the card blind). */
+export function unreadCrawlSignals(url: string, error: CrawlError, at: Date = new Date()): ProspectCrawlSignals {
+  return {
+    ssl: /^https:\/\//i.test(url),
+    mobileViewport: false,
+    copyrightYear: null,
+    titleTag: null,
+    metaDescription: null,
+    bookingWidget: false,
+    socialLinks: {},
+    builder: null,
+    stack: null,
+    pageWeightKb: 0,
+    emails: [],
+    fetchedAt: at.toISOString(),
+    error,
+  }
+}
+
 export async function crawlProspectSite(url: string, deps: GuardedFetchDeps = {}): Promise<ProspectCrawlSignals | null> {
   let session: GuardedSession | null = null
   try {
@@ -99,21 +125,7 @@ export async function crawlProspectSite(url: string, deps: GuardedFetchDeps = {}
     if (!(await robotsAllows(origin, session.fetch))) {
       // Nobody read the page: the stack is UNKNOWN (null), never "looked,
       // none" — the no-stack credit is for a page somebody read.
-      return {
-        ssl: normalized.startsWith('https://'),
-        mobileViewport: false,
-        copyrightYear: null,
-        titleTag: null,
-        metaDescription: null,
-        bookingWidget: false,
-        socialLinks: {},
-        builder: null,
-        stack: null,
-        pageWeightKb: 0,
-        emails: [],
-        fetchedAt: new Date().toISOString(),
-        error: 'robots_disallow',
-      }
+      return unreadCrawlSignals(normalized, 'robots_disallow')
     }
     const page = await fetchPage(session, normalized)
     if (!page) return null
@@ -333,6 +345,9 @@ async function enrichOneProspect(
     //    one) is never handed to the crawler either — whatever the stored
     //    signal says.
     let signals: ProspectCrawlSignals | null = null
+    // A crawl that was tried and could not read the page is stored as an
+    // UNREAD crawl (V13) — the verdict and the score still see no signals.
+    let crawlFailed = false
     if (
       websiteUrl &&
       websiteStatus !== 'dead' &&
@@ -341,6 +356,7 @@ async function enrichOneProspect(
       budget.crawlsUsed < budget.budgets.crawlsPerMonth
     ) {
       signals = await crawlProspectSite(websiteUrl)
+      crawlFailed = signals == null
       budget.crawlsUsed++
       out.crawls++
       await bumpProspectingCounter(budget.month, 'crawl')
@@ -392,7 +408,7 @@ async function enrichOneProspect(
         // no-match clears the old listing's, a pass with no lookup keeps
         // them, and only a listing that states a website replaces one.
         ...listingColumns(verified),
-        enrichment: signals,
+        enrichment: signals ?? (crawlFailed && websiteUrl ? unreadCrawlSignals(websiteUrl, 'fetch_failed') : null),
         aiVerdict: verdict,
         opportunityScore: scored.score,
         scoreBand: scored.band,

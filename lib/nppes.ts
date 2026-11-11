@@ -256,15 +256,19 @@ function locationLines(raw: unknown): { line1: string | null; line2: string | nu
 /** The key the size count compares: street + suite (address_1 + address_2),
  *  normalized by THE address key with the suite KEPT — in a professional
  *  building the suite is what tells one practice from the next (fix pass,
- *  H.2). */
-export function sizeAddressKey(line1: string | null | undefined, line2: string | null | undefined): string {
+ *  H.2) — and every unit-like token folded to one spelling, so 'STE 300',
+ *  'Suite 300', '#300' and 'Unit 300' are one suite (fix pass II, V4).
+ *  Null when there is no street. */
+export function sizeAddressKey(line1: string | null | undefined, line2: string | null | undefined): string | null {
+  // No street is no key — a suite line alone is not an address.
+  if (!addressKey(line1, null, { keepSuite: true })) return null
   return addressKey([line1, line2].filter(Boolean).join(' '), null, { keepSuite: true })
 }
 
 /** Count the NPI-1 dentists at one street + suite in a ZIP search body —
  *  exported for tests. A record without a LOCATION street never counts. */
 export function countDentistsAt(body: unknown, addressLine1: string | null, addressLine2: string | null = null): DentistsAtAddress {
-  const key = addressKey(addressLine1, null, { keepSuite: true }) ? sizeAddressKey(addressLine1, addressLine2) : ''
+  const key = sizeAddressKey(addressLine1, addressLine2)
   const rawResults = body && typeof body === 'object' && Array.isArray((body as { results?: unknown }).results)
     ? ((body as { results: unknown[] }).results)
     : []

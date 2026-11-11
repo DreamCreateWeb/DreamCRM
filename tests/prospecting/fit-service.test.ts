@@ -14,6 +14,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const state = {
   selectQueue: [] as unknown[][],
+  /** The WHERE each select carried, in order (rendered where a test cares). */
+  selectWheres: [] as unknown[],
   updates: [] as Array<{ table: string; values: Record<string, unknown> }>,
   returning: [] as unknown[][],
 }
@@ -26,7 +28,11 @@ vi.mock('@/lib/db', async () => {
   }
   const selectChain = () => {
     const obj: any = {}
-    for (const m of ['from', 'where', 'groupBy', 'having', 'limit', 'innerJoin', 'orderBy']) obj[m] = () => obj
+    for (const m of ['from', 'groupBy', 'having', 'limit', 'innerJoin', 'orderBy']) obj[m] = () => obj
+    obj.where = (w: unknown) => {
+      state.selectWheres.push(w)
+      return obj
+    }
     obj.then = (onF: (v: unknown) => unknown, onR?: (e: unknown) => unknown) =>
       Promise.resolve(state.selectQueue.shift() ?? []).then(onF, onR)
     return obj
@@ -77,9 +83,12 @@ vi.mock('@/lib/services/prospect-dedupe', async () => {
   return { tenDigitPhoneSql: () => sql`phone_key` }
 })
 
-import { CHAIN_STOP_REASON, clearChainFlag, countChains, findChainGroups, priorFollowUpOf, sweepChains } from '@/lib/services/prospect-fit'
+import { PgDialect } from 'drizzle-orm/pg-core'
+import { CHAIN_STOP_REASON, clearChainFlag, countChains, findChainGroups, priorFollowUpOf, restoreChainFlagged, sweepChains } from '@/lib/services/prospect-fit'
 import { pullForwardHotTerritories } from '@/lib/services/prospect-discovery'
 import { PROSPECTING_DEFAULTS } from '@/lib/types/prospecting'
+
+const render = (q: unknown) => new PgDialect().sqlToQuery(q as never)
 
 const NOW = new Date('2026-11-10T12:00:00Z')
 const enrollmentUpdates = () => state.updates.filter((u) => u.table === 'outreachEnrollment')
@@ -89,6 +98,7 @@ const prospectUpdates = () => state.updates.filter((u) => u.table === 'prospect'
 
 beforeEach(() => {
   state.selectQueue = []
+  state.selectWheres = []
   state.updates = []
   state.returning = []
   vi.clearAllMocks()
@@ -208,7 +218,7 @@ describe('sweepChains', () => {
     expect(priorFollowUpOf({ nextFollowUpAt: null, followUpReason: 'No answer — try again' })).toBeNull()
   })
 
-  it('the un-flag (E.4): a row the SWEEP flagged whose group fell under the threshold is RESTORED — the signal reads cleared, the drip resumes; an overridden row and a DSO-named row are never touched', async () => {
+  it('the un-flag (E.4): a row the SWEEP flagged whose group fell under the threshold is RESTORED — the signal reads cleared, the drip resumes; an overridden row and a DSO-named row are filtered out IN SQL (V7), so 501 of them never starve this one', async () => {
     const swept = (over: Record<string, unknown>) => ({
       id: 'x',
       verification: { fit: { chain: { status: 'shared_phone', detail: 'shares', checkedAt: AT, source: 'our_data', kind: 'shared_phone', count: 3, key: '4045551212', priorStatus: 'contacted' } } },
@@ -217,11 +227,9 @@ describe('sweepChains', () => {
     state.selectQueue.push(
       [],
       [], // no group holds anyone any more
-      [
-        swept({ id: 'gone' }),
-        swept({ id: 'kept', verification: { fit: { chain: { status: 'shared_phone', detail: null, checkedAt: AT, source: 'our_data', count: 3 }, chainOverride: { status: 'not_a_chain', detail: null, checkedAt: AT, source: 'owner' } } } }),
-        swept({ id: 'dso', verification: { fit: { chain: { status: 'shared_phone', detail: null, checkedAt: AT, source: 'our_data', count: 3 }, dso: { status: 'match', detail: null, checkedAt: AT, source: 'dso_list', name: 'Aspen Dental', priorStatus: 'queued' } } } }),
-      ],
+      // The candidate read: what the SQL predicate returns — the sweep-flagged
+      // row only (an overridden row and a DSO-named row never sit in the set).
+      [swept({ id: 'gone' })],
       // the restore's read of `gone`
       [
         {
@@ -235,11 +243,21 @@ describe('sweepChains', () => {
           businessStatus: null,
           reviewCount: null,
           websiteUrl: null,
+          nextFollowUpAt: null,
+          followUpReason: null,
+          dormantFromStatus: null,
         },
       ],
     )
     const r = await sweepChains({ now: NOW })
     expect(r).toEqual({ groups: 0, flagged: 0, noted: 0, restored: 1, errors: 0 })
+    // The candidate read carries the jsonb predicates (V7) — the DSO rows and
+    // the overridden rows are excluded before the cap, not after it in TS.
+    const candidates = render(state.selectWheres[2])
+    expect(candidates.sql).toContain(`"prospect"."verification" #>> '{fit,chain,status}' in ('shared_host', 'shared_phone')`)
+    expect(candidates.sql).toContain(`coalesce("prospect"."verification" #>> '{fit,chainOverride,status}', '') = ''`)
+    expect(candidates.sql).toContain(`coalesce("prospect"."verification" #>> '{fit,dso,status}', '') <> 'match'`)
+    expect(candidates.params).toEqual(['disqualified', 'chain'])
     const w = prospectUpdates()
     expect(w).toHaveLength(1)
     expect(w[0].values).toMatchObject({ status: 'contacted', suppressedReason: null, suppressedAt: null, qualityScore: null })
@@ -271,6 +289,9 @@ describe('clearChainFlag — "Not a chain"', () => {
     businessStatus: 'OPERATIONAL',
     reviewCount: 40,
     websiteUrl: 'https://smile.com',
+    nextFollowUpAt: null,
+    followUpReason: null,
+    dormantFromStatus: null,
     ...over,
   })
 
@@ -347,6 +368,65 @@ describe('clearChainFlag — "Not a chain"', () => {
     const r = await clearChainFlag('pros_1', NOW)
     expect(r).toEqual({ ok: true, status: 'enriched' })
     expect(prospectUpdates()[0].values).toMatchObject({ status: 'enriched', qualityScore: null, qualityBand: null, qualityReasons: null })
+  })
+
+  it('V10: a row holding a follow-up when the flag lifts KEEPS it — the remembered system nudge is put back only on a row with none; a human’s callback is never overwritten', async () => {
+    const past = '2026-11-05T15:00:00.000Z'
+    const flagged = { ...GOOD, fit: { chain: { status: 'shared_phone', detail: null, checkedAt: AT, source: 'our_data', count: 3, priorStatus: 'contacted', priorFollowUp: { at: past, reason: 'No answer — try again' } } } }
+    // A callback someone promised while the row sat aside (or one a merge carried onto it).
+    const promised = new Date('2026-11-14T15:00:00.000Z')
+    state.selectQueue.push([row({ verification: flagged, nextFollowUpAt: promised, followUpReason: 'They asked for a callback' })])
+    const r = await clearChainFlag('pros_1', NOW)
+    expect(r).toEqual({ ok: true, status: 'contacted' })
+    const w = prospectUpdates()[0].values
+    expect(w).toMatchObject({ status: 'contacted', suppressedReason: null })
+    expect(w).not.toHaveProperty('nextFollowUpAt')
+    expect(w).not.toHaveProperty('followUpReason')
+    // The same row with NO follow-up: the remembered system nudge goes back, due now.
+    state.updates = []
+    state.selectQueue.push([row({ verification: flagged })])
+    await clearChainFlag('pros_1', NOW)
+    expect(prospectUpdates()[0].values).toMatchObject({ nextFollowUpAt: NOW, followUpReason: 'No answer — try again' })
+    // The sweep's un-flag follows the same rule.
+    state.updates = []
+    state.selectQueue.push([row({ verification: flagged, nextFollowUpAt: promised, followUpReason: 'They asked for a callback' })])
+    expect(await restoreChainFlagged('pros_1', NOW, 'sweep')).toEqual({ ok: true, status: 'contacted' })
+    expect(prospectUpdates()[0].values).not.toHaveProperty('nextFollowUpAt')
+  })
+
+  it('V11: a merge’s "at least" — the restore lands at the loser’s FURTHER status; a lesser or unranked one changes nothing; a resting memory ranks by where it came from and wakes to a further one', async () => {
+    const flag = (priorStatus: string | null) => ({ ...GOOD, fit: { chain: { status: 'shared_phone', detail: null, checkedAt: AT, source: 'our_data', count: 3, priorStatus } } })
+    // Flagged while enriched; the overridden loser was contacted.
+    state.selectQueue.push([row({ verification: flag('enriched') })])
+    expect(await restoreChainFlagged('pros_1', NOW, 'override', { atLeast: 'contacted' })).toEqual({ ok: true, status: 'contacted' })
+    expect(prospectUpdates()[0].values).toMatchObject({ status: 'contacted', suppressedReason: null, dormantFromStatus: null })
+    // Flagged while contacted; the loser was only enriched: the remembered status wins.
+    state.updates = []
+    state.selectQueue.push([row({ verification: flag('contacted') })])
+    expect(await restoreChainFlagged('pros_1', NOW, 'override', { atLeast: 'enriched' })).toEqual({ ok: true, status: 'contacted' })
+    expect(prospectUpdates()[0].values).toMatchObject({ status: 'contacted' })
+    expect(prospectUpdates()[0].values).not.toHaveProperty('dormantFromStatus')
+    // An unranked "at least" (terminal, resting, junk) never moves anything.
+    state.updates = []
+    state.selectQueue.push([row({ verification: flag('queued') })])
+    expect(await restoreChainFlagged('pros_1', NOW, 'override', { atLeast: 'not_interested' })).toEqual({ ok: true, status: 'queued' })
+    state.updates = []
+    state.selectQueue.push([row({ verification: flag('queued') })])
+    expect(await restoreChainFlagged('pros_1', NOW, 'override', { atLeast: null })).toEqual({ ok: true, status: 'queued' })
+    // A resting memory ranks by where it came from: from queued, a contacted loser wakes it; from contacted, a queued loser leaves it resting.
+    state.updates = []
+    state.selectQueue.push([row({ verification: flag('dormant'), dormantFromStatus: 'queued', verifiedAt: null })])
+    expect(await restoreChainFlagged('pros_1', NOW, 'override', { atLeast: 'contacted' })).toEqual({ ok: true, status: 'contacted' })
+    expect(prospectUpdates()[0].values).toMatchObject({ status: 'contacted', dormantFromStatus: null })
+    expect(prospectUpdates()).toHaveLength(1) // no resting reconcile: the row is awake
+    state.updates = []
+    state.selectQueue.push(
+      [row({ verification: flag('dormant'), dormantFromStatus: 'contacted', verifiedAt: null })],
+      [{ status: 'dormant', qualityScore: null, qualityReasons: null, createdAt: new Date('2026-01-01T00:00:00Z'), lastTouchAt: '2026-07-13T15:00:00.000Z' }],
+    )
+    expect(await restoreChainFlagged('pros_1', NOW, 'override', { atLeast: 'queued' })).toEqual({ ok: true, status: 'dormant' })
+    expect(prospectUpdates()[0].values).toMatchObject({ status: 'dormant' })
+    expect(prospectUpdates()[0].values).not.toHaveProperty('dormantFromStatus')
   })
 
   it('an override on a row that kept its status (a customer the sweep only noted) writes the override and nothing else', async () => {

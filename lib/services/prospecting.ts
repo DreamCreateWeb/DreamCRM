@@ -2080,6 +2080,10 @@ async function applyCallerFeedback(prospectId: string, outcome: string, now: Dat
     // prior standing was, and outranks a syntax check or a carrier database
     // that called it invalid). The caller joins the sources that state it;
     // the signal is the caller's, so the next verify keeps it as it stands.
+    // The carrier's line facts are NOT touched by a reach (fix pass II,
+    // V9): phone_line_type / phone_validated_at stay as the carrier left
+    // them and the signal keeps its lineCheck — a human reaching the
+    // practice never lowers the record.
     if (row.phone) {
       phoneStatus = 'valid'
       const priorSources = verification.phone?.sources ?? []

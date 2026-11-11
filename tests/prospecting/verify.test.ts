@@ -106,7 +106,7 @@ import {
   FIT_NPPES_PER_RUN,
   phoneStanding,
 } from '@/lib/services/prospect-verify'
-import { PROSPECTING_DEFAULTS } from '@/lib/types/prospecting'
+import { PROSPECTING_DEFAULTS, parseVerification } from '@/lib/types/prospecting'
 
 const NOW = new Date('2026-11-10T12:00:00Z')
 const LIVE = { ...PROSPECTING_DEFAULTS, killSwitch: false }
@@ -1030,8 +1030,21 @@ describe('"that clinic’s number" — the two-source rule (P-04)', () => {
     const typed = { ...PROSPECT, npiNumber: null, phone: '4045550000', phoneSource: null, verification: null }
     const out = await verifyProspectSignals(typed as never, { ok: true, places: [{ ...PLACE, nationalPhoneNumber: '4045559999' }] }, await ctx())
     expect(out.patch.phone).toBe('4045550000')
-    expect(out.patch.verification.phone).toMatchObject({ sources: ['caller'], standing: 'single_source' })
-    expect(out.patch.verification.phone?.detail).not.toMatch(/Google lists/)
+    // V2: the listing's DIFFERENT number is kept on the signal and said out
+    // loud — the typed number still stays, and the sentence is the card's.
+    expect(out.patch.verification.phone).toMatchObject({
+      sources: ['caller'],
+      standing: 'single_source',
+      alt: { number: '4045559999', source: 'places', at: NOW.toISOString() },
+    })
+    expect(out.patch.verification.phone?.detail).toMatch(/Google lists \(404\) 555-9999 — kept the number you typed/)
+    expect(out.patch.verification.phone?.detail).not.toMatch(/the registry had/)
+    // The stored JSON reads it back.
+    expect(parseVerification(JSON.parse(JSON.stringify(out.patch.verification))).phone?.alt).toEqual({ number: '4045559999', source: 'places', at: NOW.toISOString() })
+    // A listing that AGREES with the typed number leaves no alt.
+    const agrees = await verifyProspectSignals(typed as never, { ok: true, places: [{ ...PLACE, nationalPhoneNumber: '4045550000' }] }, await ctx())
+    expect(agrees.patch.verification.phone?.alt).toBeUndefined()
+    expect(agrees.patch.verification.phone?.detail).not.toMatch(/Google lists/)
     // A registry row with no source column is NOT caller-provided: the listing's number still wins there.
     const registry = { ...PROSPECT, phoneSource: null, verification: null }
     const r = await verifyProspectSignals(registry as never, { ok: true, places: [{ ...PLACE, nationalPhoneNumber: '4045559999' }] }, await ctx())
@@ -1063,7 +1076,7 @@ describe('"that clinic’s number" — the two-source rule (P-04)', () => {
     const typed = { ...PROSPECT, npiNumber: null, phone: '4045550000', phoneSource: 'caller' }
     const a = await verifyProspectSignals(typed as never, { ok: true, places: [{ ...PLACE, nationalPhoneNumber: '4045559999' }] }, await ctx())
     expect(a.patch.phone).toBe('4045550000')
-    expect(a.patch.verification.phone).toMatchObject({ sources: ['caller'], standing: 'single_source' })
+    expect(a.patch.verification.phone).toMatchObject({ sources: ['caller'], standing: 'single_source', alt: { number: '4045559999', source: 'places' } })
     expect(a.patch.phoneSource).toBe('single_source')
     // The next pass: the column says single_source, the signal remembers the caller.
     const later = { ...typed, phoneSource: 'single_source', verification: a.patch.verification }
@@ -1087,6 +1100,53 @@ describe('"that clinic’s number" — the two-source rule (P-04)', () => {
     const legacy = await verifyProspectSignals(VERIFIED as never, null, c)
     expect(legacy.patch.verification.phone).toMatchObject({ sources: ['nppes'], standing: 'single_source' })
     expect(legacy.patch.phoneSource).toBe('single_source')
+  })
+
+  it('V9: a reach on a carrier-validated line keeps the carrier’s line facts — 95 before the reach, 100 after it on the next pass (the reach’s 5), landline kept, no second carrier call', async () => {
+    driverMock.mockReturnValue('aws')
+    lineMock.mockResolvedValue({ ok: true, lineType: 'landline', invalid: false, carrier: 'AT&T', provider: 'aws_pinpoint' })
+    // Pass 1: the registry, the listing and the carrier agree — 35 + 25 + 15 + 10 + 10.
+    const first = await verifyProspectSignals(PROSPECT as never, { ok: true, places: [PLACE] }, await ctx())
+    expect(first.patch.qualityScore).toBe(95)
+    expect(first.patch).toMatchObject({ phoneStatus: 'valid', phoneLineType: 'landline', phoneValidatedAt: NOW, phoneSource: 'corroborated' })
+    expect(first.patch.verification.phone).toMatchObject({ sources: ['nppes', 'places', 'carrier'], standing: 'corroborated', lineCheck: 'done' })
+    expect(lineMock).toHaveBeenCalledTimes(1)
+    // A caller logs "gatekeeper": what applyCallerFeedback writes — the
+    // signal is the caller's (sources + caller, corroborated, lineCheck
+    // kept), the reach stored, the carrier's columns untouched.
+    const reachedAt = '2026-11-11T09:00:00.000Z'
+    const afterReach = {
+      ...PROSPECT,
+      phoneStatus: 'valid',
+      phoneLineType: 'landline',
+      phoneValidatedAt: NOW,
+      phoneSource: 'corroborated',
+      verification: {
+        ...first.patch.verification,
+        phone: {
+          status: 'valid',
+          detail: 'Reached on Nov 11, 2026 — the number works (heard on a call)',
+          checkedAt: reachedAt,
+          source: 'caller',
+          sources: ['nppes', 'places', 'carrier', 'caller'],
+          standing: 'corroborated',
+          lineCheck: 'done',
+        },
+        reach: { status: 'reached', detail: 'Someone picked up on Nov 11, 2026 (reached the desk)', checkedAt: reachedAt, source: 'caller' },
+      },
+    }
+    // Pass 2: the caller's verdict stands, the line facts ride along, the carrier is not asked again.
+    const second = await verifyProspectSignals(afterReach as never, { ok: true, places: [PLACE] }, await ctx())
+    expect(second.patch.verification.phone).toEqual(afterReach.verification.phone)
+    expect(second.patch).toMatchObject({ phoneStatus: 'valid', phoneLineType: 'landline', phoneValidatedAt: NOW, phoneSource: 'corroborated' })
+    expect(second.patch.qualityReasons).toContain('Phone validated: landline')
+    expect(second.patch.qualityScore).toBe(100)
+    expect(lineMock).toHaveBeenCalledTimes(1)
+    // A caller verdict on a line the carrier never typed stays honest: nothing invented.
+    const bare = { ...afterReach, phoneLineType: null, phoneValidatedAt: null }
+    const third = await verifyProspectSignals(bare as never, { ok: true, places: [PLACE] }, await ctx())
+    expect(third.patch).toMatchObject({ phoneLineType: null, phoneValidatedAt: null })
+    expect(third.patch.qualityReasons).toContain('Phone validated, line type unknown')
   })
 
   it('a caller’s standing verdict keeps its signal byte for byte; a reach on the number is corroborated', async () => {
