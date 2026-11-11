@@ -238,5 +238,11 @@ describe('buildDemoBriefPrompt', () => {
     const read = buildDemoBriefPrompt({ ...base, signals: { ...unread, error: undefined, stack: [] } }).user
     expect(read).toContain('mobile viewport false')
     expect(read).toContain('online-booking markers false')
+    // X1: the UNREAD verdict's placeholder 0 is never "Website quality 0/100".
+    const unreadVerdict = { hasWebsite: true, websiteRead: false, websiteQuality: 0, websiteReasons: [], socialPresence: 0, onlineBooking: false, weaknesses: [], summary: 'Website not read.' }
+    const judged = buildDemoBriefPrompt({ ...base, signals: unread, verdict: unreadVerdict }).user
+    expect(judged).toContain('Website not read — quality unknown; do not describe or judge their site.')
+    expect(judged).not.toMatch(/Website quality 0\/100/)
+    expect(buildDemoBriefPrompt({ ...base, signals: null, verdict: { ...unreadVerdict, websiteRead: undefined, websiteQuality: 25 } }).user).toContain('Website quality 25/100')
   })
 })

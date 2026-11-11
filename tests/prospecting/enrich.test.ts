@@ -345,6 +345,10 @@ describe('reEnrichProspect (manual refresh)', () => {
     expect(final.values).toMatchObject({ status: 'enriched', qualityBand: 'parked', websiteUrl: 'https://smiledental.com' })
     // The opportunity score still says "they need a website" — the two scores are never blended.
     expect(final.values.opportunityScore).toBeGreaterThanOrEqual(65)
+    // X1: a DEAD site is not an unread one — its state was read; the verdict
+    // is the no-website one, never "Website not read — quality unknown".
+    expect(final.values.aiVerdict).toMatchObject({ hasWebsite: false, summary: 'No website found.' })
+    expect(final.values.scoreReasons as string[]).not.toContain('Website not read — quality unknown')
   })
 
   it('fails soft on budget exhaustion and unknown ids', async () => {
@@ -494,11 +498,16 @@ describe('P-04 in the enrich pass', () => {
     // W4: the robots stub is not a read page — no AI call, and the stored
     // verdict carries none of the stub's zeros as weaknesses.
     expect(aiMock).not.toHaveBeenCalled()
-    const verdict = final.aiVerdict as { weaknesses: string[]; websiteReasons: string[]; summary: string }
+    const verdict = final.aiVerdict as { hasWebsite: boolean; websiteRead?: boolean; weaknesses: string[]; websiteReasons: string[]; summary: string }
     expect(verdict.weaknesses).toEqual([])
     expect(verdict.websiteReasons).toEqual([])
-    expect(verdict.summary).toBe('Website not yet crawled.')
+    // X1: an UNREAD verdict — the practice has a site, its quality is unknown.
+    expect(verdict).toMatchObject({ hasWebsite: true, websiteRead: false, summary: 'Website not read.' })
     expect(final.scoreReasons as string[]).not.toContain('Not mobile-friendly')
+    expect(final.scoreReasons as string[]).toContain('Website not read — quality unknown')
+    expect(final.scoreReasons as string[]).not.toContain('No website at all — needs everything we sell')
+    expect(final.opportunityScore).toBeLessThan(90)
+    expect(final.scoreBand).not.toBe('hot')
   })
 
   it('V13: a page that does not answer is stored as an UNREAD crawl (stack null, error fetch_failed) — the card can say why; no AI call, no verdict from a page nobody read, no +6', async () => {
@@ -525,6 +534,11 @@ describe('P-04 in the enrich pass', () => {
     // W4: the stored verdict carries none of the stub's zeros.
     expect((final.aiVerdict as { weaknesses: string[] }).weaknesses).toEqual([])
     expect(final.scoreReasons as string[]).not.toContain('Not mobile-friendly')
+    // X1: a fetch failure with a URL is an UNREAD verdict, never "no website" at 92.
+    expect(final.aiVerdict).toMatchObject({ hasWebsite: true, websiteRead: false, summary: 'Website not read.' })
+    expect(final.scoreReasons as string[]).toContain('Website not read — quality unknown')
+    expect(final.scoreReasons as string[]).not.toContain('No website at all — needs everything we sell')
+    expect(final.opportunityScore).toBeLessThan(90)
     expect(unreadCrawlSignals('https://smiledental.com', 'fetch_failed', new Date('2026-11-10T12:00:00Z'))).toMatchObject({ stack: null, error: 'fetch_failed', fetchedAt: '2026-11-10T12:00:00.000Z', ssl: true })
     expect(unreadCrawlSignals('http://smiledental.com', 'robots_disallow').ssl).toBe(false)
   })

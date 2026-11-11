@@ -3,6 +3,7 @@ import {
   PRODUCT_KNOWLEDGE,
   PRODUCT_KNOWLEDGE_SHORT,
   segmentAngle,
+  unreadWebsiteAngle,
   effectiveProductKnowledge,
 } from '@/lib/prospect-product-knowledge'
 import { buildDemoBriefPrompt } from '@/lib/demo-brief-prompt'
@@ -58,6 +59,14 @@ describe('segmentAngle', () => {
     expect(pres).toMatch(/reviews|social/i)
     expect(new Set([no, weak, pres]).size).toBe(3) // all distinct
     expect(segmentAngle(null)).toBe('')
+  })
+
+  it('X1: the angle for a website nobody read tells the model NOT to describe or judge the site — distinct from the three, never "the site is fine" or "dated"', () => {
+    const angle = unreadWebsiteAngle()
+    expect(angle).toMatch(/could NOT read/i)
+    expect(angle).toMatch(/do not describe or judge/i)
+    expect(angle).not.toMatch(/site is fine|dated|no website/i)
+    expect(new Set([angle, segmentAngle('no_website'), segmentAngle('weak_website'), segmentAngle('weak_presence')]).size).toBe(4)
   })
 })
 

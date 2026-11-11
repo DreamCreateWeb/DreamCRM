@@ -390,7 +390,12 @@ async function enrichOneProspect(
         await bumpProspectingCounter(budget.month, 'ai_score')
       }
     }
-    if (!verdict) verdict = heuristicVerdict(signals, Boolean(websiteUrl))
+    // A site the probe found DEAD or PARKED is not "unread" — its state was
+    // read: the practice has no working website, and the ladder says so.
+    // Only a site we could not read (no crawl, robots, a failed fetch)
+    // gets the UNREAD verdict (X1).
+    const siteGone = websiteStatus === 'dead' || websiteStatus === 'parked'
+    if (!verdict) verdict = heuristicVerdict(signals, Boolean(websiteUrl) && !siteGone)
 
     // 4) Deterministic score — with what the crawl and the registry already
     //    told us (P-04): the competitor stack, the builder, a new practice,

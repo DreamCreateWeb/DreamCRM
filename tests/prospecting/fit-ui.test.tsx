@@ -258,6 +258,26 @@ describe('W4: an unread crawl claims no page fact in the drawer', () => {
     expect(read.container.textContent).toContain('Online booking')
     expect(read.container.textContent).toContain('Social linked')
   })
+
+  it('X1: the "Why this score" block says "Website not read — quality unknown" for an unread verdict, never a grade; a read verdict keeps its summary', () => {
+    const unreadVerdict = { hasWebsite: true, websiteRead: false, websiteQuality: 0, websiteReasons: [], socialPresence: 0, onlineBooking: false, weaknesses: [], summary: 'Website not read.' }
+    const { container } = render(
+      <ProspectDrawer
+        detail={detail({ enrichment: UNREAD, websiteUrl: 'https://smile.com', aiVerdict: unreadVerdict, scoreReasons: ['Website not read — quality unknown'], opportunityScore: 60, scoreBand: 'warm' })}
+        closeHref="/platform/prospecting"
+      />,
+    )
+    expect(container.querySelector('[data-verdict-summary]')?.textContent).toBe('Website not read — quality unknown')
+    expect(container.textContent).not.toMatch(/Weak website|No website at all|0\/100/)
+    cleanup()
+    const read = render(
+      <ProspectDrawer
+        detail={detail({ aiVerdict: { ...unreadVerdict, websiteRead: undefined, websiteQuality: 25, summary: 'A dated site.' }, scoreReasons: ['Weak website (25/100)'] })}
+        closeHref="/platform/prospecting"
+      />,
+    )
+    expect(read.container.querySelector('[data-verdict-summary]')?.textContent).toBe('A dated site.')
+  })
 })
 
 function detail(over: Partial<ProspectDetail['prospect']> = {}): ProspectDetail {

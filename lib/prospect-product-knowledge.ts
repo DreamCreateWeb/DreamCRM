@@ -130,3 +130,10 @@ export function segmentAngle(segment: OutreachSegmentKey | null | undefined): st
       return ''
   }
 }
+
+/** The angle for a practice whose website we could NOT read (X1): the
+ *  segment router sends it down the presence pitch, but "the site is fine"
+ *  is a claim too — the script must not describe the site at all. */
+export function unreadWebsiteAngle(): string {
+  return 'This practice has a website we could NOT read (their site blocked or failed our check) — do not describe or judge their site. Lead with: reviews on autopilot, recall campaigns, and patient communication; ask about the site on the call.'
+}
