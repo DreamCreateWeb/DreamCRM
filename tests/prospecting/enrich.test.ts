@@ -48,6 +48,12 @@ vi.mock('drizzle-orm', () => ({
   sql: Object.assign(vi.fn(() => ({})), { raw: vi.fn() }),
 }))
 
+// The cold-caller release hook (P-02 / P-04) rides the disqualified branch;
+// its own suite covers it — here it is a spy so the update counts below
+// stay the enrich pass's own statements.
+const { releaseMock } = vi.hoisted(() => ({ releaseMock: vi.fn(async (_id: string, _now?: Date) => false) }))
+vi.mock('@/lib/services/prospect-caller-release', () => ({ releaseIfUnservable: releaseMock }))
+
 // Contact sync (MX verification) is exercised in contacts.test.ts; stub it
 // here so enrichment stays focused and never touches DNS.
 const { syncContactsMock } = vi.hoisted(() => ({
@@ -457,5 +463,56 @@ describe('P-01 fixes: the listing columns + the drip stop ride the verify outcom
     await runEnrichment()
     const cleared = state.updates.at(-1)!.values
     expect(cleared).toMatchObject({ googlePlaceId: null, googleRatingTenths: null, reviewCount: null, businessStatus: null, googleMapsUri: null, websiteUrl: null })
+  })
+})
+
+// ── P-04: fit and freshness in the enrich pass ──────────────────────────────
+
+describe('P-04 in the enrich pass', () => {
+  it('a disqualified practice (closed, retired, a chain) frees a cold caller’s slot', async () => {
+    state.selectQueue.push([PROSPECT])
+    placeMock.mockResolvedValue(found({ ...PLACE, businessStatus: 'CLOSED_PERMANENTLY' }))
+    await runEnrichment()
+    expect(releaseMock).toHaveBeenCalledWith('pros_1', expect.any(Date))
+  })
+
+  it('a robots.txt refusal is UNKNOWN (stack null), never "looked, no booking engine": no +6, the AI told "not read (robots)" (I.1 / C8)', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      const u = String(url)
+      if (u.endsWith('/robots.txt')) return { ok: true, body: bodyStream('User-agent: *\nDisallow: /'), text: async () => 'User-agent: *\nDisallow: /', url } as unknown as Response
+      throw new Error(`the page must not be fetched: ${u}`)
+    })
+    aiMock.mockResolvedValue({ websiteQuality: 20, websiteReasons: [], socialPresence: 0, onlineBooking: false, weaknesses: [], summary: 'x' })
+    state.selectQueue.push([PROSPECT])
+    placeMock.mockResolvedValue(found(PLACE))
+    const r = await runEnrichment()
+    expect(r.enriched).toBe(1)
+    const final = state.updates.find((u) => u.values.enrichment)!.values
+    expect((final.enrichment as { stack: unknown; error: string }).stack).toBeNull()
+    expect((final.enrichment as { error: string }).error).toBe('robots_disallow')
+    expect(final.scoreReasons as string[]).not.toContain('No booking widget, no review engine — a phone number is their only door')
+    const prompt = (aiMock.mock.calls[0][0] as { messages: Array<{ content: string }> }).messages[0].content
+    expect(prompt).toContain('Booking / review tools fingerprinted on the site: not read (robots)')
+  })
+
+  it('the crawl fingerprints the competitor stack across the hops and the score names it', async () => {
+    const STACKED = `<!doctype html><html><head><title>Smile Dental</title>
+      <meta name="viewport" content="width=device-width">
+      <script src="https://widget.nexhealth.com/book.js"></script></head>
+      <body><a href="/contact">contact</a>© 2026</body></html>`
+    const CONTACT = `<html><body><iframe src="https://birdeye.com/widget/1"></iframe></body></html>`
+    fetchMock.mockImplementation(async (url: string) => {
+      const u = String(url)
+      if (u.endsWith('/robots.txt')) return { ok: true, text: async () => 'User-agent: *\nAllow: /', url } as Response
+      const html = u.includes('/contact') ? CONTACT : STACKED
+      return { ok: true, body: bodyStream(html), text: async () => html, url: u } as unknown as Response
+    })
+    state.selectQueue.push([PROSPECT])
+    placeMock.mockResolvedValue(found(PLACE))
+    const r = await runEnrichment()
+    expect(r.enriched).toBe(1)
+    const final = state.updates.find((u) => u.values.enrichment)!.values
+    expect((final.enrichment as { stack: string[] }).stack).toEqual(['NexHealth', 'Birdeye'])
+    expect(final.scoreReasons as string[]).toContain('Already on NexHealth + Birdeye')
   })
 })

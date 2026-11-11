@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { computeQualityScore, qualityBandForScore, qualityInput, isFullyVerified, QUALITY_WEIGHTS } from '@/lib/prospect-quality'
+import { computeQualityScore, qualityBandForScore, qualityInput, isFullyVerified, QUALITY_WEIGHTS, NO_LIFE_CEILING, SINGLE_SOURCE_TURN_ON, CARRIER_ONLY_LINE } from '@/lib/prospect-quality'
 import { PARKED_RECHECK_DAYS, PROSPECTING_DEFAULTS, type ProspectVerification, type VerificationSignal } from '@/lib/types/prospecting'
 
 /**
@@ -181,5 +181,95 @@ describe('isFullyVerified', () => {
     expect(isFullyVerified(noPhone, NOW)).toBe(false)
     const stale = { ...ALL_GOOD, npi: sig('active', null, 'nppes', new Date('2026-08-01T00:00:00Z')) }
     expect(isFullyVerified(stale, NOW)).toBe(false)
+  })
+})
+
+// ── P-04: liveness from the listing + the two-source rule ───────────────────
+
+describe('the phone, under the two-source rule', () => {
+  const wellFormed = (extra: Record<string, unknown>) => ({ ...sig('well_formed', 'Well-formed US number — the line check is off', 'nanp'), ...extra })
+  it('the registry and the listing agree → 20 (corroborated, line not checked)', () => {
+    const r = score({ phoneStatus: 'unknown', phoneLineType: null, verification: { ...ALL_GOOD, phone: wellFormed({ sources: ['nppes', 'places'], standing: 'corroborated', lineCheck: 'off' }) } })
+    expect(r.score).toBe(95)
+    expect(r.reasons).toContain('Registry and Google agree on this number — line not checked')
+    expect(QUALITY_WEIGHTS.phoneCorroborated).toBe(20)
+  })
+  it('one source, the line check OFF → the well-formed 12 and "turn on the line check"', () => {
+    const r = score({ phoneStatus: 'unknown', phoneLineType: null, verification: { ...ALL_GOOD, phone: wellFormed({ sources: ['places'], standing: 'single_source', lineCheck: 'off' }) } })
+    expect(r.score).toBe(87)
+    expect(r.reasons).toContain(SINGLE_SOURCE_TURN_ON)
+    expect(SINGLE_SOURCE_TURN_ON).toBe('Only one source lists this number — turn on the line check to confirm it')
+  })
+  it('one source, the check configured but skipped → 12, "line not checked"', () => {
+    const r = score({ phoneStatus: 'unknown', phoneLineType: null, verification: { ...ALL_GOOD, phone: wellFormed({ sources: ['nppes'], standing: 'single_source', lineCheck: 'skipped' }) } })
+    expect(r.score).toBe(87)
+    expect(r.reasons).toContain('Only one source lists this number — line not checked')
+  })
+  it('a legacy signal (no standing) scores as before', () => {
+    const r = score({ phoneStatus: 'unknown', phoneLineType: null, verification: { ...ALL_GOOD, phone: wellFormed({}) } })
+    expect(r.score).toBe(87)
+    expect(r.reasons).toContain('Phone is well-formed — line not checked')
+  })
+  it('the carrier saying in service still scores the full 25 — no first-dial bucket', () => {
+    expect(score().score).toBe(100)
+  })
+})
+
+describe('reviews — recency-aware, the sample a LOWER BOUND, with the no-sign-of-life cap narrowed (C / H.4)', () => {
+  const reviews = (status: string, latestAt: string | null, hours: boolean | null) => ({ ...sig(status, null, 'places'), latestAt, hours })
+  it('current (≤6 months) 10 · quiet max(6, the count rule) · stale the count rule (never a cost) · none 0 — in words that say "top reviews"', () => {
+    expect(score({ verification: { ...ALL_GOOD, reviews: reviews('recent', '2026-09-01T00:00:00.000Z', true) } })).toMatchObject({ score: 100 })
+    expect(score({ verification: { ...ALL_GOOD, reviews: reviews('recent', '2026-09-01T00:00:00.000Z', true) } }).reasons).toContain('Google reviews are current — latest Sep 2026')
+    // 40 reviews: the count rule's 10 — a quiet or stale sample costs nothing.
+    const quiet = score({ verification: { ...ALL_GOOD, reviews: reviews('quiet', '2025-12-01T00:00:00.000Z', true) } })
+    expect(quiet.score).toBe(100)
+    expect(quiet.reasons).toContain("Google's top reviews run to Dec 2025")
+    expect(QUALITY_WEIGHTS.reviewsQuiet).toBe(6)
+    const stale = score({ verification: { ...ALL_GOOD, reviews: reviews('stale', '2024-01-01T00:00:00.000Z', true) } })
+    expect(stale.score).toBe(100)
+    expect(stale.reasons).toContain("Google's top reviews are all older than Jan 2024")
+    // 2 reviews: quiet keeps its 6, stale earns nothing.
+    expect(score({ verification: { ...ALL_GOOD, reviews: reviews('quiet', '2025-12-01T00:00:00.000Z', true) }, reviewCount: 2 }).score).toBe(96)
+    expect(score({ verification: { ...ALL_GOOD, reviews: reviews('stale', '2024-01-01T00:00:00.000Z', true) }, reviewCount: 2 }).score).toBe(90)
+    const none = score({ verification: { ...ALL_GOOD, reviews: reviews('none', null, true) }, reviewCount: 0 })
+    expect(none.score).toBe(90)
+    expect(none.reasons).toContain('No Google reviews')
+  })
+  it('a stale SAMPLE never drives the ceiling (C3): a 300-review practice whose top five are from 2023 and no hours is NOT capped; "no sign of life" never appears', () => {
+    const r = score({ verification: { ...ALL_GOOD, reviews: reviews('stale', '2023-01-01T00:00:00.000Z', false) }, reviewCount: 300 })
+    expect(r.score).toBe(100)
+    expect(r.band).toBe('best')
+    expect(r.reasons.join(' ')).not.toMatch(/no sign of life/)
+    expect(r.reasons).toContain("Google's top reviews are all older than Jan 2023")
+  })
+  it('the ceiling: ZERO reviews on the listing AND no hours → "Google shows no sign of life — no reviews and no hours on the listing", band at most weak; a null count is unknown, not "no life"', () => {
+    const never = score({ verification: { ...ALL_GOOD, reviews: reviews('none', null, false) }, reviewCount: 0 })
+    expect(never.score).toBe(NO_LIFE_CEILING)
+    expect(never.band).toBe('weak')
+    expect(never.reasons[0]).toBe('Google shows no sign of life — no reviews and no hours on the listing')
+    expect(NO_LIFE_CEILING).toBe(59)
+    // Hours unknown (an older signal) never caps; a count the row does not hold never caps.
+    expect(score({ verification: { ...ALL_GOOD, reviews: reviews('none', null, null) }, reviewCount: 0 }).band).toBe('best')
+    expect(score({ verification: { ...ALL_GOOD, reviews: reviews('none', null, false) }, reviewCount: null }).band).toBe('best')
+  })
+  it('a NEW practice (H.4) with no reviews yet and no hours is not capped — the sentence says it is expected', () => {
+    const at = NOW.toISOString()
+    const fresh = { ...ALL_GOOD, reviews: reviews('none', null, false), fit: { newPractice: { status: 'new', detail: 'Opened Jun 2025 — no website yet is normal; now is the moment', checkedAt: at, source: 'nppes', enumeratedAt: '2025-06-15' } } }
+    const r = score({ verification: fresh, reviewCount: 0 })
+    expect(r.band).toBe('best')
+    expect(r.reasons).toContain('No Google reviews yet — expected for a practice this new')
+    expect(r.reasons.join(' ')).not.toMatch(/no sign of life/)
+    // An established practice in the same state is capped.
+    const old = { ...fresh, fit: { newPractice: { ...fresh.fit.newPractice, status: 'established' } } }
+    expect(score({ verification: old, reviewCount: 0 }).band).toBe('weak')
+  })
+  it('the carrier-only sentence exists for the card (G.1)', () => {
+    expect(CARRIER_ONLY_LINE).toBe("The line is in service — no source yet says it is this practice's number")
+  })
+  it('Google gave no dates → the P-01 count rule; a review signal with no matched listing is ignored', () => {
+    expect(score({ verification: { ...ALL_GOOD, reviews: reviews('unknown', null, true) }, reviewCount: 40 }).score).toBe(100)
+    expect(score({ verification: { ...ALL_GOOD, reviews: reviews('unknown', null, true) }, reviewCount: 2 }).score).toBe(90)
+    const unmatched = score({ verification: { ...ALL_GOOD, places: sig('no_match'), reviews: reviews('recent', '2026-09-01T00:00:00.000Z', true) }, reviewCount: null })
+    expect(unmatched.reasons.join(' ')).not.toMatch(/review/)
   })
 })

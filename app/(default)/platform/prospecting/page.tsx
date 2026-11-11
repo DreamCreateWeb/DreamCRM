@@ -126,6 +126,8 @@ export default async function ProspectingPage({
       ? (params.quality as ProspectQualityBand)
       : undefined,
     search: params.q,
+    // The chains set aside (P-04) — hidden by default like Merged.
+    chain: params.chain === '1' ? true : undefined,
   }
   const page = Math.max(1, Number(params.page) || 1)
 
@@ -264,7 +266,7 @@ export default async function ProspectingPage({
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        <FilterChip active={!filters.scoreBand && !filters.status && !filters.qualityBand && filters.hasWebsite === undefined} href={buildQuery(params, { band: undefined, status: undefined, web: undefined, quality: undefined })}>
+        <FilterChip active={!filters.scoreBand && !filters.status && !filters.qualityBand && filters.hasWebsite === undefined && !filters.chain} href={buildQuery(params, { band: undefined, status: undefined, web: undefined, quality: undefined, chain: undefined })}>
           All
         </FilterChip>
         {PROSPECT_SCORE_BANDS.map((band) => (
@@ -285,7 +287,7 @@ export default async function ProspectingPage({
             key={q}
             active={filters.qualityBand === q}
             count={quality[q]}
-            href={buildQuery(params, { quality: filters.qualityBand === q ? undefined : q, status: undefined })}
+            href={buildQuery(params, { quality: filters.qualityBand === q ? undefined : q, status: undefined, chain: undefined })}
             title={
               q === 'parked'
                 ? 'Dead numbers, retired NPIs, closed or parked sites — not served to any queue'
@@ -299,30 +301,40 @@ export default async function ProspectingPage({
         <FilterChip active={filters.hasWebsite === false} href={buildQuery(params, { web: filters.hasWebsite === false ? undefined : 'no' })} title="Clinics with no website at all — the hottest segment">
           🌐✕ No website
         </FilterChip>
-        <FilterChip active={filters.status === 'call_list'} href={buildQuery(params, { status: filters.status === 'call_list' ? undefined : 'call_list', quality: undefined })}>
+        <FilterChip active={filters.status === 'call_list' && !filters.chain} href={buildQuery(params, { status: filters.status === 'call_list' ? undefined : 'call_list', quality: undefined, chain: undefined })}>
           📞 Call list
         </FilterChip>
-        <FilterChip active={filters.status === 'converted'} href={buildQuery(params, { status: filters.status === 'converted' ? undefined : 'converted', quality: undefined })}>
+        <FilterChip active={filters.status === 'converted' && !filters.chain} href={buildQuery(params, { status: filters.status === 'converted' ? undefined : 'converted', quality: undefined, chain: undefined })}>
           Converted
         </FilterChip>
         {/* Hygiene (P-03): resting rows and merged duplicates leave the default
             view; each is one chip away, never gone. A status chip clears the
             quality chip (the rule above): the count is the rows listed. */}
         <FilterChip
-          active={filters.status === 'dormant'}
+          active={filters.status === 'dormant' && !filters.chain}
           count={funnel.dormant}
-          href={buildQuery(params, { status: filters.status === 'dormant' ? undefined : 'dormant', quality: undefined })}
+          href={buildQuery(params, { status: filters.status === 'dormant' ? undefined : 'dormant', quality: undefined, chain: undefined })}
           title="No touch for a while — off every queue until a reply, a call or a better re-verify wakes them"
         >
           💤 Resting
         </FilterChip>
         <FilterChip
-          active={filters.status === 'merged'}
+          active={filters.status === 'merged' && !filters.chain}
           count={funnel.merged}
-          href={buildQuery(params, { status: filters.status === 'merged' ? undefined : 'merged', quality: undefined })}
+          href={buildQuery(params, { status: filters.status === 'merged' ? undefined : 'merged', quality: undefined, chain: undefined })}
           title="Duplicates folded into the row that kept the history — nothing deleted"
         >
           Merged
+        </FilterChip>
+        {/* Fit (P-04): chains and DSOs are set aside — targeted later with
+            other features. Hidden by default like Merged; one chip away. */}
+        <FilterChip
+          active={Boolean(filters.chain)}
+          count={funnel.chains}
+          href={buildQuery(params, { chain: filters.chain ? undefined : '1', status: undefined, quality: undefined })}
+          title="Chains and DSOs set aside — a DSO name, or a website / phone shared across practices at different addresses; we target chains later"
+        >
+          ⛓ Chains
         </FilterChip>
         {activeStates.length > 1 && (
           <>
@@ -473,6 +485,9 @@ export default async function ProspectingPage({
                   <td className="px-4 py-3">
                     <span className="inline-flex flex-wrap items-center gap-1">
                       <StatusPill tone={STATUS_TONES[p.status]} label={PROSPECT_STATUS_LABELS[p.status]} />
+                      {p.status === 'disqualified' && p.suppressedReason === 'chain' && (
+                        <StatusPill tone="neutral" label="Chain" title="Set aside as a chain / DSO — we target chains later; the drawer's Not a chain lifts it" />
+                      )}
                       {p.assignedCallerId && (
                         <StatusPill
                           tone="info"

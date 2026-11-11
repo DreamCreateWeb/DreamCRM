@@ -1,5 +1,5 @@
 /**
- * THE QUALITY SCORE — pure (P-01).
+ * THE QUALITY SCORE — pure (P-01, rebalanced P-04).
  *
  * 0–100: can we actually reach this practice? Built from the stored
  * verification signals, so it can be recomputed from the row anywhere (the
@@ -11,19 +11,43 @@
  *              (until re-verified)
  *   otherwise  a weighted sum:
  *     Google listing matched + operational   35
- *     phone valid + line type known          25  (well-formed only: 12)
+ *     phone — the two-source rule (P-04):
+ *       carrier says in service, line known  25
+ *       the registry and the listing agree
+ *         (corroborated, line not checked)   20
+ *       one source only, not carrier-checked 12  (well-formed, as before —
+ *                                                 the card says to turn the
+ *                                                 line check on)
  *     NPI active                             15
  *     website alive, or honestly none        10
- *     5+ Google reviews                      10
+ *     Google reviews — recency-aware (P-04), and the SAMPLE IS A LOWER
+ *     BOUND (fix pass): Places returns at most five reviews by RELEVANCE,
+ *     so the newest of them is at least as old as the true latest —
+ *     "recent" is trustworthy, "stale" is not:
+ *       latest sampled review ≤ 6 months     10
+ *       latest sampled review ≤ 18 months    max(6, the count rule)
+ *       older                                the count rule (never a cost)
+ *       none (the listing counts 0)           0
+ *       (the P-01 count rule: 5+ reviews = 10; it is what applies when
+ *        Google returned no dates)
  *     a human reached them on a call          5
+ *
+ *   no sign of life (P-04, narrowed in the fix pass): the listing counts
+ *   ZERO reviews (null is unknown, not "no life") AND states no opening
+ *   hours AND the practice is not NEW in the registry → "Google shows no
+ *   sign of life — no reviews and no hours on the listing", band at most
+ *   WEAK whatever the sum. A stale sample never drives the ceiling.
  *
  * Bands: best ≥ 80 · good ≥ 60 · weak ≥ 40 · parked otherwise. The
  * OPPORTUNITY score (how much they need us) is a different number and is
- * never blended in — the queues sort by opportunity WITHIN the floor.
+ * never blended in — the queues sort by opportunity WITHIN the floor. No
+ * first-dial bucket (owner ruling 2026-11-11): what matters is that the
+ * number is ACTIVE and IS THAT CLINIC'S number.
  */
 
 import type { ProspectQualityBand, ProspectPhoneStatus, ProspectPhoneLineType } from '@/lib/db/schema/prospecting'
 import type { ProspectVerification } from '@/lib/types/prospecting'
+import { formatMonthYear } from '@/lib/prospect-fit'
 
 export interface QualityInput {
   status: string
@@ -63,12 +87,25 @@ export interface QualityResult {
 export const QUALITY_WEIGHTS = {
   placesMatched: 35,
   phoneValid: 25,
+  /** The registry and the matched listing agree on the number (P-04). */
+  phoneCorroborated: 20,
   phoneWellFormed: 12,
   npiActive: 15,
   website: 10,
   reviews: 10,
+  /** The latest review is 6–18 months old (P-04). */
+  reviewsQuiet: 6,
   reach: 5,
 } as const
+
+/** The highest score a listing with no sign of life can carry (band weak). */
+export const NO_LIFE_CEILING = 59
+
+/** The sentence the single-source rule puts on the card when the line check is off. */
+export const SINGLE_SOURCE_TURN_ON = 'Only one source lists this number — turn on the line check to confirm it'
+/** The card's sentence when the carrier is the ONLY voice: in service, but
+ *  nobody has said it is this practice's number (fix pass, G.1). */
+export const CARRIER_ONLY_LINE = 'The line is in service — no source yet says it is this practice\'s number'
 
 export function qualityBandForScore(score: number): ProspectQualityBand {
   if (score >= 80) return 'best'
@@ -153,8 +190,17 @@ export function computeQualityScore(input: QualityInput): QualityResult {
       reasons.push('Phone validated, line type unknown')
     }
   } else if (v.phone?.status === 'well_formed') {
-    score += QUALITY_WEIGHTS.phoneWellFormed
-    reasons.push('Phone is well-formed — line not checked')
+    // The two-source rule (P-04): agreement earns more than one voice.
+    if (v.phone.standing === 'corroborated') {
+      score += QUALITY_WEIGHTS.phoneCorroborated
+      reasons.push('Registry and Google agree on this number — line not checked')
+    } else if (v.phone.standing === 'single_source') {
+      score += QUALITY_WEIGHTS.phoneWellFormed
+      reasons.push(v.phone.lineCheck === 'off' ? SINGLE_SOURCE_TURN_ON : 'Only one source lists this number — line not checked')
+    } else {
+      score += QUALITY_WEIGHTS.phoneWellFormed
+      reasons.push('Phone is well-formed — line not checked')
+    }
   } else if (v.phone?.status === 'missing') {
     reasons.push('No phone number on record')
   } else {
@@ -183,7 +229,37 @@ export function computeQualityScore(input: QualityInput): QualityResult {
     reasons.push('Website not checked yet')
   }
 
-  if (input.reviewCount != null && v.places?.status === 'matched') {
+  // Reviews — recency-aware when the listing gave us dates (P-04), the
+  // P-01 count rule when it did not. The sample is a LOWER BOUND (Google's
+  // five most relevant, never the newest): a current sample is proof of
+  // life, a quiet or stale one never costs what the count rule would give.
+  // No sign of life = the listing counts ZERO reviews and states no hours —
+  // unless the practice is new in the registry (no reviews yet is expected).
+  let noLife: string | null = null
+  const rv = v.reviews
+  const countRule = input.reviewCount != null && input.reviewCount >= 5 ? QUALITY_WEIGHTS.reviews : 0
+  const newPractice = v.fit?.newPractice?.status === 'new'
+  if (v.places?.status === 'matched' && rv && rv.status !== 'unknown') {
+    const when = formatMonthYear(rv.latestAt)
+    if (rv.status === 'recent') {
+      score += QUALITY_WEIGHTS.reviews
+      reasons.push(`Google reviews are current — latest ${when ?? 'recently'}`)
+    } else if (rv.status === 'quiet') {
+      score += Math.max(QUALITY_WEIGHTS.reviewsQuiet, countRule)
+      reasons.push(`Google's top reviews run to ${when ?? 'over 6 months ago'}`)
+    } else if (rv.status === 'stale') {
+      score += countRule
+      reasons.push(`Google's top reviews are all older than ${when ?? '18 months'}`)
+    } else if (rv.status === 'none') {
+      if (rv.hours === false && input.reviewCount === 0 && !newPractice) {
+        noLife = 'Google shows no sign of life — no reviews and no hours on the listing'
+      } else if (newPractice) {
+        reasons.push('No Google reviews yet — expected for a practice this new')
+      } else {
+        reasons.push('No Google reviews')
+      }
+    }
+  } else if (input.reviewCount != null && v.places?.status === 'matched') {
     if (input.reviewCount >= 5) {
       score += QUALITY_WEIGHTS.reviews
       reasons.push(`${input.reviewCount} Google reviews`)
@@ -200,7 +276,11 @@ export function computeQualityScore(input: QualityInput): QualityResult {
   }
 
   score = Math.max(0, Math.min(100, score))
-  return { score, band: qualityBandForScore(score), reasons: reasons.slice(0, 7) }
+  if (noLife) {
+    score = Math.min(score, NO_LIFE_CEILING)
+    reasons.unshift(noLife)
+  }
+  return { score, band: qualityBandForScore(score), reasons: reasons.slice(0, 8) }
 }
 
 /** "Verified" = every core signal checked inside the window. The `reach`

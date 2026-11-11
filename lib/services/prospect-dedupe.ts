@@ -37,6 +37,11 @@ import { callerServableWhere, releaseCooldownUntil, releaseIfUnservable } from '
  *
  * The SWEEP merges only EXACT pairs (same Google listing, or same phone AND
  * same name) on its own; a fuzzy candidate waits for the drawer.
+ *
+ * THE OWNER'S "NOT A CHAIN" TRAVELS (P-04 fix pass, F.2): when either side
+ * carries `fit.chainOverride`, the survivor keeps it, never inherits a
+ * loser's chain flag, keeps its own status — and a survivor that was itself
+ * set aside as a chain is restored once the override has landed on it.
  */
 
 type ProspectRow = typeof schema.prospect.$inferSelect
@@ -265,6 +270,7 @@ export async function mergeProspects(
   if (survivorId === loserId) return { ok: false, reason: 'same_row' }
   const now = opts.now ?? new Date()
   const moved: Record<string, number> = {}
+  let lifted = false
 
   const refusal = await db.transaction(async (tx: Tx): Promise<MergeRefusal | null> => {
     const rows = await tx
@@ -277,11 +283,20 @@ export async function mergeProspects(
     if (!survivor || !loser) return { ok: false, reason: 'not_found' }
     if (survivor.status === 'merged' || loser.status === 'merged') return { ok: false, reason: 'already_merged' }
     if (loser.status === 'converted') return { ok: false, reason: 'loser_converted' }
+    // The owner's "Not a chain" on EITHER row rules the merged practice: a
+    // loser's chain flag never carries, and a survivor's own chain flag is
+    // lifted after the merge (the override lands on it below).
+    const survivorFit = parseVerification(survivor.verification).fit
+    const loserFit = parseVerification(loser.verification).fit
+    const overridden = Boolean(survivorFit?.chainOverride || loserFit?.chainOverride)
+    const loserChainFlag = loser.status === 'disqualified' && loser.suppressedReason === 'chain'
+    const survivorChainFlag = survivor.status === 'disqualified' && survivor.suppressedReason === 'chain'
+    const overrideLifts = overridden && survivorChainFlag
     // A loser's "no" / "gone" / "never again" is carried onto the survivor —
     // except onto a clinic, where it would be nonsense: those stay two rows.
-    const loserCarries = (CARRIED_TERMINAL as readonly string[]).includes(loser.status)
+    const loserCarries = (CARRIED_TERMINAL as readonly string[]).includes(loser.status) && !(overridden && loserChainFlag)
     if (loserCarries && survivor.status === 'converted') return { ok: false, reason: 'loser_terminal' }
-    const survivorTerminal = isTerminal(survivor.status) || loserCarries
+    const survivorTerminal = (isTerminal(survivor.status) && !overrideLifts) || loserCarries
 
     // ── Contacts: one row per (prospect, email) ──────────────────────────
     const survivorContacts = await tx
@@ -435,6 +450,12 @@ export async function mergeProspects(
         reachTaken = true
       }
       if ((phoneVerdictTaken && theirs.phone) || reachTaken) patch.verification = mine
+    }
+    // The override travels onto a survivor that lacks it.
+    if (overridden && !survivorFit?.chainOverride && loserFit?.chainOverride) {
+      const mine = parseVerification(patch.verification ?? survivor.verification)
+      mine.fit = { ...(mine.fit ?? {}), chainOverride: loserFit.chainOverride }
+      patch.verification = mine
     }
     // The NPI MOVES: cleared on the loser first, so the unique index never
     // holds it twice inside the transaction.
@@ -595,9 +616,16 @@ export async function mergeProspects(
         updatedAt: now,
       })
       .where(and(eq(schema.prospect.id, loserId), ne(schema.prospect.status, 'merged')))
+    lifted = overrideLifts
     return null
   })
   if (refusal) return refusal
+  // A survivor set aside as a chain that now carries the owner's override
+  // goes back where it was — the one restore (drip resumed, follow-up back).
+  if (lifted) {
+    const { restoreChainFlagged } = await import('./prospect-fit')
+    await restoreChainFlagged(survivorId, now, 'override')
+  }
   // P-02's contract: a writer that can flip a row out of a caller's reach
   // calls the release hook after its write. A held survivor that just took
   // a hand-raiser's signal, a bad verdict or a demo still ahead goes back

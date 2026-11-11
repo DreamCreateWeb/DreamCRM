@@ -33,6 +33,10 @@ vi.mock('@/lib/services/prospect-caller-release', () => ({
 }))
 const configMock = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/services/prospecting', () => ({ getProspectingConfig: configMock }))
+// The one chain restore (P-04 fix pass) is its own module with its own
+// tests; here it is a spy, so the merge's writes stay its own.
+const fitMocks = vi.hoisted(() => ({ restore: vi.fn(async (_id: string, _now?: Date, _mode?: string) => ({ ok: true as const, status: 'contacted' })) }))
+vi.mock('@/lib/services/prospect-fit', () => ({ restoreChainFlagged: fitMocks.restore }))
 
 vi.mock('@/lib/db', async () => {
   const schema = await vi.importActual<Record<string, unknown>>('@/lib/db/schema')
@@ -129,6 +133,7 @@ beforeEach(() => {
   callerMocks.release.mockClear()
   configMock.mockReset()
   configMock.mockResolvedValue(CONFIG)
+  fitMocks.restore.mockClear()
 })
 
 describe('survivorOf', () => {
@@ -370,6 +375,50 @@ describe('mergeProspects — the merge', () => {
       expect(s, status).not.toHaveProperty('status')
       expect(s, status).not.toHaveProperty('intentSignal')
     }
+  })
+
+  it('the owner’s "Not a chain" rules a merge (F.2): an overridden survivor never inherits a chain-flagged loser’s verdict, keeps its status, keeps the override', async () => {
+    const AT = '2026-11-09T00:00:00.000Z'
+    const override = { status: 'not_a_chain', detail: 'by hand', checkedAt: AT, source: 'owner' }
+    const flag = { status: 'shared_phone', detail: 'shares', checkedAt: AT, source: 'our_data', kind: 'shared_phone', count: 3, priorStatus: 'enriched' }
+    state.selectQueue.push(
+      [
+        prospect({ id: 'a', status: 'contacted', qualityScore: 90, verification: { fit: { chainOverride: override } } }),
+        prospect({ id: 'b', status: 'disqualified', suppressedReason: 'chain', suppressedAt: new Date(AT), qualityScore: 0, verification: { fit: { chain: flag } } }),
+      ],
+      [], [], [], // no contacts, no live drip on the survivor
+    )
+    const r = await mergeProspects('a', 'b', { now: NOW })
+    expect(r).toMatchObject({ ok: true })
+    const s = updates('prospect')[0].values
+    expect(s).not.toHaveProperty('status')
+    expect(s).not.toHaveProperty('suppressedReason')
+    expect(s).not.toHaveProperty('suppressedAt')
+    // The loser's drip (none here) would re-point, never stop "merged_disqualified"; no thread of the survivor's closes.
+    expect(updates('outreachEnrollment').some((u) => u.values?.stopReason === 'merged_disqualified')).toBe(false)
+    expect(fitMocks.restore).not.toHaveBeenCalled()
+  })
+
+  it('…and the other direction: a chain-flagged survivor takes the loser’s override and is RESTORED through the one restore (never left set aside with an override on it)', async () => {
+    const AT = '2026-11-09T00:00:00.000Z'
+    const override = { status: 'not_a_chain', detail: 'by hand', checkedAt: AT, source: 'owner' }
+    const flag = { status: 'shared_phone', detail: 'shares', checkedAt: AT, source: 'our_data', kind: 'shared_phone', count: 3, priorStatus: 'contacted' }
+    state.selectQueue.push(
+      [
+        prospect({ id: 'a', status: 'disqualified', suppressedReason: 'chain', suppressedAt: new Date(AT), qualityScore: 0, verifiedAt: new Date(AT), verification: { fit: { chain: flag } } }),
+        prospect({ id: 'b', status: 'contacted', qualityScore: null, verification: { fit: { chainOverride: override } } }),
+      ],
+      [], [], [],
+    )
+    const r = await mergeProspects('a', 'b', { now: NOW })
+    expect(r).toMatchObject({ ok: true })
+    const s = updates('prospect')[0].values!
+    const fit = (s.verification as { fit: Record<string, unknown> }).fit
+    expect(fit.chainOverride).toEqual(override)
+    expect(fit.chain).toMatchObject(flag)
+    // The loser's live drip is NOT stopped as "merged" on the way in: the survivor is about to be live again.
+    expect(updates('outreachEnrollment').some((u) => u.values?.stopReason === 'merged')).toBe(false)
+    expect(fitMocks.restore).toHaveBeenCalledWith('a', NOW, 'override')
   })
 
   it('a loser’s terminal verdict is CARRIED onto a live survivor — status, reason, its threads closed — never overwritten by "merged"', async () => {

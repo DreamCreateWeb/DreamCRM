@@ -23,7 +23,9 @@ import DuplicateCard from './duplicate-card'
 import DemoFollowupDrafter from './demo-followup-drafter'
 import ContactsPanel from './contacts-panel'
 import { VerificationCard } from './verification-card'
+import { FitCard } from './fit-card'
 import PhoneEditor from './phone-editor'
+import { BUILDER_LABELS } from '@/lib/types/prospecting'
 import { PhoneStandingPill, QualityPill, isBadPhone } from './quality-pills'
 import { formatProspectPhone } from '@/lib/types/prospecting'
 
@@ -104,6 +106,9 @@ export default function ProspectDrawer({
               label={`${SCORE_BAND_LABELS[p.scoreBand as keyof typeof SCORE_BAND_LABELS]} · ${p.opportunityScore}`}
               title="Opportunity score — how much this practice needs what we sell"
             />
+          )}
+          {p.status === 'disqualified' && p.suppressedReason === 'chain' && (
+            <StatusPill tone="neutral" label="Chain" title="Set aside as a chain / DSO — we target chains later" />
           )}
           {p.intentSignal && (
             <StatusPill
@@ -221,6 +226,20 @@ export default function ProspectDrawer({
           />
         </div>
 
+        {/* Fit (P-04) — a chain? a group? new? the stack and the builder */}
+        <div className={SECTION}>
+          <div className={SECTION_TITLE}>Fit</div>
+          <FitCard
+            verification={p.verification}
+            signals={signals}
+            prospectId={p.id}
+            prospectName={p.name}
+            status={p.status}
+            suppressedReason={p.suppressedReason}
+            readOnly={folded || p.status === 'converted'}
+          />
+        </div>
+
         {/* Reachability — every discovered/entered address, ranked + verified */}
         <div className={SECTION}>
           <ContactsPanel prospectId={p.id} contacts={detail.contacts} readOnly={folded} />
@@ -282,7 +301,7 @@ export default function ProspectDrawer({
               </div>
               <div className={ROW}>
                 <span className={KEY}>Site builder</span>
-                <span className={VAL}>{signals.builder ?? 'custom / unknown'}</span>
+                <span className={VAL}>{signals.builder ? (BUILDER_LABELS[signals.builder] ?? signals.builder) : 'custom / unknown'}</span>
               </div>
               <div className={ROW}>
                 <span className={KEY}>Social linked</span>

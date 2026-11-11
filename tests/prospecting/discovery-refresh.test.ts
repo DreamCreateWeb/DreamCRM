@@ -175,7 +175,8 @@ describe('refreshStaleTerritory', () => {
     ])
     expect(state.inserts.filter((i) => i.table === 'prospect').flatMap((i) => i.values.map((v) => v.npiNumber))).toEqual(['1000000002'])
     const stamp = state.updates.find((u) => u.table === 'prospectDiscoveryTask')
-    expect(stamp?.values).toMatchObject({ lastRefreshedAt: NOW, lastRefreshErrorAt: null, found: 902, imported: 851, error: null, updatedAt: NOW })
+    // A refresh the callers pulled forward (P-04) has now happened: the pull stamps clear with it.
+    expect(stamp?.values).toMatchObject({ lastRefreshedAt: NOW, lastRefreshErrorAt: null, refreshPulledAt: null, refreshPulledReason: null, found: 902, imported: 851, error: null, updatedAt: NOW })
   })
 
   it('pages a long phase and stops at the NPPES cap on requests, reporting capped', async () => {

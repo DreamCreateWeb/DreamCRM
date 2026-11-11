@@ -20,11 +20,14 @@ const PLACES_URL = 'https://places.googleapis.com/v1/places:searchText'
 // the mask addition changes what we can verify, not what we pay.
 // nationalPhoneNumber (P-01) is the strongest match anchor there is — the
 // registry's front-desk number against the listing's — and sits in the
-// same Advanced SKU this call already pays for. The `reviews` field is
-// deliberately NOT here: it is a separate, pricier SKU and the quality
-// score only needs the count.
+// same Advanced SKU this call already pays for. `reviews` and
+// `regularOpeningHours` (P-04) ride the SAME call for LIVENESS: Places
+// returns up to five reviews with a publishTime, and a listing with no
+// review in 18 months and no opening hours shows no sign of life — the
+// owner wants numbers we can stand behind, so the dearer SKU is accepted
+// (no second request is ever made for them).
 const FIELD_MASK =
-  'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.businessStatus,places.googleMapsUri'
+  'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.businessStatus,places.googleMapsUri,places.regularOpeningHours,places.reviews'
 /** Candidates per search — one request whatever the count, so three costs
  *  what one did and lets the matcher pick the RIGHT listing. */
 const CANDIDATE_COUNT = 3
@@ -43,10 +46,36 @@ export interface PlaceResult {
   reviewCount: number | null
   businessStatus: string | null
   googleMapsUri: string | null
+  /** Liveness (P-04): the newest review's publishTime (ISO), null when the
+   *  listing carries no dated review. */
+  latestReviewAt: string | null
+  /** Liveness (P-04): the listing states regular opening hours. */
+  hasOpeningHours: boolean
 }
 
 export function placesConfigured(): boolean {
   return Boolean(process.env.GOOGLE_PLACES_API_KEY?.trim())
+}
+
+/** The newest `publishTime` across a listing's reviews — exported for tests. */
+export function latestReviewTime(reviews: unknown): string | null {
+  if (!Array.isArray(reviews)) return null
+  let best: { iso: string; t: number } | null = null
+  for (const r of reviews) {
+    const v = r && typeof r === 'object' ? (r as { publishTime?: unknown }).publishTime : null
+    if (typeof v !== 'string') continue
+    const t = new Date(v).getTime()
+    if (Number.isNaN(t)) continue
+    if (!best || t > best.t) best = { iso: new Date(t).toISOString(), t }
+  }
+  return best?.iso ?? null
+}
+
+/** Does the listing state opening hours? (periods or weekday lines) */
+export function statesOpeningHours(hours: unknown): boolean {
+  if (!hours || typeof hours !== 'object') return false
+  const h = hours as { periods?: unknown; weekdayDescriptions?: unknown }
+  return (Array.isArray(h.periods) && h.periods.length > 0) || (Array.isArray(h.weekdayDescriptions) && h.weekdayDescriptions.length > 0)
 }
 
 /** Parse one raw place (exported for tests). */
@@ -78,6 +107,8 @@ export function normalizePlace(raw: unknown): PlaceResult | null {
         : null,
     businessStatus: typeof p.businessStatus === 'string' ? p.businessStatus : null,
     googleMapsUri: typeof p.googleMapsUri === 'string' ? p.googleMapsUri : null,
+    latestReviewAt: latestReviewTime(p.reviews),
+    hasOpeningHours: statesOpeningHours(p.regularOpeningHours),
   }
 }
 

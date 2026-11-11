@@ -12,13 +12,95 @@ import { isJunkEmail, parseEmail } from '@/lib/prospect-email'
 const BOOKING_MARKERS =
   /(localmed|nexhealth|flexbook|zocdoc|solutionreach|lighthouse\s*360|denticon|curve\s*hero|book\s+(online|now|an?\s+appointment)|schedule\s+(online|now|an?\s+appointment)|request\s+an?\s+appointment)/i
 
+// DIY builders first, then the dental template vendors (P-04 — a ProSites
+// or PBHS site is usually WordPress underneath, so the vendor must win),
+// WordPress last. Keys are BUILDER_LABELS keys.
 const BUILDER_FINGERPRINTS: Array<[RegExp, string]> = [
   [/wixstatic\.com|wix\.com\/website/i, 'wix'],
   [/squarespace\.com|squarespace-cdn/i, 'squarespace'],
   [/godaddy\.com|website-builder|wsimg\.com/i, 'godaddy'],
-  [/wp-content|wp-includes|wordpress/i, 'wordpress'],
   [/weebly\.com|weeblycloud/i, 'weebly'],
+  [/prosites\.com|prosites/i, 'prosites'],
+  [/pbhs\.com|pbhs/i, 'pbhs'],
+  [/officite\.com|officite/i, 'officite'],
+  [/tntdental\.com|tntdental/i, 'tntdental'],
+  [/wp-content|wp-includes|wordpress/i, 'wordpress'],
 ]
+
+/**
+ * THE COMPETITOR STACK (P-04) — booking widgets and review / messaging
+ * engines, fingerprinted on HOSTS and nothing else (fix pass): the host of
+ * every `<script src>`, `<link href>` and `<iframe src>`, and the host of
+ * every URL-shaped token inside an inline script body. Never a bare word —
+ * "we moved off NexHealth" in a blog's JSON-LD, a hydration payload or an
+ * article link is not a NexHealth install. Each pattern matches a host
+ * label at a dot boundary, so "localmedia.com" is not LocalMed and
+ * "interweave.com" is not Weave. Names are the display names the
+ * opportunity reasons use ("Already on NexHealth + Birdeye").
+ */
+export const STACK_FINGERPRINTS: ReadonlyArray<{ name: string; pattern: RegExp }> = [
+  { name: 'NexHealth', pattern: /(^|\.)nexhealth\./ },
+  { name: 'Zocdoc', pattern: /(^|\.)zocdoc\./ },
+  { name: 'LocalMed', pattern: /(^|\.)localmed\./ },
+  { name: 'Weave', pattern: /(^|\.)(getweave|weave|weaveconnect)\./ },
+  { name: 'Solutionreach', pattern: /(^|\.)(solutionreach|smilereminder)\./ },
+  { name: 'RevenueWell', pattern: /(^|\.)revenuewell\./ },
+  { name: 'Birdeye', pattern: /(^|\.)birdeye\./ },
+  { name: 'Podium', pattern: /(^|\.)podium\./ },
+  { name: 'Dentrix Ascend', pattern: /(^|\.)(dentrixascend|ascend\.dentrix)\./ },
+  { name: 'Curve', pattern: /(^|\.)(curvehero|curvedental)\./ },
+  { name: 'Lighthouse 360', pattern: /(^|\.)(lighthouse360|lh360)\./ },
+  { name: 'Flex', pattern: /(^|\.)(flexbook|getflex|dentalintel|dental-intelligence)\./ },
+  { name: 'Yapi', pattern: /(^|\.)(yapiapp|yapi)\./ },
+  { name: 'Swell', pattern: /(^|\.)(swellcx|getswell)\./ },
+  { name: 'Doctible', pattern: /(^|\.)doctible\./ },
+  { name: 'Demandforce', pattern: /(^|\.)demandforce\./ },
+  { name: 'Jane', pattern: /(^|\.)janeapp\./ },
+  { name: 'Modento', pattern: /(^|\.)modento\./ },
+]
+
+/** The host of an absolute or protocol-relative http(s) URL, lower-cased;
+ *  null for a relative path, another scheme or junk. */
+function hostOf(url: string): string | null {
+  try {
+    const u = new URL(url.trim(), 'https://relative.invalid')
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return null
+    const host = u.hostname.toLowerCase()
+    return host && host !== 'relative.invalid' ? host : null
+  } catch {
+    return null
+  }
+}
+
+/** The hosts a page loads code or frames from: `<script src>`, `<link
+ *  href>`, `<iframe src>`, and every URL inside an inline script body.
+ *  Exported for tests. */
+export function stackHosts(html: string): string[] {
+  const hosts = new Set<string>()
+  const add = (url: string) => {
+    const h = hostOf(url)
+    if (h) hosts.add(h)
+  }
+  for (const m of Array.from(html.matchAll(/<(?:script|link|iframe)\b[^>]*?\s(?:src|href)\s*=\s*["']([^"']{1,500})["']/gi))) add(m[1])
+  for (const m of Array.from(html.matchAll(/<script\b[^>]*>([\s\S]{0,20000}?)<\/script>/gi))) {
+    for (const u of Array.from(m[1].matchAll(/https?:\/\/[a-z0-9.-]+/gi))) add(u[0])
+  }
+  return Array.from(hosts)
+}
+
+/** The corpus the fingerprints run over: one host a line, nothing else. */
+export function stackCorpus(html: string): string {
+  return stackHosts(html).join('\n')
+}
+
+/** Fingerprint the competitor stack on a page (display names, list order). */
+export function detectStack(html: string): string[] {
+  const hosts = stackHosts(html)
+  if (hosts.length === 0) return []
+  const out: string[] = []
+  for (const f of STACK_FINGERPRINTS) if (hosts.some((h) => f.pattern.test(h))) out.push(f.name)
+  return out
+}
 
 function socialLink(html: string, pattern: RegExp): string | undefined {
   const m = html.match(pattern)
@@ -105,6 +187,7 @@ export function extractCrawlSignals(input: {
       youtube: socialLink(html, /https?:\/\/(?:www\.)?youtube\.com\/(?:channel\/|user\/|@)[a-z0-9_.\-/%]+/i),
     },
     builder,
+    stack: detectStack(html),
     pageWeightKb: Math.round(input.bytes / 1024),
     emails: extractSiteEmails(html),
     fetchedAt: input.fetchedAt.toISOString(),

@@ -68,7 +68,14 @@ export type ProspectPhoneStatus = (typeof PROSPECT_PHONE_STATUSES)[number]
 export const PROSPECT_PHONE_LINE_TYPES = ['landline', 'mobile', 'voip', 'other'] as const
 export type ProspectPhoneLineType = (typeof PROSPECT_PHONE_LINE_TYPES)[number]
 
-export const PROSPECT_PHONE_SOURCES = ['nppes', 'places', 'caller'] as const
+// The two-source rule (P-04): after a verify pass the column carries the
+// number's STANDING — `corroborated` (the registry and the matched listing
+// agree, or the carrier says in-service and a source states it) or
+// `single_source` (one source, not carrier-checked). Who stated it lives in
+// verification.phone.sources. `caller` is still written by the hand-typed
+// number and a reach on an invalid number; `nppes` / `places` are legacy
+// values on rows the P-04 pass has not seen (read as single-source).
+export const PROSPECT_PHONE_SOURCES = ['nppes', 'places', 'caller', 'corroborated', 'single_source'] as const
 export type ProspectPhoneSource = (typeof PROSPECT_PHONE_SOURCES)[number]
 
 /** Where the website on the row came from — a matched Google listing, the
@@ -371,6 +378,13 @@ export const prospectDiscoveryTask = pgTable(
     // by the most recent attempt of either kind so a failing territory goes
     // to the back of the line without leaving it (P-03 fix pass 2).
     lastRefreshErrorAt: timestamp('last_refresh_error_at', { withTimezone: true }),
+    // Callers steer freshness (P-04): a territory with ≥3 closed /
+    // disconnected practices inside 30 days has its refresh pulled forward
+    // — last_refreshed_at is set back past the clock, and these two say so
+    // until the refresh runs (the hunt tile's "Refreshing TX 787 early — 3
+    // closed practices this month"); the refresh that happens clears them.
+    refreshPulledAt: timestamp('refresh_pulled_at', { withTimezone: true }),
+    refreshPulledReason: text('refresh_pulled_reason'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },

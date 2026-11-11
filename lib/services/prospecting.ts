@@ -83,8 +83,11 @@ export async function addManualProspect(input: {
     authorizedOfficialName: input.contactName?.trim() || null,
     // NANP ten digits — a typed "+1 (404) 555-1212" drops its country code
     // here, so the stored number, the syntax check and the carrier check
-    // all see the same ten.
+    // all see the same ten. Typed by a human: `caller` — no registry or
+    // listing ever replaces it (the P-01 guard, pinned at the write since
+    // the P-04 fix pass).
     phone: input.phone ? nanpDigits(input.phone) || null : null,
+    phoneSource: input.phone && nanpDigits(input.phone) ? 'caller' : null,
     email,
     emailSource: email ? 'manual' : null,
     addressLine1: input.addressLine1?.trim() || null,
@@ -703,10 +706,18 @@ export async function listProspects(
 ): Promise<{ rows: ProspectListRow[]; total: number; pageSize: number }> {
   const conds = []
   if (filters.state) conds.push(eq(schema.prospect.state, filters.state))
-  if (filters.status) conds.push(eq(schema.prospect.status, filters.status))
+  if (filters.chain) {
+    // The chains set aside (P-04) — hidden by default like Merged, one
+    // chip away.
+    conds.push(eq(schema.prospect.status, 'disqualified'), eq(schema.prospect.suppressedReason, 'chain'))
+  } else if (filters.status) conds.push(eq(schema.prospect.status, filters.status))
   // Hygiene (P-03): merged duplicates and resting rows leave the default
-  // view; each has its own filter chip.
-  else conds.push(notInArray(schema.prospect.status, ['merged', 'dormant']))
+  // view; each has its own filter chip. So do the chains (P-04).
+  else
+    conds.push(
+      notInArray(schema.prospect.status, ['merged', 'dormant']),
+      or(isNull(schema.prospect.suppressedReason), ne(schema.prospect.suppressedReason, 'chain')),
+    )
   if (filters.scoreBand) conds.push(eq(schema.prospect.scoreBand, filters.scoreBand))
   if (filters.qualityBand) {
     // A quality band only means something for the pool the floor applies
@@ -763,6 +774,7 @@ export async function listProspects(
       verifiedAt: schema.prospect.verifiedAt,
       assignedCallerId: schema.prospect.assignedCallerId,
       mergedIntoProspectId: schema.prospect.mergedIntoProspectId,
+      suppressedReason: schema.prospect.suppressedReason,
     })
     .from(schema.prospect)
     .where(where)
@@ -792,6 +804,7 @@ export async function listProspects(
       qualityReasons: Array.isArray(r.qualityReasons) ? (r.qualityReasons as string[]) : [],
       mergedIntoProspectId: r.mergedIntoProspectId ?? null,
       mergedIntoName: r.mergedIntoProspectId ? (survivorNames.get(r.mergedIntoProspectId) ?? null) : null,
+      suppressedReason: r.suppressedReason ?? null,
     })) as ProspectListRow[],
     total: total ?? 0,
     pageSize: LIST_PAGE_SIZE,
@@ -904,8 +917,20 @@ export async function getFunnelStats(): Promise<ProspectFunnelStats> {
   // one is counted once, under its survivor.
   const dormant = sum(['dormant'])
   const merged = sum(['merged'])
-  return { discovered: discovered + dormant, enriched, contacted, engaged, callList, converted, dormant, merged }
+  // The chains set aside (P-04) — their own chip, hidden by default.
+  const [chainRow] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(schema.prospect)
+    .where(and(eq(schema.prospect.status, 'disqualified'), eq(schema.prospect.suppressedReason, 'chain')))
+  return { discovered: discovered + dormant, enriched, contacted, engaged, callList, converted, dormant, merged, chains: chainRow?.n ?? 0 }
 }
+
+/** The statuses a hot / warm count never includes: unscored rows, a
+ *  practice set aside (retired, closed, a chain), one that asked never to
+ *  hear from us, a merged shell. `getBandCounts` and the territory
+ *  coverage read the same list (fix pass, J.1); a resting row is counted
+ *  by the coverage under the status it rested from. */
+export const BAND_COUNT_EXCLUDED_STATUSES = ['discovered', 'enriching', 'disqualified', 'suppressed', 'merged'] as const
 
 /** Live-pool score-band counts (enriched-and-later prospects) — grounds the
  *  copilot's "how many hot prospects" answers. Excludes discovered/enriching
@@ -917,7 +942,7 @@ export async function getBandCounts(): Promise<Record<string, number>> {
     .where(
       and(
         isNotNull(schema.prospect.scoreBand),
-        notInArray(schema.prospect.status, ['discovered', 'enriching', 'disqualified', 'suppressed', 'merged', 'dormant']),
+        notInArray(schema.prospect.status, [...BAND_COUNT_EXCLUDED_STATUSES, 'dormant']),
       ),
     )
     .groupBy(schema.prospect.scoreBand)
@@ -1083,7 +1108,9 @@ export async function getTerritoryCoverage(
   // A resting row (P-03) is still the practice it was — it was contacted,
   // that is why it could rest — so it is counted where it came from, never
   // as an unworked row (a territory does not become "10% worked" as its
-  // contacted rows rest).
+  // contacted rows rest). A DISQUALIFIED row (retired, closed, a chain the
+  // sweep set aside) is not a prospect in the territory at all (P-04 fix
+  // pass): it leaves the total, and never reads as hot or warm.
   const statusRows = (
     await db
       .select({
@@ -1094,7 +1121,7 @@ export async function getTerritoryCoverage(
         n: sql<number>`count(*)::int`,
       })
       .from(schema.prospect)
-      .where(and(isNotNull(schema.prospect.state), notInArray(schema.prospect.status, ['merged'])))
+      .where(and(isNotNull(schema.prospect.state), notInArray(schema.prospect.status, ['merged', 'disqualified'])))
       .groupBy(schema.prospect.state, schema.prospect.status, schema.prospect.dormantFromStatus, schema.prospect.scoreBand)
   ).map((r) => ({ ...r, status: r.status === 'dormant' ? wakeStatus(r.dormantFromStatus) : r.status }))
 
@@ -1128,8 +1155,9 @@ export async function getTerritoryCoverage(
     if (CONTACTED_PLUS.has(r.status)) a.contacted += r.n
     if (r.status === 'call_list') a.callList += r.n
     if (r.status === 'converted') a.won += r.n
-    if (r.band === 'hot') a.hot += r.n
-    if (r.band === 'warm') a.warm += r.n
+    const bandCounts = !(BAND_COUNT_EXCLUDED_STATUSES as readonly string[]).includes(r.status)
+    if (bandCounts && r.band === 'hot') a.hot += r.n
+    if (bandCounts && r.band === 'warm') a.warm += r.n
     byState.set(r.state, a)
   }
 
@@ -2047,19 +2075,26 @@ async function applyCallerFeedback(prospectId: string, outcome: string, now: Dat
       checkedAt,
       source: 'caller',
     }
-    // A human reached them on this number: that outranks a syntax check or
-    // a carrier database that called it invalid. A disconnected / wrong
-    // number the CALLER reported is never cleared here — only a new number is.
-    if (row.phoneStatus === 'invalid' && verification.phone?.source !== 'caller') {
+    // A human reached the practice on this number: that IS the clinic's
+    // number (the two-source rule, P-04 — a reach corroborates whatever the
+    // prior standing was, and outranks a syntax check or a carrier database
+    // that called it invalid). The caller joins the sources that state it;
+    // the signal is the caller's, so the next verify keeps it as it stands.
+    if (row.phone) {
       phoneStatus = 'valid'
+      const priorSources = verification.phone?.sources ?? []
+      const sources = priorSources.includes('caller') ? priorSources : [...priorSources, 'caller' as const]
       verification.phone = {
         status: 'valid',
         detail: `Reached on ${utcDate(now)} — the number works (heard on a call)`,
         checkedAt,
         source: 'caller',
+        sources,
+        standing: 'corroborated',
+        ...(verification.phone?.lineCheck ? { lineCheck: verification.phone.lineCheck } : {}),
       }
       patch.phoneStatus = 'valid'
-      patch.phoneSource = 'caller'
+      patch.phoneSource = 'corroborated'
     }
   }
   patch.verification = verification
@@ -2127,11 +2162,15 @@ export async function updateProspectPhone(
   if (row.status === 'merged') return { ok: false, reason: 'merged' }
   const now = new Date()
   const verification = parseVerification(row.verification)
+  // A hand-typed number is stated by one human (the two-source rule, P-04)
+  // — the next verify pass checks the line and reads the standing.
   verification.phone = {
     status: 'well_formed',
     detail: `Number entered by hand on ${utcDate(now)} — line not checked yet`,
     checkedAt: now.toISOString(),
     source: 'caller',
+    sources: ['caller'],
+    standing: 'single_source',
   }
   const patch: Partial<typeof schema.prospect.$inferInsert> = {
     phone: digits,

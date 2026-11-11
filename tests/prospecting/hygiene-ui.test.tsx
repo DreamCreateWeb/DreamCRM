@@ -251,7 +251,7 @@ describe('HuntPanel — the hygiene tile', () => {
 
   it('"Merged 3 · Resting 41 · Refreshed TX 787xx" with the refresh stamp marked UTC', () => {
     const { container } = render(
-      <HuntPanel stats={stats} config={config} env={env} quality={quality} hygiene={{ mergedToday: 3, resting: 41, lastRefresh: { state: 'TX', zipPrefix: '787', at: new Date('2026-11-10T06:05:00Z') } }} />,
+      <HuntPanel stats={stats} config={config} env={env} quality={quality} hygiene={{ mergedToday: 3, resting: 41, lastRefresh: { state: 'TX', zipPrefix: '787', at: new Date('2026-11-10T06:05:00Z') }, chainsRemoved: 0, chainsRestoredToday: 0, earlyRefresh: null }} />,
     )
     const tile = container.querySelector('[data-hygiene-tile]')!
     expect(tile.textContent).toContain('Merged 3 · Resting 41 · Refreshed TX 787xx')
@@ -262,7 +262,7 @@ describe('HuntPanel — the hygiene tile', () => {
 
   it('is honest before the first refresh — naming the LIVE refresh clock — and absent without the stats', () => {
     const { container } = render(
-      <HuntPanel stats={stats} config={{ ...config, hygiene: { ...config.hygiene, discoveryRefreshDays: 90 } }} env={env} quality={quality} hygiene={{ mergedToday: 0, resting: 0, lastRefresh: null }} />,
+      <HuntPanel stats={stats} config={{ ...config, hygiene: { ...config.hygiene, discoveryRefreshDays: 90 } }} env={env} quality={quality} hygiene={{ mergedToday: 0, resting: 0, lastRefresh: null, chainsRemoved: 0, chainsRestoredToday: 0, earlyRefresh: null }} />,
     )
     expect(container.querySelector('[data-hygiene-tile]')?.textContent).toContain('No territory refreshed yet')
     expect(container.querySelector('[data-hygiene-tile]')?.textContent).toContain('once it is 90 days old')
