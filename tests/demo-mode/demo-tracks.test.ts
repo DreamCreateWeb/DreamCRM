@@ -107,6 +107,13 @@ describe('suggestDemoTrack', () => {
   it('healthy everything → the full tour', () => {
     expect(suggestDemoTrack(verdict(), signals(), { ratingTenths: 47, reviewCount: 220 })).toBe('full')
   })
+
+  it('W4: an UNREAD crawl is nothing read — the same answer as no crawl, whatever its zeros (or a stale link) say', () => {
+    const places = { ratingTenths: 47, reviewCount: 220 }
+    const unread = signals({ error: 'fetch_failed' })
+    expect(suggestDemoTrack(verdict(), unread, places)).toBe(suggestDemoTrack(verdict(), null, places))
+    expect(suggestDemoTrack(verdict(), signals({ socialLinks: NO_SOCIAL, error: 'robots_disallow' }), places)).toBe(suggestDemoTrack(verdict(), null, places))
+  })
 })
 
 /**

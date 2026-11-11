@@ -1085,6 +1085,84 @@ describe('"that clinic’s number" — the two-source rule (P-04)', () => {
     expect(b.patch.verification.phone).toMatchObject({ sources: ['caller'] })
   })
 
+  it('W1: the caller-stands branch keeps the listing’s other number — a wrong-number verdict, then a pass whose listing lists another: the typed number stays, the human’s verdict stays, alt + the sentence attached; a no-lookup pass carries it; an agreeing listing drops it', async () => {
+    const SENTENCE = 'Google lists (404) 555-9999 — kept the number you typed'
+    // The signal a wrong-number verdict leaves (applyCallerFeedback, W3: the
+    // sources ride the verdict) on a hand-added row dialed before its first pass.
+    const verdict = { status: 'wrong_number', detail: 'Wrong number on Nov 10, 2026 (heard on a call)', checkedAt: STAMP, source: 'caller', sources: ['caller'] }
+    const judged = { ...PROSPECT, npiNumber: null, phone: '4045550000', phoneSource: 'caller', phoneStatus: 'wrong_number', verification: { phone: verdict } }
+    const differs = await verifyProspectSignals(judged as never, { ok: true, places: [{ ...PLACE, nationalPhoneNumber: '4045559999' }] }, await ctx())
+    expect(differs.patch.phone).toBe('4045550000')
+    expect(differs.patch.phoneStatus).toBe('wrong_number')
+    expect(differs.patch.verification.phone).toMatchObject({
+      status: 'wrong_number',
+      source: 'caller',
+      sources: ['caller'],
+      checkedAt: STAMP,
+      alt: { number: '4045559999', source: 'places', at: NOW.toISOString() },
+      detail: `Wrong number on Nov 10, 2026 (heard on a call); ${SENTENCE}`,
+    })
+    // The same drop after a REACH (phone_status valid, source caller).
+    const reached = { ...judged, phoneStatus: 'valid', verification: { phone: { ...verdict, status: 'valid', detail: 'Reached on Nov 10, 2026 — the number works (heard on a call)', standing: 'corroborated' } } }
+    const afterReach = await verifyProspectSignals(reached as never, { ok: true, places: [{ ...PLACE, nationalPhoneNumber: '4045559999' }] }, await ctx())
+    expect(afterReach.patch.verification.phone).toMatchObject({ status: 'valid', standing: 'corroborated', alt: { number: '4045559999' } })
+    expect(afterReach.patch.verification.phone?.detail).toBe(`Reached on Nov 10, 2026 — the number works (heard on a call); ${SENTENCE}`)
+    // A pass that did NOT re-read the listing carries the stored alt and its sentence, once.
+    const stored = { ...judged, verification: differs.patch.verification }
+    const noLookup = await verifyProspectSignals(stored as never, null, await ctx())
+    expect(noLookup.patch.verification.phone).toEqual(differs.patch.verification.phone)
+    const outage = await verifyProspectSignals(stored as never, { ok: false, error: 'unavailable' }, await ctx())
+    expect(outage.patch.verification.phone).toEqual(differs.patch.verification.phone)
+    expect(outage.patch.verification.phone?.detail?.match(/Google lists/g)).toHaveLength(1)
+    // A re-read that still differs stamps THIS pass's alt — one sentence, never two.
+    const again = await verifyProspectSignals(stored as never, { ok: true, places: [{ ...PLACE, nationalPhoneNumber: '4045559999' }] }, await ctx())
+    expect(again.patch.verification.phone?.detail?.match(/Google lists/g)).toHaveLength(1)
+    // A listing that AGREES drops it; a CLEARED listing (no match / not found) drops it.
+    const agrees = await verifyProspectSignals(stored as never, { ok: true, places: [{ ...PLACE, nationalPhoneNumber: '4045550000' }] }, await ctx())
+    expect(agrees.patch.verification.phone).not.toHaveProperty('alt')
+    expect(agrees.patch.verification.phone?.detail).toBe('Wrong number on Nov 10, 2026 (heard on a call)')
+    expect(agrees.patch.verification.phone).toMatchObject({ status: 'wrong_number', sources: ['caller'] })
+    const cleared = await verifyProspectSignals(stored as never, { ok: true, places: [] }, await ctx())
+    expect(cleared.patch.verification.phone).not.toHaveProperty('alt')
+    expect(cleared.patch.verification.phone?.detail).not.toMatch(/Google lists/)
+    // A matched listing that states NO number is neither agreeing nor cleared: the alt stays.
+    const silent = await verifyProspectSignals(stored as never, { ok: true, places: [{ ...PLACE, nationalPhoneNumber: null }] }, await ctx())
+    expect(silent.patch.verification.phone).toMatchObject({ alt: { number: '4045559999' } })
+  })
+
+  it('W2: a pass with NO Places lookup (budget, no key, a 503) carries the stored alt and its sentence on a caller-provided row that stands on no verdict — only a lookup that cleared the listing or found it agreeing drops it', async () => {
+    const typed = { ...PROSPECT, npiNumber: null, phone: '4045550000', phoneSource: 'caller' }
+    const first = await verifyProspectSignals(typed as never, { ok: true, places: [{ ...PLACE, nationalPhoneNumber: '4045559999' }] }, await ctx())
+    expect(first.patch.verification.phone).toMatchObject({ alt: { number: '4045559999', source: 'places', at: NOW.toISOString() }, sources: ['caller'] })
+    const stored = { ...typed, phoneSource: 'single_source', verification: first.patch.verification }
+    // Budget used up / no key → null; an outage → not ok. Both carry.
+    for (const places of [null, { ok: false as const, error: 'unavailable' as const }]) {
+      const carried = await verifyProspectSignals(stored as never, places as never, await ctx())
+      expect(carried.patch.phone).toBe('4045550000')
+      expect(carried.patch.verification.phone).toMatchObject({ sources: ['caller'], standing: 'single_source', alt: { number: '4045559999', source: 'places', at: NOW.toISOString() } })
+      expect(carried.patch.verification.phone?.detail).toMatch(/Google lists \(404\) 555-9999 — kept the number you typed/)
+      expect(carried.patch.verification.phone?.detail?.match(/Google lists/g)).toHaveLength(1)
+      // The stored JSON reads it back the same way.
+      expect(parseVerification(JSON.parse(JSON.stringify(carried.patch.verification))).phone?.alt).toEqual({ number: '4045559999', source: 'places', at: NOW.toISOString() })
+    }
+    // A lookup that finds the listing agreeing drops it; a cleared listing drops it.
+    const agrees = await verifyProspectSignals(stored as never, { ok: true, places: [{ ...PLACE, nationalPhoneNumber: '4045550000' }] }, await ctx())
+    expect(agrees.patch.verification.phone).not.toHaveProperty('alt')
+    expect(agrees.patch.verification.phone?.detail).not.toMatch(/Google lists/)
+    const cleared = await verifyProspectSignals(stored as never, { ok: true, places: [] }, await ctx())
+    expect(cleared.patch.verification.phone).not.toHaveProperty('alt')
+    expect(cleared.patch.verification.phone?.detail).not.toMatch(/Google lists/)
+    // A number a registry or listing REPLACED this pass carries nothing — the
+    // alt was about the number that is gone. (A human retyping the number goes
+    // through updateProspectPhone, which writes a fresh signal — call-feedback.)
+    const registryRow = { ...VERIFIED, verification: { ...VERIFIED.verification, phone: { ...VERIFIED.verification.phone, sources: ['nppes'], alt: { number: '4045559999', source: 'places', at: STAMP } } } }
+    lookupNpiMock.mockResolvedValue({ ...NPI_ACTIVE, location: { ...NPI_ACTIVE.location, addressLine1: '9 Oak Ave', phone: '4045550077' } })
+    const moved = await verifyProspectSignals(registryRow as never, null, await ctx())
+    expect(moved.patch.phone).toBe('4045550077')
+    expect(moved.patch.verification.phone).not.toHaveProperty('alt')
+    expect(moved.patch.verification.phone?.detail).not.toMatch(/Google lists/)
+  })
+
   it('with no lookup this pass the prior sources carry while the number is unchanged; a legacy column reads as its one source', async () => {
     const c = await ctx()
     c.nppesLeft = 0

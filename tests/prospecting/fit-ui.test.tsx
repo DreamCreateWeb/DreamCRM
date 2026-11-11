@@ -200,7 +200,10 @@ describe('FitCard', () => {
     const failed = render(
       <FitCard verification={null} signals={{ ...SIGNALS, stack: null, builder: null, error: 'fetch_failed' }} prospectId="p" prospectName="Smile" status="enriched" suppressedReason={null} />,
     )
-    expect(pill(failed.container)?.getAttribute('title')).toBe('The site did not answer when we looked — Re-enrich tries again')
+    // W7: true for a timeout AND a non-2xx answer — a 403 from a bot wall
+    // answered; the crawler still read nothing. Never "did not answer".
+    expect(pill(failed.container)?.getAttribute('title')).toBe('The site could not be read when we looked — Re-enrich tries again')
+    expect(pill(failed.container)?.getAttribute('title')).not.toMatch(/did not answer/)
     expect(failed.container.querySelector('[data-fit-signal="builder"]')).toBeNull()
     cleanup()
     const { stack: _s, ...older } = SIGNALS
@@ -209,7 +212,51 @@ describe('FitCard', () => {
     expect(old.container.querySelector('[data-fit-signal="builder"]')).toBeTruthy()
     expect(unreadStackTitle(undefined)).toBe('An older crawl — Re-enrich reads the stack')
     expect(unreadStackTitle('robots_disallow')).toMatch(/never read the page/)
-    expect(unreadStackTitle('fetch_failed')).toMatch(/did not answer/)
+    expect(unreadStackTitle('fetch_failed')).toMatch(/could not be read/)
+  })
+})
+
+/** An UNREAD crawl as the enrich pass stores it (V13): every page fact at
+ *  its zero, `error` set — nobody read the page. */
+const UNREAD: ProspectCrawlSignals = {
+  ssl: true,
+  mobileViewport: false,
+  copyrightYear: null,
+  titleTag: null,
+  metaDescription: null,
+  bookingWidget: false,
+  socialLinks: {},
+  builder: null,
+  stack: null,
+  pageWeightKb: 0,
+  emails: [],
+  fetchedAt: AT,
+  error: 'fetch_failed',
+}
+
+describe('W4: an unread crawl claims no page fact in the drawer', () => {
+  it('the Online presence rows become one line "Site not read — <the Fit card’s reason>"; the deal room says not crawled; a read page keeps its yes / no rows', () => {
+    const { container } = render(<ProspectDrawer detail={detail({ enrichment: UNREAD, websiteUrl: 'https://smile.com' })} closeHref="/platform/prospecting" />)
+    const line = container.querySelector('[data-site-unread]')
+    expect(line?.textContent).toBe('Online presenceSite not read — The site could not be read when we looked — Re-enrich tries again')
+    expect(container.textContent).not.toContain('HTTPS / mobile-ready')
+    expect(container.textContent).not.toContain('Online booking')
+    expect(container.textContent).not.toContain('Social linked')
+    expect(container.textContent).not.toContain('custom / unknown')
+    expect(container.textContent).not.toMatch(/No competitor tools fingerprinted/)
+    expect(container.textContent).toContain('Not crawled yet — re-enrich to fingerprint the tools they run.')
+    // The Fit card still says why.
+    expect(container.querySelector('[data-fit-signal="stack"] [title]')?.getAttribute('title')).toBe('The site could not be read when we looked — Re-enrich tries again')
+    expect(container.querySelector('[data-fit-signal="builder"]')).toBeNull()
+    cleanup()
+    const robots = render(<ProspectDrawer detail={detail({ enrichment: { ...UNREAD, error: 'robots_disallow' } })} closeHref="/platform/prospecting" />)
+    expect(robots.container.querySelector('[data-site-unread]')?.textContent).toContain('Site not read — Their robots.txt refuses crawlers — we never read the page')
+    cleanup()
+    const read = render(<ProspectDrawer detail={detail({ enrichment: { ...SIGNALS, mobileViewport: false, bookingWidget: false } })} closeHref="/platform/prospecting" />)
+    expect(read.container.querySelector('[data-site-unread]')).toBeNull()
+    expect(read.container.textContent).toContain('HTTPS / mobile-ready')
+    expect(read.container.textContent).toContain('Online booking')
+    expect(read.container.textContent).toContain('Social linked')
   })
 })
 

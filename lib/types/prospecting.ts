@@ -505,6 +505,31 @@ export interface ProspectCrawlSignals {
   vendors?: Array<{ name: string; category: string; estMonthly: number }>
 }
 
+/** A crawl somebody READ — no `error` on it. The only shape whose page
+ *  facts (mobile viewport, booking widget, socials, builder, weight) may be
+ *  presented as observed. */
+export type ReadCrawlSignals = ProspectCrawlSignals & { error?: undefined }
+
+/**
+ * THE ONE GATE ON A CRAWL'S PAGE FACTS (fix pass III, W4 / W7). An unread
+ * crawl is stored with the same shape as a read one — `error` set
+ * (`robots_disallow`, or `fetch_failed`: a timeout, a reset, ANY non-2xx
+ * answer) and every page fact at its zero — so the record can say why. No
+ * reader may present those zeros as "not mobile-friendly" / "no online
+ * booking" / "no socials": every reader of the page facts asks this first.
+ * Client-safe (the demo gaps, the brief prompt and the track router run
+ * outside server-only), so it lives beside the type rather than beside
+ * `unreadCrawlSignals` in lib/services/prospect-enrich.ts.
+ */
+export function crawlWasRead(signals: ProspectCrawlSignals | null | undefined): signals is ReadCrawlSignals {
+  return signals != null && !signals.error
+}
+
+/** Why nobody read the page, as a clause for a sentence or a prompt. */
+export function crawlUnreadReason(error: string | null | undefined): string {
+  return error === 'robots_disallow' ? 'robots.txt refused crawlers' : 'the site could not be read'
+}
+
 /** The site builders the crawl fingerprints, in words (P-04). DIY builders
  *  and dental template vendors raise the opportunity score. */
 export const BUILDER_LABELS: Record<string, string> = {
@@ -1022,6 +1047,25 @@ export interface ProspectFilters {
 export function formatProspectPhone(digits: string | null | undefined): string | null {
   if (!digits) return null
   return digits.length === 10 ? `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}` : digits
+}
+
+/** The sentence the Verification card reads when the matched listing lists
+ *  ANOTHER number for a caller-provided row (`verification.phone.alt`, V2):
+ *  the typed number is never replaced, and this says what Google lists.
+ *  One writer of the sentence — the verify pass attaches it, a caller's
+ *  write carries it (fix pass III, W1–W3). */
+export function listingAltNote(number: string): string {
+  return `Google lists ${formatProspectPhone(number)} — kept the number you typed`
+}
+
+const LISTING_ALT_NOTE = /(?:;\s*)?Google lists [^;]*? — kept the number you typed/g
+
+/** A signal's detail with the listing-alt sentence taken out, so a pass can
+ *  re-attach the current one without stacking two. */
+export function withoutListingAltNote(detail: string | null | undefined): string | null {
+  if (!detail) return null
+  const out = detail.replace(LISTING_ALT_NOTE, '').replace(/^\s*;\s*/, '').trim()
+  return out || null
 }
 
 /** "4.7★ (212)" display helper; null-safe. */

@@ -25,7 +25,7 @@ import {
   type GuardedFetchDeps,
   type GuardedSession,
 } from './prospect-site-liveness'
-import type { ProspectAiVerdict, ProspectCrawlSignals } from '@/lib/types/prospecting'
+import { crawlWasRead, type ProspectAiVerdict, type ProspectCrawlSignals } from '@/lib/types/prospecting'
 import {
   getProspectingConfig,
   bumpProspectingCounter,
@@ -94,7 +94,11 @@ export type CrawlError = 'robots_disallow' | 'fetch_failed'
 
 /** An UNREAD crawl, stored so the record says why (fix pass II, V13 — the
  *  Fit card's "Not read" names the reason; a fetch failure used to leave
- *  `enrichment` null and the card blind). */
+ *  `enrichment` null and the card blind). Its page facts are ZEROS, not
+ *  observations: every reader gates on `crawlWasRead` (the shared
+ *  predicate beside the type in lib/types/prospecting.ts — client-safe,
+ *  which this server-only module is not), and the enrich pass below never
+ *  hands a stub to the verdict or the score (fix pass III, W4 / W7). */
 export function unreadCrawlSignals(url: string, error: CrawlError, at: Date = new Date()): ProspectCrawlSignals {
   return {
     ssl: /^https:\/\//i.test(url),
@@ -204,7 +208,8 @@ async function aiVerdictForSite(input: {
     `HTTPS: ${s.ssl} · Mobile viewport: ${s.mobileViewport} · Copyright year: ${s.copyrightYear ?? 'none found'}`,
     `Title: ${s.titleTag ?? '(none)'} · Meta description: ${s.metaDescription ?? '(none)'}`,
     `Online booking markers: ${s.bookingWidget} · Site builder: ${s.builder ?? 'unknown/custom'} · Page weight: ${s.pageWeightKb}KB`,
-    `Booking / review tools fingerprinted on the site: ${Array.isArray(s.stack) ? (s.stack.length > 0 ? s.stack.join(', ') : 'none') : s.error === 'robots_disallow' ? 'not read (robots)' : 'not read'}`,
+    // Only a READ page reaches this prompt (W4) — a stub never does.
+    `Booking / review tools fingerprinted on the site: ${Array.isArray(s.stack) ? (s.stack.length > 0 ? s.stack.join(', ') : 'none') : 'not read'}`,
     `Social profiles linked: ${Object.entries(s.socialLinks).filter(([, v]) => v).map(([k]) => k).join(', ') || 'none'}`,
   ].join('\n')
 
@@ -345,9 +350,12 @@ async function enrichOneProspect(
     //    one) is never handed to the crawler either — whatever the stored
     //    signal says.
     let signals: ProspectCrawlSignals | null = null
-    // A crawl that was tried and could not read the page is stored as an
-    // UNREAD crawl (V13) — the verdict and the score still see no signals.
-    let crawlFailed = false
+    // A crawl that was tried and could not read the page — robots.txt
+    // refused us, or the fetch failed / answered non-2xx — is stored as an
+    // UNREAD crawl (V13, W4): the record says why, and the verdict and the
+    // score see NO signals (a stub's zeros are not page facts; the AI is
+    // never told "mobile viewport false" about a page nobody read).
+    let unread: ProspectCrawlSignals | null = null
     if (
       websiteUrl &&
       websiteStatus !== 'dead' &&
@@ -355,8 +363,9 @@ async function enrichOneProspect(
       verified.liveness?.cause !== 'policy' &&
       budget.crawlsUsed < budget.budgets.crawlsPerMonth
     ) {
-      signals = await crawlProspectSite(websiteUrl)
-      crawlFailed = signals == null
+      const crawled = await crawlProspectSite(websiteUrl)
+      if (crawlWasRead(crawled)) signals = crawled
+      else unread = crawled ?? unreadCrawlSignals(websiteUrl, 'fetch_failed')
       budget.crawlsUsed++
       out.crawls++
       await bumpProspectingCounter(budget.month, 'crawl')
@@ -408,7 +417,7 @@ async function enrichOneProspect(
         // no-match clears the old listing's, a pass with no lookup keeps
         // them, and only a listing that states a website replaces one.
         ...listingColumns(verified),
-        enrichment: signals ?? (crawlFailed && websiteUrl ? unreadCrawlSignals(websiteUrl, 'fetch_failed') : null),
+        enrichment: signals ?? unread,
         aiVerdict: verdict,
         opportunityScore: scored.score,
         scoreBand: scored.band,

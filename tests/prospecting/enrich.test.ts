@@ -476,7 +476,7 @@ describe('P-04 in the enrich pass', () => {
     expect(releaseMock).toHaveBeenCalledWith('pros_1', expect.any(Date))
   })
 
-  it('a robots.txt refusal is UNKNOWN (stack null), never "looked, no booking engine": no +6, the AI told "not read (robots)" (I.1 / C8)', async () => {
+  it('a robots.txt refusal is UNKNOWN (stack null), never "looked, no booking engine": no +6, stored as an UNREAD crawl, and the AI is NOT asked about a page nobody read — no verdict from the stub’s zeros (I.1 / C8, W4)', async () => {
     fetchMock.mockImplementation(async (url: string) => {
       const u = String(url)
       if (u.endsWith('/robots.txt')) return { ok: true, body: bodyStream('User-agent: *\nDisallow: /'), text: async () => 'User-agent: *\nDisallow: /', url } as unknown as Response
@@ -491,8 +491,14 @@ describe('P-04 in the enrich pass', () => {
     expect((final.enrichment as { stack: unknown; error: string }).stack).toBeNull()
     expect((final.enrichment as { error: string }).error).toBe('robots_disallow')
     expect(final.scoreReasons as string[]).not.toContain('No booking widget, no review engine — a phone number is their only door')
-    const prompt = (aiMock.mock.calls[0][0] as { messages: Array<{ content: string }> }).messages[0].content
-    expect(prompt).toContain('Booking / review tools fingerprinted on the site: not read (robots)')
+    // W4: the robots stub is not a read page — no AI call, and the stored
+    // verdict carries none of the stub's zeros as weaknesses.
+    expect(aiMock).not.toHaveBeenCalled()
+    const verdict = final.aiVerdict as { weaknesses: string[]; websiteReasons: string[]; summary: string }
+    expect(verdict.weaknesses).toEqual([])
+    expect(verdict.websiteReasons).toEqual([])
+    expect(verdict.summary).toBe('Website not yet crawled.')
+    expect(final.scoreReasons as string[]).not.toContain('Not mobile-friendly')
   })
 
   it('V13: a page that does not answer is stored as an UNREAD crawl (stack null, error fetch_failed) — the card can say why; no AI call, no verdict from a page nobody read, no +6', async () => {
@@ -516,6 +522,9 @@ describe('P-04 in the enrich pass', () => {
     expect(typeof enrichment.fetchedAt).toBe('string')
     expect(aiMock).not.toHaveBeenCalled()
     expect(final.scoreReasons as string[]).not.toContain('No booking widget, no review engine — a phone number is their only door')
+    // W4: the stored verdict carries none of the stub's zeros.
+    expect((final.aiVerdict as { weaknesses: string[] }).weaknesses).toEqual([])
+    expect(final.scoreReasons as string[]).not.toContain('Not mobile-friendly')
     expect(unreadCrawlSignals('https://smiledental.com', 'fetch_failed', new Date('2026-11-10T12:00:00Z'))).toMatchObject({ stack: null, error: 'fetch_failed', fetchedAt: '2026-11-10T12:00:00.000Z', ssl: true })
     expect(unreadCrawlSignals('http://smiledental.com', 'robots_disallow').ssl).toBe(false)
   })

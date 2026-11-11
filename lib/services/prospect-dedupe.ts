@@ -657,8 +657,27 @@ export async function mergeProspects(
   // caller takes the restored row through P-02's rule, or the slot is
   // released with the cooldown.
   if (lifted) {
-    const { restoreChainFlagged } = await import('./prospect-fit')
-    await restoreChainFlagged(survivorId, now, 'override', { atLeast: after.atLeast })
+    // THE MERGE HAS COMMITTED (fix pass III, W8): a restore that throws
+    // here — the config read, a connection error on its update — must not
+    // escape (the caller would see a throw for rows that ARE merged) and
+    // must not lose the loser's caller. It is a strike on the ledger with
+    // one line of context; the hand-over path then ALWAYS runs — against
+    // a still-disqualified row it refuses and writes the cooldown — and
+    // so does the release hook. The owner's "Not a chain" on the row
+    // finishes the restore.
+    try {
+      const { restoreChainFlagged } = await import('./prospect-fit')
+      await restoreChainFlagged(survivorId, now, 'override', { atLeast: after.atLeast })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      console.error('[prospect-dedupe] the restore after a committed merge failed', survivorId, message)
+      try {
+        const { reportProspectingFailure } = await import('./engine-failures')
+        await reportProspectingFailure('hygiene', now, { step: 'restore_after_merge', prospectId: survivorId, loserId, error: message })
+      } catch (e) {
+        console.error('[prospect-dedupe] failure report failed', e)
+      }
+    }
     if (after.handover) {
       const exec: Exec = db
       const carried = await handOverToCaller(exec, survivorId, after.handover.callerId, after.handover.assignedAt, now)

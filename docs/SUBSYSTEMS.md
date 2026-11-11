@@ -760,7 +760,17 @@ status becomes the restore's `atLeast` (`STATUS_RANK` in
 `lib/prospect-dedupe.ts`, shared by the merge and the restore), the
 loser's intent carries, and the loser's cold caller is handed over
 against the RESTORED row after the transaction (P-02's one predicate),
-else released with the cooldown.
+else released with the cooldown. THE RESTORE RUNS AFTER THE COMMIT, so
+it is never allowed to throw out of the merge (fix pass III, W8): a
+restore that fails (the config read, a connection error on its update)
+is caught and recorded as a strike on the ledger through the engine's one
+door — `reportProspectingFailure('hygiene', now, {step:
+'restore_after_merge', prospectId, loserId, error})`, one line of context
+beside the class — and the hand-over path ALWAYS runs: against a
+still-disqualified row it refuses and writes the cooldown, so the
+loser's caller is never lost silently; then `releaseIfUnservable`, and
+the merge result is returned normally. The owner's "Not a chain" on the
+row finishes the restore.
 The Fit card says "Chain — set aside" (with "Not a chain") ONLY for a row
 that is disqualified / chain; a row that merely carries the signal (a
 customer, a row that said no) reads "Chain signal noted — kept where it
@@ -771,11 +781,29 @@ re-enrich. "NEEDS US" GETS WHAT WE ALREADY FETCH (`lib/prospect-scoring.ts`,
 the weights in its header; never a new request): the COMPETITOR STACK —
 booking widgets and review / messaging engines fingerprinted on HOSTS and
 nothing else: the host of every `<script src>`, `<link href>` and `<iframe
-src>` (whatever the tag's type) and of every URL inside an inline script
-body ONLY when that body is JavaScript — no type, text/javascript,
-application/javascript, module (`isJavaScriptScriptTag`); an
+src>` (whatever the tag's type) and of every SCRIPT-SHAPED URL inside an
+inline script body ONLY when that body is JavaScript — the HTML spec's
+JavaScript MIME essence list in full (text/javascript,
+application/javascript, application/x-javascript, text/ecmascript,
+application/ecmascript, the x-ecmascript / x-javascript variants,
+text/jscript, text/livescript, text/javascript1.0–1.5), `module` and the
+empty type, a `;charset` suffix tolerated (`isJavaScriptScriptTag`; fix
+pass III W5 — a 2010-era `application/x-javascript` widget loader is
+executed by every browser and is fingerprinted like any other); an
 `application/json` hydration payload or an `application/ld+json` block
-carries the page's copy and is skipped (V12) — each pattern matched
+carries the page's copy and is skipped (V12), and so is a JavaScript body
+whose leading text is a known HYDRATION SINK — `self.__next_f.push(`
+(Next's App Router flight payload), `window.__NUXT__`,
+`window.__remixContext`, `window.__INITIAL_STATE__` /
+`__APOLLO_STATE__` / `__PRELOADED_STATE__`, `window.__NEXT_DATA__`,
+`__sveltekit` (`isHydrationSink`, W6); in any other JS body a URL token
+counts ONLY when it is SCRIPT-SHAPED — its path ends in .js / .mjs, or
+it sits within 120 characters after `.src`, `src=`, `src:`, `import(`,
+`createElement('script')`, `loadScript(` or `appendChild(`
+(`isScriptShapedToken`, W6): a bare
+`"https://www.nexhealth.com/practices/x"` string a script renders, or a
+config endpoint in a `window.__cfg` object, is not an install — each
+pattern matched
 at a label boundary ("localmedia.com" is not LocalMed; "we moved off
 NexHealth" in a blog's JSON-LD or a hydration payload is not an install;
 `detectStack` in `lib/prospect-signals.ts`:
@@ -786,14 +814,35 @@ accumulated across the crawl's hops) — a modern stack LOWERS opportunity
 (−5 a tool, floor −15, "Already on NexHealth + Birdeye"), none and no
 booking RAISES it (+6, "No booking widget, no review engine — a phone
 number is their only door") — ONLY for a page somebody read (`stack: []`);
-a robots.txt refusal stores `stack: null` (unknown), earns nothing, and
-the AI prompt says "not read (robots)"; a page that did not answer is
-stored the same way with `error: 'fetch_failed'` (`unreadCrawlSignals` —
-never a null `enrichment` the card is blind to), and the Fit card's "Not
-read" names the reason: "Their robots.txt refuses crawlers — we never read
-the page" / "The site did not answer when we looked — Re-enrich tries
-again" / the older-crawl wording only with no error and no stack read, and
-claims no builder for an unread crawl (V13); the BUILDER (ProSites · PBHS · Officite · TNT
+a robots.txt refusal stores `stack: null` (unknown) and earns nothing; a
+page that could not be read — a timeout, a reset, ANY non-2xx answer
+(`fetchPage` returns null on all of them) — is stored the same way with
+`error: 'fetch_failed'` (`unreadCrawlSignals` — never a null `enrichment`
+the card is blind to). AN UNREAD CRAWL CLAIMS NO PAGE FACT (fix pass III,
+W4 / W7): the stub's zeros (mobileViewport false, bookingWidget false,
+socialLinks {}, pageWeightKb 0, builder null) are not observations, and
+`crawlWasRead(signals)` — the ONE gate, beside the type in
+lib/types/prospecting.ts because the demo gaps, the brief prompt and the
+track router run client-safe where the server-only
+`unreadCrawlSignals` cannot be imported — is what every reader asks
+first: the enrich pass hands a stub to neither the AI verdict nor the
+heuristic (`heuristicVerdict` judges an unread crawl like no crawl; no AI
+call for a robots refusal either), the drawer's Online presence rows
+become one line "Site not read — <the Fit card's reason>" and its deal
+room reads not crawled, the demo prep page shows one neutral "Site not
+read" pill (never an urgent "Not mobile-friendly" / "No online booking")
+and never calls the practice healthy, `deriveDemoGaps` emits no signal
+gap (so the prospect-facing demo skin's weaknesses carry none),
+`buildDemoBriefPrompt` tells the model "site not read (robots.txt refused
+crawlers | the site could not be read)", `suggestDemoTrack` answers as
+for no crawl, and the compare page's stale year, the practice grade's
+findings and facts block and the grader's verdict ride the same gate;
+the Fit card's "Not read" names the reason: "Their robots.txt refuses
+crawlers — we never read the page" / "The site could not be read when we
+looked — Re-enrich tries again" (true for a timeout AND a bot wall's 403
+— W7; never "did not answer") / the older-crawl wording only with no
+error and no stack read, and claims no builder for an unread crawl
+(V13); the BUILDER (ProSites · PBHS · Officite · TNT
 Dental join Wix · Squarespace · GoDaddy · Weebly · WordPress; DIY +5,
 template vendor +4; `BUILDER_LABELS` for the UI); the NEW PRACTICE from
 the registry (NPPES `enumeration_date` < 18 months → `fit.newPractice =
@@ -838,14 +887,34 @@ single-source 12 (the well-formed credit, as before) with the card sentence
 "Only one source lists this number — turn on the line check to confirm it"
 when the line check is OFF (`lineCheck: off | skipped | done` on the
 signal). A caller-provided number is never replaced by the registry or the
-listing (`callerProvided` reads the prior sources, so the guard survives
-the column reading `single_source`; `addManualProspect` stamps
-`phone_source='caller'` at the write, and a hand-added row from before the
-stamp — a phone, no source column, no NPI — reads as the caller's too);
-when the matched listing lists a DIFFERENT number for such a row, that
-number is kept on the signal (`verification.phone.alt = {number, source:
-'places', at}`) and the detail says "Google lists (404) 555-9999 — kept the
-number you typed", so a typo has a trace on the Verification card (V2). A
+listing — THE GUARD IS DURABLE (fix pass III, W3): `callerProvided` is
+true whenever the prior signal's `sources` name the caller, OR the
+column reads `caller`, OR the row is a typed-before-the-stamp one (a
+phone, no source column, no NPI; `addManualProspect` stamps
+`phone_source='caller'` at the write), and EVERY writer of
+`verification.phone` preserves `sources` — `applyCallerFeedback`'s
+verdict branch (wrong number / disconnected) writes `sources:
+union(prior, 'caller')` exactly as its reach branch does,
+`updateProspectPhone` writes `['caller']` — so a verdict logged after
+the column has turned to `single_source` can no longer turn the guard
+off and let the listing's number replace the typed one. When the matched
+listing lists a DIFFERENT number for such a row, that number is kept on
+the signal (`verification.phone.alt = {number, source: 'places', at}`)
+and the detail says "Google lists (404) 555-9999 — kept the number you
+typed" (`listingAltNote`, the one writer of the sentence), so a typo has
+a trace on the Verification card (V2). THE ALT IS A FACT ABOUT THE
+LISTING, carried the way the listing signal and the sources are carried
+(W1 / W2): the caller-stands branch (a wrong number, a disconnected
+line, a reach — a confirmed wrong number that cannot be replaced is
+exactly where the trace matters most) keeps the human's signal AND
+attaches this pass's alt + the sentence when the listing was re-read and
+differs; a pass that did NOT re-read the listing (no budget, no key, a
+503) or whose matched listing states no ten-digit number carries the
+stored alt and its sentence forward (one sentence, never two —
+`withoutListingAltNote`); only a lookup that CLEARED the listing or
+found it AGREEING drops it; a caller's own write (a verdict, a reach)
+carries the alt and its sentence too, and a retyped number
+(`updateProspectPhone`) starts a fresh signal without it. A
 human REACH on a carrier-validated line keeps the carrier's line facts:
 `applyCallerFeedback` never touches `phone_line_type` /
 `phone_validated_at`, and the next pass's caller-stands branch carries them
@@ -896,7 +965,9 @@ the existing jsonb and text columns). Tests: fit, fit-service, fit-ui, the
 P-04 matrices in score / quality / crawl-signals / verify / enrich /
 hygiene / hygiene-sql / nppes-parse / config, migrations/p04-prospect-fit;
 the fix pass's pins ride the same files plus call-feedback,
-dedupe-service and hygiene-readers.
+dedupe-service and hygiene-readers; fix pass III's unread-crawl pins
+ride demo-prep-page, demo-brief, demo-mode/demo-gaps and
+demo-mode/demo-tracks too, and its strike context journey/engine-failures.
 Schema `lib/db/schema/prospecting.ts` is platform-global, NO organizationId by
 design; ships behind kill switch + dry-run + auto-enroll-off; say
 "prospect", never "lead"),

@@ -20,7 +20,7 @@ import {
 import { extractDeepSiteSignals, type DeepSiteSignals } from '@/lib/practice-scan'
 import { positionOfDomain, searchDentistRankings, serpConfigured } from '@/lib/serp'
 import { GRADER_UTM_SOURCE } from '@/lib/marketing-attribution'
-import type { ProspectCrawlSignals } from '@/lib/types/prospecting'
+import { crawlWasRead, type ProspectCrawlSignals } from '@/lib/types/prospecting'
 
 /**
  * The practice grader's server side (docs/marketing-engine.md, slice 2) —
@@ -225,7 +225,7 @@ export async function runPracticeGrade(input: RunGradeInput): Promise<RunGradeOu
     }
   }
 
-  const crawled = signals && !signals.error ? signals : null
+  const crawled = crawlWasRead(signals) ? signals : null
   const verdict = crawled ? heuristicVerdict(crawled, true) : null
   const grade = gradeOnlinePresence({
     enteredUrl: websiteUrl,

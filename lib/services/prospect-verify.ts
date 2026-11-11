@@ -29,7 +29,9 @@ import {
   PARKED_RECHECK_DAYS,
   VERIFY_STALE_DAYS,
   formatProspectPhone,
+  listingAltNote,
   parseVerification,
+  withoutListingAltNote,
   type PhoneSourceName,
   type PhoneStanding,
   type PhoneVerificationSignal,
@@ -401,7 +403,12 @@ export async function verifyProspectSignals(
   const legacyStated: PhoneSourceName[] =
     prior.phone?.sources ??
     (p.phoneSource === 'nppes' || p.phoneSource === 'places' || p.phoneSource === 'caller' ? [p.phoneSource] : typedBeforeTheStamp ? ['caller'] : [])
-  const callerProvided = p.phoneSource === 'caller' || legacyStated.includes('caller')
+  // THE GUARD IS DURABLE (fix pass III, W3): true whenever the prior
+  // signal's sources name the caller, OR the column still reads `caller`,
+  // OR the row is a typed-before-the-stamp one. Every writer of
+  // `verification.phone` preserves `sources` (a caller's verdict unions
+  // 'caller' in exactly as a reach does), so no later write can lose it.
+  const callerProvided = p.phoneSource === 'caller' || (prior.phone?.sources ?? []).includes('caller') || legacyStated.includes('caller')
 
   const patch: VerifyPatch = {
     verification: v,
@@ -569,7 +576,7 @@ export async function verifyProspectSignals(
         // differing number is kept on the signal and said out loud, so a
         // typo has a trace (fix pass II, V2).
         phoneAlt = { number: match.phoneDiffers, source: 'places', at: now.toISOString() }
-        phoneNotes.push(`Google lists ${formatProspectPhone(match.phoneDiffers)} — kept the number you typed`)
+        phoneNotes.push(listingAltNote(match.phoneDiffers))
       }
     }
   }
@@ -727,6 +734,16 @@ export async function verifyProspectSignals(
     priorPhone?.source === 'caller' &&
     sameNumber &&
     (p.phoneStatus === 'disconnected' || p.phoneStatus === 'wrong_number' || p.phoneStatus === 'valid')
+  // THE LISTING'S OTHER NUMBER IS A FACT ABOUT THE LISTING (fix pass III,
+  // W1 / W2) — `phone.alt` is carried the way the listing signal and the
+  // sources are carried: this pass's alt when the listing was re-read and
+  // differs (`phoneAlt` above); the STORED alt when nothing re-read the
+  // listing (no budget, no key, a 503) or the matched listing states no
+  // ten-digit number; dropped ONLY by a lookup that cleared the listing or
+  // found it agreeing with the number we keep.
+  const listingAgrees = place?.nationalPhoneNumber != null && nanpDigits(place.nationalPhoneNumber) === nanpDigits(phone)
+  const altDropped = listing === 'cleared' || listingAgrees
+  const carriedAlt = !phoneAlt && sameNumber && !altDropped ? (priorPhone?.alt ?? null) : null
   // Whether the line check ran this pass (the two-source rule reads it).
   let lineCheck: 'off' | 'skipped' | 'done' | null = null
   let carrierInService = false
@@ -739,7 +756,20 @@ export async function verifyProspectSignals(
     // The carrier's line facts the row already holds survive the reach —
     // a human reaching the practice never costs the record its line type
     // (fix pass II, V9); the carrier check is not run again.
-    v.phone = priorPhone
+    // The listing's other number rides the standing signal (W1): attached
+    // with its sentence when this pass read a differing listing, carried
+    // when nothing re-read the listing, dropped only by a cleared or
+    // agreeing one — a confirmed wrong number that cannot be replaced is
+    // exactly where the trace matters most.
+    const stands: PhoneVerificationSignal = { ...priorPhone }
+    delete stands.alt
+    const alt = phoneAlt ?? carriedAlt
+    const base = withoutListingAltNote(priorPhone.detail)
+    v.phone = {
+      ...stands,
+      ...(alt ? { alt } : {}),
+      detail: alt ? (base ? `${base}; ${listingAltNote(alt.number)}` : listingAltNote(alt.number)) : base,
+    }
     patch.phoneStatus = p.phoneStatus as ProspectPhoneStatus
     patch.phoneLineType = (p.phoneLineType as ProspectPhoneLineType | null | undefined) ?? null
     patch.phoneValidatedAt = p.phoneValidatedAt ?? null
@@ -786,6 +816,12 @@ export async function verifyProspectSignals(
         v.phone = sig('well_formed', 'Well-formed US number — the line check was unavailable', 'nanp', now)
         lineCheck = 'skipped'
       }
+    }
+    // A pass that did not re-read the listing carries the stored alt and
+    // its sentence forward (W2) — the two-source block below stores it.
+    if (carriedAlt) {
+      phoneAlt = carriedAlt
+      phoneNotes.push(listingAltNote(carriedAlt.number))
     }
     if (phoneNotes.length > 0 && v.phone.detail) {
       v.phone = { ...v.phone, detail: `${v.phone.detail}; ${phoneNotes.join('; ')}` }

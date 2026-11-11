@@ -15,7 +15,7 @@ import { deriveDemoGaps } from '@/lib/demo-gaps'
 import { getProspectDetail } from '@/lib/services/prospecting'
 import { DEMO_BEATS } from '@/lib/types/demo-script'
 import { endBrandedDemoAction } from '@/app/(default)/ecommerce/customers/admin-actions'
-import type { ProspectAiVerdict, ProspectCrawlSignals } from '@/lib/types/prospecting'
+import { crawlWasRead, type ProspectAiVerdict, type ProspectCrawlSignals } from '@/lib/types/prospecting'
 
 /**
  * The compare moment — chrome-less (the (preview) route-group pattern):
@@ -62,7 +62,8 @@ export default async function DemoComparePage() {
         reviewCount: detail.prospect.reviewCount,
       })
     : []
-  const staleYear = signals?.copyrightYear ?? null
+  // A page fact only from a page somebody read (W4).
+  const staleYear = crawlWasRead(signals) ? signals.copyrightYear : null
 
   const rightUrl = buildDemoCompareUrl(skin.brandColor)
 

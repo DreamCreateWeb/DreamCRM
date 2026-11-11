@@ -74,12 +74,35 @@ function hostOf(url: string): string | null {
 }
 
 /** The script types whose inline body is CODE — the only bodies the token
- *  scan reads (fix pass II, V12). A `<script type="application/json">`
- *  hydration payload or an `application/ld+json` block carries the page's
- *  copy (an article link to a vendor, a sameAs), never an install. */
-const JS_SCRIPT_TYPES = new Set(['text/javascript', 'application/javascript', 'module'])
+ *  scan reads (fix pass II, V12). The HTML spec's JavaScript MIME essence
+ *  list in full (fix pass III, W5 — a 2010-era `application/x-javascript`
+ *  or `text/ecmascript` loader is executed by every browser and must be
+ *  fingerprinted like any other), plus `module` and the empty type. A
+ *  `<script type="application/json">` hydration payload or an
+ *  `application/ld+json` block carries the page's copy (an article link
+ *  to a vendor, a sameAs), never an install. */
+const JS_SCRIPT_TYPES = new Set([
+  'application/ecmascript',
+  'application/javascript',
+  'application/x-ecmascript',
+  'application/x-javascript',
+  'text/ecmascript',
+  'text/javascript',
+  'text/javascript1.0',
+  'text/javascript1.1',
+  'text/javascript1.2',
+  'text/javascript1.3',
+  'text/javascript1.4',
+  'text/javascript1.5',
+  'text/jscript',
+  'text/livescript',
+  'text/x-ecmascript',
+  'text/x-javascript',
+  'module',
+])
 
-/** Is this `<script …>` tag's body JavaScript? No type attribute is. */
+/** Is this `<script …>` tag's body JavaScript? No type attribute is; a
+ *  `;charset=…` suffix is tolerated. */
 export function isJavaScriptScriptTag(attrs: string): boolean {
   const m = attrs.match(/\stype\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i)
   if (!m) return true
@@ -87,11 +110,45 @@ export function isJavaScriptScriptTag(attrs: string): boolean {
   return type === '' || JS_SCRIPT_TYPES.has(type)
 }
 
+/** A JavaScript body that is a HYDRATION SINK — the page's data, not its
+ *  code (fix pass III, W6): Next's App Router flight payload
+ *  (`self.__next_f.push(`), Nuxt, Remix, the Vuex / Apollo / Redux
+ *  preloaded-state idiom, Pages-Router Next and SvelteKit. Such a body
+ *  carries the page's copy (a blog post's link to a vendor) and is skipped
+ *  whole, judged by its leading non-space text. */
+const HYDRATION_SINK =
+  /^\s*(?:\(?self\.__next_f|window\.__NUXT__|window\.__remixContext|window\.__INITIAL_STATE__|window\.__APOLLO_STATE__|window\.__PRELOADED_STATE__|window\.__NEXT_DATA__|__sveltekit)/
+
+/** Is this inline JavaScript body a hydration sink? Exported for tests. */
+export function isHydrationSink(body: string): boolean {
+  return HYDRATION_SINK.test(body)
+}
+
+/** How far back of a URL token the script-shaped anchors are looked for. */
+const SCRIPT_ANCHOR_WINDOW = 120
+/** The anchors that make a URL token SCRIPT-SHAPED inside a JS body: the
+ *  token sits within 120 characters after `.src`, `src=`, `src:`,
+ *  `import(`, `createElement("script")` / `createElement('script')`,
+ *  `loadScript(` or `appendChild(`. */
+const SCRIPT_ANCHOR = /(?:\.src\b|\bsrc\s*[=:]|\bimport\s*\(|createElement\s*\(\s*["']script["']\s*\)|loadScript\s*\(|appendChild\s*\()/i
+
+/** Is this URL token, inside a JavaScript body, SCRIPT-SHAPED (fix pass
+ *  III, W6)? Its path ends in .js / .mjs, OR a loader anchor sits within
+ *  120 characters before it. A bare `"https://www.nexhealth.com/practices/x"`
+ *  string in a JS body — a link the code renders — is neither. Exported
+ *  for tests. */
+export function isScriptShapedToken(body: string, index: number, token: string): boolean {
+  const path = token.replace(/^https?:\/\/[^/]*/i, '').replace(/[?#].*$/, '')
+  if (/\.m?js$/i.test(path)) return true
+  return SCRIPT_ANCHOR.test(body.slice(Math.max(0, index - SCRIPT_ANCHOR_WINDOW), index))
+}
+
 /** The hosts a page loads code or frames from: `<script src>`, `<link
- *  href>`, `<iframe src>` (whatever the tag's type), and every URL inside
- *  an inline script body WHEN that body is JavaScript (no type,
- *  text/javascript, application/javascript, module) — a JSON or JSON-LD
- *  body is page copy and is skipped. Exported for tests. */
+ *  href>`, `<iframe src>` (whatever the tag's type), and every
+ *  SCRIPT-SHAPED URL inside an inline script body WHEN that body is
+ *  JavaScript and not a hydration sink — a JSON or JSON-LD body, a flight
+ *  payload and a `window.__NUXT__` object are page copy and are skipped
+ *  (V12, W6). Exported for tests. */
 export function stackHosts(html: string): string[] {
   const hosts = new Set<string>()
   const add = (url: string) => {
@@ -101,7 +158,11 @@ export function stackHosts(html: string): string[] {
   for (const m of Array.from(html.matchAll(/<(?:script|link|iframe)\b[^>]*?\s(?:src|href)\s*=\s*["']([^"']{1,500})["']/gi))) add(m[1])
   for (const m of Array.from(html.matchAll(/<script\b([^>]*)>([\s\S]{0,20000}?)<\/script>/gi))) {
     if (!isJavaScriptScriptTag(m[1])) continue
-    for (const u of Array.from(m[2].matchAll(/https?:\/\/[a-z0-9.-]+/gi))) add(u[0])
+    const body = m[2]
+    if (isHydrationSink(body)) continue
+    for (const u of Array.from(body.matchAll(/https?:\/\/[a-z0-9.-]+(?::\d+)?(?:\/[^\s"'`<>()\\]*)?/gi))) {
+      if (isScriptShapedToken(body, u.index ?? 0, u[0])) add(u[0])
+    }
   }
   return Array.from(hosts)
 }

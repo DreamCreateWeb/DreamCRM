@@ -199,4 +199,44 @@ describe('buildDemoBriefPrompt', () => {
     expect(system).toContain('MIRROR')
     expect(system).toContain('never invent facts')
   })
+
+  it('W4: an UNREAD crawl says "site not read (<why>)" — never "mobile viewport false" about a page nobody read; a read page states its facts', () => {
+    const base = {
+      name: 'Lone Star Dental',
+      city: 'Dallas',
+      state: 'TX',
+      authorizedOfficialName: 'DR. MARIA GARZA',
+      websiteUrl: 'https://lonestardental.com',
+      ratingTenths: 38,
+      reviewCount: 12,
+      scoreReasons: [],
+      verdict: null,
+    }
+    const unread = {
+      ssl: true,
+      mobileViewport: false,
+      copyrightYear: null,
+      titleTag: null,
+      metaDescription: null,
+      bookingWidget: false,
+      socialLinks: {},
+      builder: null,
+      stack: null,
+      pageWeightKb: 0,
+      emails: [],
+      fetchedAt: '2026-11-10T00:00:00Z',
+      error: 'fetch_failed',
+    }
+    const failed = buildDemoBriefPrompt({ ...base, signals: unread }).user
+    expect(failed).toContain('Site signals: site not read (the site could not be read).')
+    expect(failed).not.toMatch(/mobile viewport/)
+    expect(failed).not.toMatch(/online-booking markers/)
+    expect(failed).not.toMatch(/socials linked/)
+    const robots = buildDemoBriefPrompt({ ...base, signals: { ...unread, error: 'robots_disallow' } }).user
+    expect(robots).toContain('Site signals: site not read (robots.txt refused crawlers).')
+    expect(buildDemoBriefPrompt({ ...base, signals: null }).user).toContain('Site signals: not crawled yet.')
+    const read = buildDemoBriefPrompt({ ...base, signals: { ...unread, error: undefined, stack: [] } }).user
+    expect(read).toContain('mobile viewport false')
+    expect(read).toContain('online-booking markers false')
+  })
 })

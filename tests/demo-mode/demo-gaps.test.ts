@@ -78,6 +78,32 @@ describe('deriveDemoGaps', () => {
     expect(gaps[0]).toMatchObject({ beatId: 'website', label: 'No website at all' })
   })
 
+  it('W4: an UNREAD crawl (robots refused us, the site could not be read) yields NO signal gap — its zeros are not "not mobile-friendly"; AI weaknesses and the Places facts still land; a read page as before', () => {
+    const unread: ProspectCrawlSignals = {
+      ssl: true,
+      mobileViewport: false,
+      copyrightYear: null,
+      titleTag: null,
+      metaDescription: null,
+      bookingWidget: false,
+      socialLinks: {},
+      builder: null,
+      stack: null,
+      pageWeightKb: 0,
+      emails: [],
+      fetchedAt: '2026-11-10T00:00:00Z',
+      error: 'fetch_failed',
+    }
+    expect(deriveDemoGaps(unread, null, undefined, 2026)).toEqual([])
+    expect(deriveDemoGaps({ ...unread, error: 'robots_disallow' }, null, undefined, 2026)).toEqual([])
+    // An http:// URL on an unread crawl is not "No HTTPS" either — nobody read the page.
+    expect(deriveDemoGaps({ ...unread, ssl: false }, null, undefined, 2026)).toEqual([])
+    const withVerdict = deriveDemoGaps(unread, VERDICT, { ratingTenths: 38, reviewCount: 12 }, 2026)
+    expect(withVerdict.filter((g) => g.source === 'signal').map((g) => g.label)).toEqual(['Google rating 3.8★', 'Only 12 Google reviews'])
+    expect(withVerdict.some((g) => g.source === 'ai')).toBe(true)
+    expect(deriveDemoGaps({ ...SIGNALS }, null, undefined, 2026).map((g) => g.label)).toContain("Site isn't mobile-friendly")
+  })
+
   it('a healthy practice yields few or no gaps', () => {
     const healthy: ProspectCrawlSignals = {
       ...SIGNALS,

@@ -3,6 +3,7 @@ import type { Tone } from '@/lib/ui/encodings'
 import {
   BUILDER_LABELS,
   FIT_SIGNAL_LABELS,
+  crawlWasRead,
   formatUtcStamp,
   parseVerification,
   type ProspectCrawlSignals,
@@ -50,10 +51,14 @@ const SIZE_LABEL: Record<string, string> = {
 
 /** Why the stack reads "Not read" (fix pass II, V13) — the crawl's own
  *  error first; the older-crawl wording only when there is no error and
- *  no P-04 stack read. Never a promise Re-enrich cannot keep. */
+ *  no P-04 stack read. Never a promise Re-enrich cannot keep. "Could not
+ *  be read" is true for a timeout AND a non-2xx answer (fix pass III, W7
+ *  — a 403 from a bot wall did answer; the crawler still read nothing).
+ *  The drawer's Online presence line and the demo prep page name the same
+ *  reason. */
 export function unreadStackTitle(error: string | null | undefined): string {
   if (error === 'robots_disallow') return 'Their robots.txt refuses crawlers — we never read the page'
-  if (error) return 'The site did not answer when we looked — Re-enrich tries again'
+  if (error) return 'The site could not be read when we looked — Re-enrich tries again'
   return 'An older crawl — Re-enrich reads the stack'
 }
 
@@ -211,7 +216,7 @@ export function FitCard({
             </div>
           </li>
         )}
-        {signals && !signals.error && (
+        {crawlWasRead(signals) && (
           <li className="text-sm" data-fit-signal="builder">
             <div className="flex items-center justify-between gap-2">
               <span className="text-gray-500 dark:text-gray-400">Site builder</span>
