@@ -3,6 +3,7 @@ import { and, eq, inArray, isNotNull, isNull, ne, or, sql, type AnyColumn, type 
 import { db, schema } from '@/lib/db'
 import { BAD_PHONE_STATUSES } from '@/lib/db/schema/prospecting'
 import {
+  STATUS_RANK,
   dedupeKeys,
   duplicateReasons,
   exactDuplicatePairs,
@@ -13,8 +14,19 @@ import {
   type DedupeRow,
 } from '@/lib/prospect-dedupe'
 import { isRestingReason, wakeStatus, withoutRestingReason } from '@/lib/prospect-decay'
+import { chainRestoreStatus } from '@/lib/prospect-fit'
 import { computeQualityScore, qualityInput } from '@/lib/prospect-quality'
-import { parseVerification, type DuplicateCandidate, type ProspectStatus, type ProspectingConfig } from '@/lib/types/prospecting'
+import {
+  listingAltNote,
+  parseVerification,
+  phoneStanding,
+  phoneVoices,
+  unionPhoneVoices,
+  withoutListingAltNote,
+  type DuplicateCandidate,
+  type ProspectStatus,
+  type ProspectingConfig,
+} from '@/lib/types/prospecting'
 import { callerServableWhere, releaseCooldownUntil, releaseIfUnservable } from './prospect-caller-release'
 
 /**
@@ -37,6 +49,16 @@ import { callerServableWhere, releaseCooldownUntil, releaseIfUnservable } from '
  *
  * The SWEEP merges only EXACT pairs (same Google listing, or same phone AND
  * same name) on its own; a fuzzy candidate waits for the drawer.
+ *
+ * THE OWNER'S "NOT A CHAIN" TRAVELS (P-04 fix pass, F.2): when either side
+ * carries `fit.chainOverride`, the survivor keeps it, never inherits a
+ * loser's chain flag, keeps its own status — and a survivor that was itself
+ * set aside as a chain is restored once the override has landed on it. In
+ * that direction (fix pass II, V11) the survivor RANKS by the status the
+ * restore will return it to, never by 'disqualified': the loser's further
+ * status becomes the restore's "at least", its intent carries, and the
+ * loser's cold caller is handed over against the RESTORED row — after the
+ * transaction, once the row is servable again.
  */
 
 type ProspectRow = typeof schema.prospect.$inferSelect
@@ -218,18 +240,35 @@ const NOT_FOR_TERMINAL = new Set<keyof ProspectRow>([
   'talkingPoints',
 ])
 
-/** How far along the pipeline a status is — a merge never moves the
- *  survivor BACKWARD, and a hand-raiser's signal on the loser is kept. A
- *  resting row ranks by the status it came from (`wakeStatus`), never by
- *  the floor 'dormant' would sit at. */
-const STATUS_RANK: Record<string, number> = {
-  discovered: 0,
-  enriching: 0,
-  enriched: 1,
-  queued: 2,
-  contacted: 3,
-  engaged: 4,
-  call_list: 5,
+/** The executor a hand-over runs on: the transaction inside the merge, or
+ *  the connection after it (the restored survivor — V11). */
+type Exec = Pick<Tx, 'select' | 'update'>
+
+/**
+ * P-02's hand-over rule, as one read + one write: the loser's caller takes
+ * the survivor ONLY when nobody holds it and it is SERVABLE by the one
+ * predicate — read on the row as it now stands. True when carried.
+ */
+async function handOverToCaller(exec: Exec, survivorId: string, callerId: string, assignedAt: Date | null, now: Date): Promise<boolean> {
+  const [handover] = await exec
+    .select({ id: schema.prospect.id })
+    .from(schema.prospect)
+    .where(and(eq(schema.prospect.id, survivorId), isNull(schema.prospect.assignedCallerId), callerServableWhere(now)))
+    .limit(1)
+  if (!handover) return false
+  await exec
+    .update(schema.prospect)
+    .set({ assignedCallerId: callerId, assignedAt: assignedAt ?? now, callerCooldownUntil: null, updatedAt: now })
+    .where(and(eq(schema.prospect.id, survivorId), isNull(schema.prospect.assignedCallerId)))
+  return true
+}
+
+/** The slot released with the cooldown every release carries. */
+async function releaseWithCooldown(exec: Exec, survivorId: string, now: Date): Promise<void> {
+  await exec
+    .update(schema.prospect)
+    .set({ callerCooldownUntil: releaseCooldownUntil(now), updatedAt: now })
+    .where(and(eq(schema.prospect.id, survivorId), isNull(schema.prospect.assignedCallerId)))
 }
 
 export interface MergeResult {
@@ -265,6 +304,11 @@ export async function mergeProspects(
   if (survivorId === loserId) return { ok: false, reason: 'same_row' }
   const now = opts.now ?? new Date()
   const moved: Record<string, number> = {}
+  let lifted = false
+  /** V11, decided inside the transaction and acted on after it: the loser's
+   *  further status (the restore's "at least") and the loser's caller
+   *  (handed over once the survivor is restored). */
+  const after = { atLeast: null as string | null, handover: null as { callerId: string; assignedAt: Date | null } | null }
 
   const refusal = await db.transaction(async (tx: Tx): Promise<MergeRefusal | null> => {
     const rows = await tx
@@ -277,11 +321,25 @@ export async function mergeProspects(
     if (!survivor || !loser) return { ok: false, reason: 'not_found' }
     if (survivor.status === 'merged' || loser.status === 'merged') return { ok: false, reason: 'already_merged' }
     if (loser.status === 'converted') return { ok: false, reason: 'loser_converted' }
+    // The owner's "Not a chain" on EITHER row rules the merged practice: a
+    // loser's chain flag never carries, and a survivor's own chain flag is
+    // lifted after the merge (the override lands on it below).
+    const survivorFit = parseVerification(survivor.verification).fit
+    const loserFit = parseVerification(loser.verification).fit
+    const overridden = Boolean(survivorFit?.chainOverride || loserFit?.chainOverride)
+    const loserChainFlag = loser.status === 'disqualified' && loser.suppressedReason === 'chain'
+    const survivorChainFlag = survivor.status === 'disqualified' && survivor.suppressedReason === 'chain'
+    const overrideLifts = overridden && survivorChainFlag
+    // F.2 (b), fix pass II (V11): a chain-flagged survivor the override is
+    // about to lift ranks by the status the restore will return it to —
+    // never by 'disqualified' — so the loser's further status, its intent
+    // and its caller carry onto the merged practice.
+    const survivorRestored = overrideLifts ? chainRestoreStatus(survivorFit?.dso?.priorStatus ?? survivorFit?.chain?.priorStatus) : null
     // A loser's "no" / "gone" / "never again" is carried onto the survivor —
     // except onto a clinic, where it would be nonsense: those stay two rows.
-    const loserCarries = (CARRIED_TERMINAL as readonly string[]).includes(loser.status)
+    const loserCarries = (CARRIED_TERMINAL as readonly string[]).includes(loser.status) && !(overridden && loserChainFlag)
     if (loserCarries && survivor.status === 'converted') return { ok: false, reason: 'loser_terminal' }
-    const survivorTerminal = isTerminal(survivor.status) || loserCarries
+    const survivorTerminal = (isTerminal(survivor.status) && !overrideLifts) || loserCarries
 
     // ── Contacts: one row per (prospect, email) ──────────────────────────
     const survivorContacts = await tx
@@ -425,16 +483,78 @@ export async function mergeProspects(
       for (const col of PHONE_VERDICT) (patch as Record<string, unknown>)[col] = loser[col]
       phoneVerdictTaken = true
     }
+    // FILL_COLUMNS copied the loser's WHOLE verification — its phone signal
+    // included — onto a survivor that had none.
+    const verificationFilled = survivor.verification == null && patch.verification != null
     let reachTaken = false
-    if (phoneVerdictTaken || sameNumber) {
+    if (phoneVerdictTaken || sameNumber || verificationFilled) {
       const mine = parseVerification(patch.verification ?? survivor.verification)
       const theirs = parseVerification(loser.verification)
-      if (phoneVerdictTaken && theirs.phone) mine.phone = theirs.phone
+      let changed = false
+      if (phoneVerdictTaken && theirs.phone) {
+        mine.phone = theirs.phone
+        changed = true
+      }
       if (sameNumber && !mine.reach && theirs.reach) {
         mine.reach = theirs.reach
         reachTaken = true
+        changed = true
       }
-      if ((phoneVerdictTaken && theirs.phone) || reachTaken) patch.verification = mine
+      // A MERGE NEVER LOSES PROVENANCE (fix pass IV, Y2; fix pass V, Z1).
+      // Whenever both rows hold the SAME number — whichever row carries
+      // the caller, whatever landed — the survivor's kept phone signal (its
+      // own; the loser's when the verdict take or the fill brought it, or
+      // when the survivor had none) keeps its status / detail / line facts
+      // but its `sources` become the union of both rows' voices (each
+      // row's signal sources AND its legacy column: a typed 'caller'
+      // statement about this very line survives the merge on EITHER side,
+      // so the next verify pass never replaces the typed number), the
+      // standing is recomputed from the union (a bad status stays
+      // single_source), the survivor's `alt` is kept (the loser's when it
+      // has none) with its sentence, and the phone_source column becomes
+      // 'caller' when EITHER side's column was 'caller' (pre-standing
+      // rows), else the recomputed standing. Nothing is written when the
+      // union adds nothing. A loser's signal about ANOTHER number never
+      // lands on a survivor that holds its own: it describes a line this
+      // row does not have.
+      const loserSignalLanded = theirs.phone != null && (phoneVerdictTaken || verificationFilled)
+      if (sameNumber) {
+        const survivorSig = parseVerification(survivor.verification).phone
+        const tookLosers = mine.phone == null && theirs.phone != null
+        const kept = mine.phone ?? theirs.phone
+        if (kept) {
+          const before = kept.sources ?? []
+          const voices = unionPhoneVoices(phoneVoices(survivorSig?.sources, survivor.phoneSource), phoneVoices(theirs.phone?.sources, loser.phoneSource))
+          const sourcesMoved = voices.length !== before.length || voices.some((s, i) => before[i] !== s)
+          const alt = survivorSig?.alt ?? kept.alt ?? theirs.phone?.alt ?? null
+          const altAdded = alt != null && kept.alt?.number !== alt.number
+          if (loserSignalLanded || tookLosers || sourcesMoved || altAdded) {
+            const status = (patch.phoneStatus ?? survivor.phoneStatus) as string | null
+            const standing = phoneStanding(voices, status)
+            const base = withoutListingAltNote(kept.detail)
+            mine.phone = {
+              ...kept,
+              sources: voices,
+              standing,
+              ...(alt ? { alt, detail: base ? `${base}; ${listingAltNote(alt.number)}` : listingAltNote(alt.number) } : {}),
+            }
+            patch.phoneSource = survivor.phoneSource === 'caller' || loser.phoneSource === 'caller' ? 'caller' : standing
+            changed = true
+          } else if (loser.phoneSource === 'caller' && survivor.phoneSource !== 'caller') {
+            patch.phoneSource = 'caller'
+          }
+        }
+      } else if (loserSignalLanded && verificationFilled && survivor.phone != null) {
+        delete mine.phone
+        changed = true
+      }
+      if (changed) patch.verification = mine
+    }
+    // The override travels onto a survivor that lacks it.
+    if (overridden && !survivorFit?.chainOverride && loserFit?.chainOverride) {
+      const mine = parseVerification(patch.verification ?? survivor.verification)
+      mine.fit = { ...(mine.fit ?? {}), chainOverride: loserFit.chainOverride }
+      patch.verification = mine
     }
     // The NPI MOVES: cleared on the loser first, so the unique index never
     // holds it twice inside the transaction.
@@ -466,9 +586,10 @@ export async function mergeProspects(
       // Each side ranks by where it IS, or — resting — by where it came
       // from: a practice that was contacted and went quiet is still further
       // along than a twin the refresh just enriched.
-      const survivorResting = survivor.status === 'dormant'
+      const survivorBase = survivorRestored ?? survivor.status
+      const survivorResting = survivorBase === 'dormant'
       const loserStatus = loser.status === 'dormant' ? wakeStatus(loser.dormantFromStatus) : loser.status
-      const survivorStatus = survivorResting ? wakeStatus(survivor.dormantFromStatus) : survivor.status
+      const survivorStatus = survivorResting ? wakeStatus(survivor.dormantFromStatus) : survivorBase
       const loserRank = STATUS_RANK[loserStatus]
       const survivorRank = STATUS_RANK[survivorStatus]
       if (
@@ -481,6 +602,10 @@ export async function mergeProspects(
           // Two resting rows: a merge is no signal, so nothing wakes — the
           // survivor keeps resting with the higher memory.
           patch.dormantFromStatus = loserStatus
+        } else if (survivorRestored) {
+          // The row reads disqualified until the restore after the
+          // transaction; the restore puts it at the loser's further status.
+          after.atLeast = loserStatus
         } else {
           patch.status = loserStatus
           patch.dormantFromStatus = null
@@ -561,24 +686,17 @@ export async function mergeProspects(
     // slot is released, and the survivor carries the release cooldown.
     let carried = false
     if (!survivorTerminal && loser.assignedCallerId != null && survivor.assignedCallerId == null && !ownersPromise) {
-      const [handover] = await tx
-        .select({ id: schema.prospect.id })
-        .from(schema.prospect)
-        .where(and(eq(schema.prospect.id, survivorId), isNull(schema.prospect.assignedCallerId), callerServableWhere(now)))
-        .limit(1)
-      if (handover) {
-        await tx
-          .update(schema.prospect)
-          .set({ assignedCallerId: loser.assignedCallerId, assignedAt: loser.assignedAt ?? now, callerCooldownUntil: null, updatedAt: now })
-          .where(and(eq(schema.prospect.id, survivorId), isNull(schema.prospect.assignedCallerId)))
-        carried = true
+      if (survivorRestored) {
+        // V11: a survivor still reading disqualified fails the predicate for
+        // the wrong reason — the hand-over runs against the RESTORED row,
+        // after the transaction.
+        after.handover = { callerId: loser.assignedCallerId, assignedAt: loser.assignedAt }
+      } else {
+        carried = await handOverToCaller(tx, survivorId, loser.assignedCallerId, loser.assignedAt, now)
       }
     }
-    if (!survivorTerminal && loser.assignedCallerId != null && !carried && survivor.assignedCallerId == null) {
-      await tx
-        .update(schema.prospect)
-        .set({ callerCooldownUntil: releaseCooldownUntil(now), updatedAt: now })
-        .where(and(eq(schema.prospect.id, survivorId), isNull(schema.prospect.assignedCallerId)))
+    if (!survivorTerminal && loser.assignedCallerId != null && !carried && !after.handover && survivor.assignedCallerId == null) {
+      await releaseWithCooldown(tx, survivorId, now)
     }
 
     // ── The loser rests under its survivor, nothing deleted ──────────────
@@ -595,9 +713,43 @@ export async function mergeProspects(
         updatedAt: now,
       })
       .where(and(eq(schema.prospect.id, loserId), ne(schema.prospect.status, 'merged')))
+    lifted = overrideLifts
     return null
   })
   if (refusal) return refusal
+  // A survivor set aside as a chain that now carries the owner's override
+  // goes back where it was — or where the loser already was (V11) — the one
+  // restore (drip resumed, a missing follow-up back); then the loser's
+  // caller takes the restored row through P-02's rule, or the slot is
+  // released with the cooldown.
+  if (lifted) {
+    // THE MERGE HAS COMMITTED (fix pass III, W8): a restore that throws
+    // here — the config read, a connection error on its update — must not
+    // escape (the caller would see a throw for rows that ARE merged) and
+    // must not lose the loser's caller. It is a strike on the ledger with
+    // one line of context; the hand-over path then ALWAYS runs — against
+    // a still-disqualified row it refuses and writes the cooldown — and
+    // so does the release hook. The owner's "Not a chain" on the row
+    // finishes the restore.
+    try {
+      const { restoreChainFlagged } = await import('./prospect-fit')
+      await restoreChainFlagged(survivorId, now, 'override', { atLeast: after.atLeast })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      console.error('[prospect-dedupe] the restore after a committed merge failed', survivorId, message)
+      try {
+        const { reportProspectingFailure } = await import('./engine-failures')
+        await reportProspectingFailure('hygiene', now, { step: 'restore_after_merge', prospectId: survivorId, loserId, error: message })
+      } catch (e) {
+        console.error('[prospect-dedupe] failure report failed', e)
+      }
+    }
+    if (after.handover) {
+      const exec: Exec = db
+      const carried = await handOverToCaller(exec, survivorId, after.handover.callerId, after.handover.assignedAt, now)
+      if (!carried) await releaseWithCooldown(exec, survivorId, now)
+    }
+  }
   // P-02's contract: a writer that can flip a row out of a caller's reach
   // calls the release hook after its write. A held survivor that just took
   // a hand-raiser's signal, a bad verdict or a demo still ahead goes back

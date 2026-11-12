@@ -101,7 +101,9 @@ export const PROSPECTING_FAILURE_CLASSES = {
     'Couldn’t validate prospect phone numbers just now (AWS refused mobiletargeting:PhoneNumberValidate) — I’ll keep trying.',
   nppes_down: 'Couldn’t reach the NPI registry just now — I’ll keep trying.',
   crawl_blocked: 'Couldn’t reach prospect websites just now (every check failed) — I’ll keep trying.',
-  // The hygiene pass (P-03): merges, resting rows, the territory refresh.
+  // The hygiene pass (P-03): merges, resting rows, the territory refresh —
+  // and a merge's restore that failed after the merge committed (P-04 fix
+  // pass III, W8: the context names the row; the hygiene pass keeps merging).
   hygiene: 'Couldn’t tidy the prospect list just now (duplicates, resting rows, a territory refresh) — I’ll keep trying.',
 } as const satisfies Record<string, string>
 
@@ -161,6 +163,9 @@ export async function reportAutomationFailure(
 export async function reportProspectingFailure(
   cls: ProspectingFailureClass,
   occurredAt: Date = new Date(),
+  /** One line of context beside the class — which step, which row, what
+   *  it said (the merge's restore, fix pass III W8). Never a secret. */
+  context: Record<string, unknown> | null = null,
 ): Promise<boolean> {
   let orgId: string | null = null
   try {
@@ -189,7 +194,7 @@ export async function reportProspectingFailure(
     organizationId: orgId,
     capability: AUTOMATION_FAILURE.prospecting.capability,
     summary: PROSPECTING_FAILURE_CLASSES[cls],
-    detail: { class: cls },
+    detail: { class: cls, ...(context ?? {}) },
     occurredAt,
     kind: 'engine',
   })

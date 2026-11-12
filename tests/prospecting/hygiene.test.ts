@@ -9,7 +9,7 @@ import { PgDialect } from 'drizzle-orm/pg-core'
  */
 
 type Op = { op: string; table: string; values: Record<string, unknown>; where?: unknown }
-const state = { selectQueue: [] as unknown[][], ops: [] as Op[] }
+const state = { selectQueue: [] as unknown[][], ops: [] as Op[], selectWheres: [] as unknown[] }
 
 vi.mock('@/lib/db', async () => {
   const schema = await vi.importActual<Record<string, unknown>>('@/lib/db/schema')
@@ -19,7 +19,11 @@ vi.mock('@/lib/db', async () => {
   }
   const selectChain = () => {
     const obj: any = {}
-    for (const m of ['from', 'where', 'orderBy', 'limit', 'groupBy', 'having']) obj[m] = () => obj
+    for (const m of ['from', 'orderBy', 'limit', 'groupBy', 'having']) obj[m] = () => obj
+    obj.where = (w: unknown) => {
+      state.selectWheres.push(w)
+      return obj
+    }
     obj.then = (onF: (v: unknown) => unknown, onR?: (e: unknown) => unknown) =>
       Promise.resolve(state.selectQueue.shift() ?? []).then(onF, onR)
     return obj
@@ -45,6 +49,9 @@ const mocks = vi.hoisted(() => ({
   counter: vi.fn(async () => 0),
   dedupe: vi.fn(async () => ({ groups: 0, merged: 0, skipped: 0, errors: 0 })),
   refresh: vi.fn(async () => null as null | Record<string, unknown>),
+  // P-04: the chain sweep and the freshness pull ride the same pass.
+  chains: vi.fn(async () => ({ groups: 0, flagged: 0, noted: 0, restored: 0, errors: 0 })),
+  pull: vi.fn(async () => [] as Array<Record<string, unknown>>),
   strike: vi.fn(async () => true),
 }))
 vi.mock('@/lib/services/prospecting', () => ({
@@ -54,7 +61,8 @@ vi.mock('@/lib/services/prospecting', () => ({
   counterDay: (d: Date) => d.toISOString().slice(0, 10),
 }))
 vi.mock('@/lib/services/prospect-dedupe', () => ({ runExactDedupeSweep: mocks.dedupe }))
-vi.mock('@/lib/services/prospect-discovery', () => ({ refreshStaleTerritory: mocks.refresh }))
+vi.mock('@/lib/services/prospect-discovery', () => ({ refreshStaleTerritory: mocks.refresh, pullForwardHotTerritories: mocks.pull }))
+vi.mock('@/lib/services/prospect-fit', () => ({ sweepChains: mocks.chains }))
 vi.mock('@/lib/services/engine-failures', () => ({ reportProspectingFailure: mocks.strike }))
 
 import {
@@ -77,6 +85,7 @@ const render = (q: unknown) => new PgDialect().sqlToQuery(q as never)
 beforeEach(() => {
   state.selectQueue = []
   state.ops = []
+  state.selectWheres = []
   vi.clearAllMocks()
   mocks.config.mockResolvedValue(LIVE)
   mocks.counter.mockResolvedValue(0)
@@ -215,8 +224,12 @@ describe('runProspectHygiene — the one pass', () => {
     expect(mocks.dedupe).not.toHaveBeenCalled()
   })
 
-  it('runs merges → decay → refresh in that order, under the caps, and bumps each day counter', async () => {
+  it('runs merges → chains → decay → the freshness pull → refresh in that order (dedupe FIRST — E.1), under the caps, and bumps each day counter (the restored chains too)', async () => {
     const order: string[] = []
+    mocks.chains.mockImplementation(async () => {
+      order.push('chains')
+      return { groups: 1, flagged: 2, noted: 1, restored: 1, errors: 0 }
+    })
     mocks.dedupe.mockImplementation(async () => {
       order.push('dedupe')
       return { groups: 4, merged: 3, skipped: 1, errors: 0 }
@@ -224,19 +237,38 @@ describe('runProspectHygiene — the one pass', () => {
     state.selectQueue.push([
       { id: 'pros_1', status: 'queued', createdAt: new Date(NOW.getTime() - 300 * DAY), nextFollowUpAt: null, qualityReasons: [], lastTouchAt: new Date(NOW.getTime() - 200 * DAY) },
     ])
+    mocks.pull.mockImplementation(async () => {
+      order.push('pull')
+      return [{ state: 'TX', zipPrefix: '787', closed: 3, tasks: 1 }]
+    })
     mocks.refresh.mockImplementation(async () => {
       order.push('refresh')
       return { taskId: 'pdt_1', state: 'GA', zipPrefix: '303', found: 180, imported: 2, requests: 2, capped: false }
     })
     const r = await runProspectHygiene({ now: NOW })
-    expect(r).toEqual({ merged: 3, rested: 1, refreshed: { state: 'GA', zipPrefix: '303', found: 180, imported: 2 }, errors: 0 })
-    expect(order).toEqual(['dedupe', 'refresh'])
+    expect(r).toEqual({
+      merged: 3,
+      rested: 1,
+      refreshed: { state: 'GA', zipPrefix: '303', found: 180, imported: 2 },
+      chainsFlagged: 2,
+      chainsRestored: 1,
+      pulledForward: 1,
+      errors: 0,
+    })
+    // Dedupe folds a duplicate spelling BEFORE the chain rule counts addresses;
+    // the pull runs BEFORE the refresh, so the same tick can re-sweep the territory it pulled.
+    expect(order).toEqual(['dedupe', 'chains', 'pull', 'refresh'])
     expect(prospectUpdates()[0].values.status).toBe('dormant') // decay ran between them
+    expect(mocks.chains).toHaveBeenCalledWith({ now: NOW })
+    expect(mocks.pull).toHaveBeenCalledWith({ now: NOW, config: LIVE })
     expect(mocks.dedupe).toHaveBeenCalledWith({ now: NOW, cap: MERGES_PER_RUN, config: LIVE }) // the config rides along: a verdict that travels rescores with its clock
     expect(MERGES_PER_RUN).toBe(25)
     expect(mocks.bump.mock.calls).toEqual([
       ['2026-11-10', 'dedupe_merge', 3],
+      ['2026-11-10', 'chain_flag', 2],
+      ['2026-11-10', 'chain_restore', 1],
       ['2026-11-10', 'decay', 1],
+      ['2026-11-10', 'refresh_pull', 1],
       ['2026-11-10', 'discovery_refresh'],
     ])
     expect(mocks.strike).not.toHaveBeenCalled()
@@ -244,10 +276,12 @@ describe('runProspectHygiene — the one pass', () => {
 
   it('a broken step is a logged zero + ONE hygiene strike; the next steps still run', async () => {
     const quiet = vi.spyOn(console, 'error').mockImplementation(() => {})
+    mocks.chains.mockRejectedValue(new Error('chains boom'))
     mocks.dedupe.mockRejectedValue(new Error('boom'))
+    mocks.pull.mockRejectedValue(new Error('pull boom'))
     mocks.refresh.mockRejectedValue(new Error('NPPES 503'))
     const r = await runProspectHygiene({ now: NOW })
-    expect(r).toMatchObject({ merged: 0, rested: 0, refreshed: null, errors: 2 })
+    expect(r).toMatchObject({ merged: 0, rested: 0, refreshed: null, chainsFlagged: 0, chainsRestored: 0, pulledForward: 0, errors: 4 })
     expect(mocks.strike).toHaveBeenCalledTimes(1)
     expect(mocks.strike).toHaveBeenCalledWith('hygiene', NOW)
     quiet.mockRestore()
@@ -264,15 +298,55 @@ describe('runProspectHygiene — the one pass', () => {
 })
 
 describe('getHygieneStats', () => {
-  it('merged today from the day counter, resting from the table, the last refresh UTC-stamped upstream', async () => {
-    mocks.counter.mockResolvedValue(3)
-    state.selectQueue.push([{ n: 41 }], [{ state: 'TX', zipPrefix: '787', at: new Date('2026-11-10T06:00:00Z') }])
+  it('merged today from the day counter, resting from the table, the last refresh UTC-stamped upstream — and (P-04) the chains set aside, the chains restored today, the territory the callers pulled forward', async () => {
+    mocks.config.mockResolvedValue({ ...LIVE, enabledStates: ['GA', 'TX'] })
+    mocks.counter.mockResolvedValueOnce(3).mockResolvedValueOnce(2)
+    state.selectQueue.push(
+      [{ n: 41 }],
+      [{ state: 'TX', zipPrefix: '787', at: new Date('2026-11-10T06:00:00Z') }],
+      [{ n: 7 }],
+      [{ state: 'TX', zipPrefix: '7871', reason: '3 closed practices this month', at: new Date('2026-11-10T07:00:00Z') }],
+    )
     expect(await getHygieneStats(NOW)).toEqual({
       mergedToday: 3,
       resting: 41,
       lastRefresh: { state: 'TX', zipPrefix: '787', at: new Date('2026-11-10T06:00:00Z') },
+      chainsRemoved: 7,
+      chainsRestoredToday: 2,
+      // A zip5 child task's pull reads as its zip3 territory.
+      earlyRefresh: { state: 'TX', zipPrefix: '787', reason: '3 closed practices this month', at: new Date('2026-11-10T07:00:00Z') },
     })
     expect(mocks.counter).toHaveBeenCalledWith('2026-11-10', 'dedupe_merge')
+    expect(mocks.counter).toHaveBeenCalledWith('2026-11-10', 'chain_restore')
+  })
+  it('is honest with nothing pulled and no chains', async () => {
+    mocks.counter.mockResolvedValue(0)
+    state.selectQueue.push([{ n: 0 }], [], [{ n: 0 }], [])
+    expect(await getHygieneStats(NOW)).toMatchObject({ chainsRemoved: 0, chainsRestoredToday: 0, earlyRefresh: null })
+  })
+  it('V6: the early-refresh line reads only a pull on an ENABLED state — a pull stamped on a state since turned off is not shown; with no enabled state there is no read at all', async () => {
+    // TX was pulled, then turned off: the read is filtered to the enabled
+    // states in SQL, so the stale TX stamp never reaches the tile.
+    mocks.config.mockResolvedValue({ ...LIVE, enabledStates: ['GA'] })
+    mocks.counter.mockResolvedValue(0)
+    state.selectQueue.push([{ n: 0 }], [], [{ n: 0 }], [])
+    expect((await getHygieneStats(NOW)).earlyRefresh).toBeNull()
+    const { sql: text, params } = render(state.selectWheres[3])
+    expect(text).toBe('("prospect_discovery_task"."refresh_pulled_at" is not null and "prospect_discovery_task"."state" in ($1))')
+    expect(params).toEqual(['GA'])
+    // The config can be handed in (the page's one read); a pull on an enabled state still shows.
+    state.selectWheres = []
+    state.selectQueue.push([{ n: 0 }], [], [{ n: 0 }], [{ state: 'GA', zipPrefix: '303', reason: '3 closed practices this month', at: new Date('2026-11-10T07:00:00Z') }])
+    const shown = await getHygieneStats(NOW, { config: { ...LIVE, enabledStates: ['GA'] } })
+    expect(shown.earlyRefresh).toEqual({ state: 'GA', zipPrefix: '303', reason: '3 closed practices this month', at: new Date('2026-11-10T07:00:00Z') })
+    expect(render(state.selectWheres[3]).params).toEqual(['GA'])
+    // Every state off: nothing is refreshing anywhere, so nothing is read — the queued stamp stays unread.
+    state.selectWheres = []
+    state.selectQueue.push([{ n: 0 }], [], [{ n: 0 }], [{ state: 'TX', zipPrefix: '787', reason: '3 closed practices this month', at: new Date('2026-11-10T07:00:00Z') }])
+    const off = await getHygieneStats(NOW, { config: { ...LIVE, enabledStates: [] } })
+    expect(off.earlyRefresh).toBeNull()
+    expect(state.selectWheres).toHaveLength(3)
+    expect(state.selectQueue).toHaveLength(1)
   })
 })
 

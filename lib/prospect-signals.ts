@@ -12,13 +12,174 @@ import { isJunkEmail, parseEmail } from '@/lib/prospect-email'
 const BOOKING_MARKERS =
   /(localmed|nexhealth|flexbook|zocdoc|solutionreach|lighthouse\s*360|denticon|curve\s*hero|book\s+(online|now|an?\s+appointment)|schedule\s+(online|now|an?\s+appointment)|request\s+an?\s+appointment)/i
 
+// DIY builders first, then the dental template vendors (P-04 — a ProSites
+// or PBHS site is usually WordPress underneath, so the vendor must win),
+// WordPress last. Keys are BUILDER_LABELS keys.
 const BUILDER_FINGERPRINTS: Array<[RegExp, string]> = [
   [/wixstatic\.com|wix\.com\/website/i, 'wix'],
   [/squarespace\.com|squarespace-cdn/i, 'squarespace'],
   [/godaddy\.com|website-builder|wsimg\.com/i, 'godaddy'],
-  [/wp-content|wp-includes|wordpress/i, 'wordpress'],
   [/weebly\.com|weeblycloud/i, 'weebly'],
+  [/prosites\.com|prosites/i, 'prosites'],
+  [/pbhs\.com|pbhs/i, 'pbhs'],
+  [/officite\.com|officite/i, 'officite'],
+  [/tntdental\.com|tntdental/i, 'tntdental'],
+  [/wp-content|wp-includes|wordpress/i, 'wordpress'],
 ]
+
+/**
+ * THE COMPETITOR STACK (P-04) — booking widgets and review / messaging
+ * engines, fingerprinted on HOSTS and nothing else (fix pass): the host of
+ * every `<script src>`, `<link href>` and `<iframe src>`, and the host of
+ * every URL-shaped token inside an inline JAVASCRIPT body (a JSON or
+ * JSON-LD script body is page copy — fix pass II). Never a bare word —
+ * "we moved off NexHealth" in a blog's JSON-LD, a hydration payload or an
+ * article link is not a NexHealth install. Each pattern matches a host
+ * label at a dot boundary, so "localmedia.com" is not LocalMed and
+ * "interweave.com" is not Weave. Names are the display names the
+ * opportunity reasons use ("Already on NexHealth + Birdeye").
+ */
+export const STACK_FINGERPRINTS: ReadonlyArray<{ name: string; pattern: RegExp }> = [
+  { name: 'NexHealth', pattern: /(^|\.)nexhealth\./ },
+  { name: 'Zocdoc', pattern: /(^|\.)zocdoc\./ },
+  { name: 'LocalMed', pattern: /(^|\.)localmed\./ },
+  { name: 'Weave', pattern: /(^|\.)(getweave|weave|weaveconnect)\./ },
+  { name: 'Solutionreach', pattern: /(^|\.)(solutionreach|smilereminder)\./ },
+  { name: 'RevenueWell', pattern: /(^|\.)revenuewell\./ },
+  { name: 'Birdeye', pattern: /(^|\.)birdeye\./ },
+  { name: 'Podium', pattern: /(^|\.)podium\./ },
+  { name: 'Dentrix Ascend', pattern: /(^|\.)(dentrixascend|ascend\.dentrix)\./ },
+  { name: 'Curve', pattern: /(^|\.)(curvehero|curvedental)\./ },
+  { name: 'Lighthouse 360', pattern: /(^|\.)(lighthouse360|lh360)\./ },
+  { name: 'Flex', pattern: /(^|\.)(flexbook|getflex|dentalintel|dental-intelligence)\./ },
+  { name: 'Yapi', pattern: /(^|\.)(yapiapp|yapi)\./ },
+  { name: 'Swell', pattern: /(^|\.)(swellcx|getswell)\./ },
+  { name: 'Doctible', pattern: /(^|\.)doctible\./ },
+  { name: 'Demandforce', pattern: /(^|\.)demandforce\./ },
+  { name: 'Jane', pattern: /(^|\.)janeapp\./ },
+  { name: 'Modento', pattern: /(^|\.)modento\./ },
+]
+
+/** The host of an absolute or protocol-relative http(s) URL, lower-cased;
+ *  null for a relative path, another scheme or junk. */
+function hostOf(url: string): string | null {
+  try {
+    const u = new URL(url.trim(), 'https://relative.invalid')
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return null
+    const host = u.hostname.toLowerCase()
+    return host && host !== 'relative.invalid' ? host : null
+  } catch {
+    return null
+  }
+}
+
+/** The script types whose inline body is CODE — the only bodies the token
+ *  scan reads (fix pass II, V12). The HTML spec's JavaScript MIME essence
+ *  list in full (fix pass III, W5 — a 2010-era `application/x-javascript`
+ *  or `text/ecmascript` loader is executed by every browser and must be
+ *  fingerprinted like any other), plus `module` and the empty type. A
+ *  `<script type="application/json">` hydration payload or an
+ *  `application/ld+json` block carries the page's copy (an article link
+ *  to a vendor, a sameAs), never an install. */
+const JS_SCRIPT_TYPES = new Set([
+  'application/ecmascript',
+  'application/javascript',
+  'application/x-ecmascript',
+  'application/x-javascript',
+  'text/ecmascript',
+  'text/javascript',
+  'text/javascript1.0',
+  'text/javascript1.1',
+  'text/javascript1.2',
+  'text/javascript1.3',
+  'text/javascript1.4',
+  'text/javascript1.5',
+  'text/jscript',
+  'text/livescript',
+  'text/x-ecmascript',
+  'text/x-javascript',
+  'module',
+])
+
+/** Is this `<script …>` tag's body JavaScript? No type attribute is; a
+ *  `;charset=…` suffix is tolerated. */
+export function isJavaScriptScriptTag(attrs: string): boolean {
+  const m = attrs.match(/\stype\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i)
+  if (!m) return true
+  const type = (m[1] ?? m[2] ?? m[3] ?? '').trim().toLowerCase().split(';')[0].trim()
+  return type === '' || JS_SCRIPT_TYPES.has(type)
+}
+
+/** A JavaScript body that is a HYDRATION SINK — the page's data, not its
+ *  code (fix pass III, W6): Next's App Router flight payload
+ *  (`self.__next_f.push(`), Nuxt, Remix, the Vuex / Apollo / Redux
+ *  preloaded-state idiom, Pages-Router Next and SvelteKit. Such a body
+ *  carries the page's copy (a blog post's link to a vendor) and is skipped
+ *  whole, judged by its leading non-space text. */
+const HYDRATION_SINK =
+  /^\s*(?:\(?self\.__next_f|window\.__NUXT__|window\.__remixContext|window\.__INITIAL_STATE__|window\.__APOLLO_STATE__|window\.__PRELOADED_STATE__|window\.__NEXT_DATA__|__sveltekit)/
+
+/** Is this inline JavaScript body a hydration sink? Exported for tests. */
+export function isHydrationSink(body: string): boolean {
+  return HYDRATION_SINK.test(body)
+}
+
+/** How far back of a URL token the script-shaped anchors are looked for. */
+const SCRIPT_ANCHOR_WINDOW = 120
+/** The anchors that make a URL token SCRIPT-SHAPED inside a JS body: the
+ *  token sits within 120 characters after `.src`, `src=`, `src:`,
+ *  `import(`, `createElement("script")` / `createElement('script')`,
+ *  `loadScript(` or `appendChild(`. */
+const SCRIPT_ANCHOR = /(?:\.src\b|\bsrc\s*[=:]|\bimport\s*\(|createElement\s*\(\s*["']script["']\s*\)|loadScript\s*\(|appendChild\s*\()/i
+
+/** Is this URL token, inside a JavaScript body, SCRIPT-SHAPED (fix pass
+ *  III, W6)? Its path ends in .js / .mjs, OR a loader anchor sits within
+ *  120 characters before it. A bare `"https://www.nexhealth.com/practices/x"`
+ *  string in a JS body — a link the code renders — is neither. Exported
+ *  for tests. */
+export function isScriptShapedToken(body: string, index: number, token: string): boolean {
+  const path = token.replace(/^https?:\/\/[^/]*/i, '').replace(/[?#].*$/, '')
+  if (/\.m?js$/i.test(path)) return true
+  return SCRIPT_ANCHOR.test(body.slice(Math.max(0, index - SCRIPT_ANCHOR_WINDOW), index))
+}
+
+/** The hosts a page loads code or frames from: `<script src>`, `<link
+ *  href>`, `<iframe src>` (whatever the tag's type), and every
+ *  SCRIPT-SHAPED URL inside an inline script body WHEN that body is
+ *  JavaScript and not a hydration sink — a JSON or JSON-LD body, a flight
+ *  payload and a `window.__NUXT__` object are page copy and are skipped
+ *  (V12, W6). Exported for tests. */
+export function stackHosts(html: string): string[] {
+  const hosts = new Set<string>()
+  const add = (url: string) => {
+    const h = hostOf(url)
+    if (h) hosts.add(h)
+  }
+  for (const m of Array.from(html.matchAll(/<(?:script|link|iframe)\b[^>]*?\s(?:src|href)\s*=\s*["']([^"']{1,500})["']/gi))) add(m[1])
+  for (const m of Array.from(html.matchAll(/<script\b([^>]*)>([\s\S]{0,20000}?)<\/script>/gi))) {
+    if (!isJavaScriptScriptTag(m[1])) continue
+    const body = m[2]
+    if (isHydrationSink(body)) continue
+    for (const u of Array.from(body.matchAll(/https?:\/\/[a-z0-9.-]+(?::\d+)?(?:\/[^\s"'`<>()\\]*)?/gi))) {
+      if (isScriptShapedToken(body, u.index ?? 0, u[0])) add(u[0])
+    }
+  }
+  return Array.from(hosts)
+}
+
+/** The corpus the fingerprints run over: one host a line, nothing else. */
+export function stackCorpus(html: string): string {
+  return stackHosts(html).join('\n')
+}
+
+/** Fingerprint the competitor stack on a page (display names, list order). */
+export function detectStack(html: string): string[] {
+  const hosts = stackHosts(html)
+  if (hosts.length === 0) return []
+  const out: string[] = []
+  for (const f of STACK_FINGERPRINTS) if (hosts.some((h) => f.pattern.test(h))) out.push(f.name)
+  return out
+}
 
 function socialLink(html: string, pattern: RegExp): string | undefined {
   const m = html.match(pattern)
@@ -105,6 +266,7 @@ export function extractCrawlSignals(input: {
       youtube: socialLink(html, /https?:\/\/(?:www\.)?youtube\.com\/(?:channel\/|user\/|@)[a-z0-9_.\-/%]+/i),
     },
     builder,
+    stack: detectStack(html),
     pageWeightKb: Math.round(input.bytes / 1024),
     emails: extractSiteEmails(html),
     fetchedAt: input.fetchedAt.toISOString(),

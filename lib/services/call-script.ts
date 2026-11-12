@@ -3,10 +3,10 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db, schema } from '@/lib/db'
 import { runClaudeJson, aiConfigured } from '@/lib/ai'
-import { effectiveProductKnowledge, segmentAngle } from '@/lib/prospect-product-knowledge'
+import { effectiveProductKnowledge, segmentAngle, unreadWebsiteAngle } from '@/lib/prospect-product-knowledge'
 import { segmentForProspect } from '@/lib/prospect-segment'
 import { parseCallScript, type CallScript } from '@/lib/types/call-script'
-import { ratingLabel, type ProspectAiVerdict, type ProspectCrawlSignals } from '@/lib/types/prospecting'
+import { isWebsiteUnread, ratingLabel, type ProspectAiVerdict, type ProspectCrawlSignals } from '@/lib/types/prospecting'
 import { bumpProspectingCounter, counterMonth, getProspectingConfig } from './prospecting'
 
 /**
@@ -87,7 +87,7 @@ export async function getOrGenerateCallScript(
       maxTokens: 900,
       system:
         effectiveProductKnowledge(config?.brain ?? null, { short: true }) +
-        `\n\n${segmentAngle(segment)}` +
+        `\n\n${isWebsiteUnread(verdict) ? unreadWebsiteAngle() : segmentAngle(segment)}` +
         "\n\nYou write a COLD-CALL script for Dustin at Dream Create calling a dental practice. He hates cold calling, so every word must be natural to say out loud — short sentences, contractions, zero salesy fluff, no exclamation marks. Ground everything in the provided facts; never fabricate pricing, clients, or capabilities beyond the product knowledge.\n- opener: the first ten seconds. Name-check the practice (and the doctor when known), say who's calling in half a sentence, then ONE specific, true observation about their online presence that earns the next sentence. No 'how are you today'.\n- whyThem: one or two spoken sentences on why this call is worth their time — their situation, not our features.\n- valuePoints: up to 3 short spoken lines mapping what we do to their verified gaps.\n- objections: the 2-4 likeliest brush-offs on a COLD CALL (e.g. 'not interested', 'we're busy', 'send an email', 'we have a website guy') each with a one-breath response that keeps the door open without pushing.\n- ask: one clear, low-pressure ask for a 20-minute demo.\n- voicemail: ~20 seconds spoken (55-75 words): who, the one observation, one sentence of value, and that he'll try again — warm, unhurried, no callback pressure.",
       messages: [{ role: 'user', content: facts.join('\n') }],
       toolName: 'write_call_script',

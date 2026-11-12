@@ -1,4 +1,4 @@
-import type { ProspectAiVerdict, ProspectCrawlSignals } from '@/lib/types/prospecting'
+import { crawlUnreadReason, crawlWasRead, isWebsiteUnread, type ProspectAiVerdict, type ProspectCrawlSignals } from '@/lib/types/prospecting'
 import { DEMO_BEATS } from '@/lib/types/demo-script'
 import { effectiveProductKnowledge, type ProspectBrain } from '@/lib/prospect-product-knowledge'
 
@@ -37,12 +37,22 @@ export function buildDemoBriefPrompt(input: DemoBriefPromptInput): {
     `Website: ${input.websiteUrl ?? 'NONE FOUND'}`,
     `Google: ${input.ratingTenths != null ? (input.ratingTenths / 10).toFixed(1) + '★' : 'no rating'}, ${input.reviewCount ?? 'unknown'} reviews`,
     `Benchmark: a typical established practice runs ~4.5★ with ~200 reviews.`,
-    ...(s
+    // Only a READ page states its facts; an unread crawl says why nobody
+    // read it — never "mobile viewport false" about a page we never saw
+    // (fix pass III, W4).
+    ...(crawlWasRead(s)
       ? [
           `Site signals: HTTPS ${s.ssl} · mobile viewport ${s.mobileViewport} · copyright year ${s.copyrightYear ?? 'none'} · online-booking markers ${s.bookingWidget} · builder ${s.builder ?? 'custom/unknown'} · socials linked: ${Object.entries(s.socialLinks).filter(([, x]) => x).map(([k]) => k).join(', ') || 'none'}`,
         ]
-      : ['Site signals: not crawled yet.']),
-    ...(v ? [`Website quality ${v.websiteQuality}/100 · social presence ${v.socialPresence}/100 · verified weaknesses: ${v.weaknesses.join('; ') || 'none recorded'}`] : []),
+      : s
+        ? [`Site signals: site not read (${crawlUnreadReason(s.error)}).`]
+        : ['Site signals: not crawled yet.']),
+    // An unread website's placeholder 0 is never a grade (X1).
+    ...(v
+      ? isWebsiteUnread(v)
+        ? ['Website not read — quality unknown; do not describe or judge their site.']
+        : [`Website quality ${v.websiteQuality}/100 · social presence ${v.socialPresence}/100 · verified weaknesses: ${v.weaknesses.join('; ') || 'none recorded'}`]
+      : []),
     ...(input.scoreReasons.length ? [`Opportunity reasons: ${input.scoreReasons.join('; ')}`] : []),
     '',
     `Demo beats available (use these EXACT beatId values): ${DEMO_BEATS.map((b) => `${b.id} ("${b.title}")`).join(', ')}`,

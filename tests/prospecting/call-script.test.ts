@@ -153,6 +153,24 @@ describe('getOrGenerateCallScript', () => {
     expect(bumpMock).toHaveBeenCalledWith('2026-07', 'ai_call_script')
   })
 
+  it('X1: a website nobody read gets the unread angle — the script is told not to describe or judge the site; never "dated" (weak_website) nor "the site is fine" (weak_presence)', async () => {
+    state.selectQueue.push([
+      {
+        ...PROSPECT,
+        enrichment: { stack: null, builder: null, error: 'fetch_failed' },
+        aiVerdict: { hasWebsite: true, websiteRead: false, websiteQuality: 0, websiteReasons: [], socialPresence: 0, onlineBooking: false, weaknesses: [], summary: 'Website not read.' },
+      },
+    ])
+    aiMock.mockResolvedValue(GOOD_OUTPUT)
+    await getOrGenerateCallScript('pros_1')
+    const { system, messages } = aiMock.mock.calls[0][0] as { system: string; messages: Array<{ content: string }> }
+    expect(system).toMatch(/could NOT read/)
+    expect(system).toMatch(/do not describe or judge their site/)
+    expect(system).not.toMatch(/site is dated|The site is fine|has NO website/)
+    expect(messages[0].content).toContain('Presence summary: Website not read.')
+    expect(messages[0].content).not.toMatch(/Verified gaps/)
+  })
+
   it('invalid AI output → null, no write, no meter', async () => {
     state.selectQueue.push([PROSPECT])
     aiMock.mockResolvedValue({ opener: 'too short only' }) // missing fields

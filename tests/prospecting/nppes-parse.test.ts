@@ -202,8 +202,22 @@ describe('parseNpiLookup (P-01 — NPI liveness)', () => {
       found: true,
       status: 'active',
       deactivationDate: null,
-      location: { addressLine1: '123 Main St', city: 'Atlanta', state: 'GA', postalCode: '30309', phone: '4045551212' },
+      // Fit (P-04): the entity type, the enumeration date and the org name
+      // ride the same lookup — the fixture states none of the first two.
+      enumerationType: null,
+      enumerationDate: null,
+      organizationName: 'SMILE DENTAL PC',
+      // The suite line rides along for the practice-size count (P-04 fix pass).
+      location: { addressLine1: '123 Main St', addressLine2: null, city: 'Atlanta', state: 'GA', postalCode: '30309', phone: '4045551212' },
     })
+    const suite = parseNpiLookup({ results: [{ ...RAW, addresses: RAW.addresses.map((a) => (a.address_purpose === 'LOCATION' ? { ...a, address_2: 'STE 210' } : a)) }] })
+    expect(suite.location?.addressLine2).toBe('STE 210')
+  })
+  it('carries the entity type and the enumeration date for the fit read (P-04)', () => {
+    const r = parseNpiLookup({ results: [{ ...RAW, enumeration_type: 'NPI-2', basic: { ...RAW.basic, enumeration_date: '2025-06-15' } }] })
+    expect(r).toMatchObject({ enumerationType: 'NPI-2', enumerationDate: '2025-06-15', organizationName: 'SMILE DENTAL PC' })
+    expect(parseNpiLookup({ results: [{ ...RAW, enumeration_type: 'NPI-1' }] }).enumerationType).toBe('NPI-1')
+    expect(parseNpiLookup({ results: [{ ...RAW, enumeration_type: 'weird' }] }).enumerationType).toBeNull()
   })
   it('a deactivated NPI carries its deactivation date', () => {
     const r = parseNpiLookup({
@@ -221,7 +235,15 @@ describe('parseNpiLookup (P-01 — NPI liveness)', () => {
     expect(back.status).toBe('active')
   })
   it('an empty or junk body is "not found", never a throw', () => {
-    expect(parseNpiLookup({ result_count: 0, results: [] })).toEqual({ found: false, status: null, deactivationDate: null, location: null })
+    expect(parseNpiLookup({ result_count: 0, results: [] })).toEqual({
+      found: false,
+      status: null,
+      deactivationDate: null,
+      enumerationType: null,
+      enumerationDate: null,
+      organizationName: null,
+      location: null,
+    })
     expect(parseNpiLookup(null).found).toBe(false)
     expect(parseNpiLookup('nope').found).toBe(false)
   })

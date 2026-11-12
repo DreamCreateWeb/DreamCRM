@@ -48,6 +48,12 @@ vi.mock('drizzle-orm', () => ({
   sql: Object.assign(vi.fn(() => ({})), { raw: vi.fn() }),
 }))
 
+// The cold-caller release hook (P-02 / P-04) rides the disqualified branch;
+// its own suite covers it — here it is a spy so the update counts below
+// stay the enrich pass's own statements.
+const { releaseMock } = vi.hoisted(() => ({ releaseMock: vi.fn(async (_id: string, _now?: Date) => false) }))
+vi.mock('@/lib/services/prospect-caller-release', () => ({ releaseIfUnservable: releaseMock }))
+
 // Contact sync (MX verification) is exercised in contacts.test.ts; stub it
 // here so enrichment stays focused and never touches DNS.
 const { syncContactsMock } = vi.hoisted(() => ({
@@ -137,7 +143,7 @@ vi.mock('@/lib/ai', () => ({
   aiConfigured: aiConfiguredMock,
 }))
 
-import { runEnrichment, reEnrichProspect } from '@/lib/services/prospect-enrich'
+import { runEnrichment, reEnrichProspect, unreadCrawlSignals } from '@/lib/services/prospect-enrich'
 import { PROSPECTING_DEFAULTS } from '@/lib/types/prospecting'
 
 const NOW = new Date('2026-07-07T00:00:00Z')
@@ -325,7 +331,7 @@ describe('reEnrichProspect (manual refresh)', () => {
     placeMock.mockResolvedValue(found(PLACE))
     verifyMock.mockImplementationOnce(async () => ({
       patch: {
-        verification: { website: { status: 'dead', detail: 'smiledental.com no longer resolves (DNS)', checkedAt: '2026-07-07T00:00:00.000Z', source: 'crawl' } },
+        verification: { website: { status: 'dead', detail: 'smiledental.com no longer resolves (DNS)', checkedAt: '2026-07-07T00:00:00.000Z', source: 'crawl', cause: 'dns' } },
         verifiedAt: new Date('2026-07-07T00:00:00Z'),
         qualityScore: 0, qualityBand: 'parked', qualityReasons: ['smiledental.com no longer resolves (DNS)'],
         phone: null, phoneStatus: 'unknown', phoneLineType: null, phoneSource: null, phoneValidatedAt: null,
@@ -339,6 +345,60 @@ describe('reEnrichProspect (manual refresh)', () => {
     expect(final.values).toMatchObject({ status: 'enriched', qualityBand: 'parked', websiteUrl: 'https://smiledental.com' })
     // The opportunity score still says "they need a website" — the two scores are never blended.
     expect(final.values.opportunityScore).toBeGreaterThanOrEqual(65)
+    // X1: a site that is GONE (dead by dns) is not an unread one — its state
+    // was read; the verdict is the no-website one, never "Website not read".
+    expect(final.values.aiVerdict).toMatchObject({ hasWebsite: false, summary: 'No website found.' })
+    expect(final.values.scoreReasons as string[]).not.toContain('Website not read — quality unknown')
+  })
+
+  it('Y1: a site the probe marked dead because it TIMED OUT TWICE is UNREAD — the unread verdict (hasWebsite true, websiteRead false, no "no website" weakness), never 92; a parked page and a legacy dead with no cause stay the no-website verdict', async () => {
+    const deadWith = (website: Record<string, unknown>, detail: string) => async () => ({
+      patch: {
+        verification: { website: { status: 'dead', detail, checkedAt: '2026-07-07T00:00:00.000Z', source: 'crawl', ...website } },
+        verifiedAt: new Date('2026-07-07T00:00:00Z'),
+        qualityScore: 0, qualityBand: 'parked', qualityReasons: [detail],
+        phone: null, phoneStatus: 'unknown', phoneLineType: null, phoneSource: null, phoneValidatedAt: null,
+      },
+      place: PLACE, match: null, websiteUrl: PLACE.websiteUri, liveness: null,
+    })
+    state.selectQueue.push([PROSPECT])
+    placeMock.mockResolvedValue(found(PLACE))
+    verifyMock.mockImplementationOnce(deadWith({ cause: 'timeout' }, 'smiledental.com timed out twice (6s)'))
+    mockPageFetches()
+    const r = await runEnrichment()
+    expect(r).toMatchObject({ enriched: 1, crawls: 0, aiScored: 0 })
+    const slow = state.updates.at(-1)!.values
+    expect(slow).toMatchObject({ status: 'enriched', qualityBand: 'parked', websiteUrl: 'https://smiledental.com' })
+    expect(slow.aiVerdict).toMatchObject({ hasWebsite: true, websiteRead: false, weaknesses: [], summary: 'Website not read.' })
+    expect(slow.scoreReasons as string[]).toContain('Website not read — quality unknown')
+    expect(slow.scoreReasons as string[]).not.toContain('No website at all — needs everything we sell')
+    expect(slow.opportunityScore).toBeLessThan(90)
+    expect(slow.scoreBand).not.toBe('hot')
+    // A parked page WAS read: the practice has no working website.
+    state.updates.length = 0
+    state.selectQueue.push([PROSPECT])
+    verifyMock.mockImplementationOnce(deadWith({ status: 'parked', cause: 'parked' }, 'smiledental.com shows a parked-domain page'))
+    await runEnrichment()
+    expect(state.updates.at(-1)!.values.aiVerdict).toMatchObject({ hasWebsite: false, summary: 'No website found.' })
+    // A dead stored before the cause was kept (Z2): one whose detail is the
+    // probe's own "timed out twice" read nothing — the unread verdict, never
+    // 92; any other legacy detail (a DNS gone, a server error) stays gone.
+    state.updates.length = 0
+    state.selectQueue.push([PROSPECT])
+    verifyMock.mockImplementationOnce(deadWith({}, 'smiledental.com timed out twice (6s)'))
+    await runEnrichment()
+    const legacyTimeout = state.updates.at(-1)!.values
+    expect(legacyTimeout.aiVerdict).toMatchObject({ hasWebsite: true, websiteRead: false, weaknesses: [], summary: 'Website not read.' })
+    expect(legacyTimeout.scoreReasons as string[]).toContain('Website not read — quality unknown')
+    expect(legacyTimeout.scoreReasons as string[]).not.toContain('No website at all — needs everything we sell')
+    expect(legacyTimeout.opportunityScore).toBeLessThan(90)
+    for (const detail of ['smiledental.com no longer resolves (DNS)', 'smiledental.com answers with a server error (503)']) {
+      state.updates.length = 0
+      state.selectQueue.push([PROSPECT])
+      verifyMock.mockImplementationOnce(deadWith({}, detail))
+      await runEnrichment()
+      expect(state.updates.at(-1)!.values.aiVerdict, detail).toMatchObject({ hasWebsite: false, summary: 'No website found.' })
+    }
   })
 
   it('fails soft on budget exhaustion and unknown ids', async () => {
@@ -457,5 +517,100 @@ describe('P-01 fixes: the listing columns + the drip stop ride the verify outcom
     await runEnrichment()
     const cleared = state.updates.at(-1)!.values
     expect(cleared).toMatchObject({ googlePlaceId: null, googleRatingTenths: null, reviewCount: null, businessStatus: null, googleMapsUri: null, websiteUrl: null })
+  })
+})
+
+// ── P-04: fit and freshness in the enrich pass ──────────────────────────────
+
+describe('P-04 in the enrich pass', () => {
+  it('a disqualified practice (closed, retired, a chain) frees a cold caller’s slot', async () => {
+    state.selectQueue.push([PROSPECT])
+    placeMock.mockResolvedValue(found({ ...PLACE, businessStatus: 'CLOSED_PERMANENTLY' }))
+    await runEnrichment()
+    expect(releaseMock).toHaveBeenCalledWith('pros_1', expect.any(Date))
+  })
+
+  it('a robots.txt refusal is UNKNOWN (stack null), never "looked, no booking engine": no +6, stored as an UNREAD crawl, and the AI is NOT asked about a page nobody read — no verdict from the stub’s zeros (I.1 / C8, W4)', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      const u = String(url)
+      if (u.endsWith('/robots.txt')) return { ok: true, body: bodyStream('User-agent: *\nDisallow: /'), text: async () => 'User-agent: *\nDisallow: /', url } as unknown as Response
+      throw new Error(`the page must not be fetched: ${u}`)
+    })
+    aiMock.mockResolvedValue({ websiteQuality: 20, websiteReasons: [], socialPresence: 0, onlineBooking: false, weaknesses: [], summary: 'x' })
+    state.selectQueue.push([PROSPECT])
+    placeMock.mockResolvedValue(found(PLACE))
+    const r = await runEnrichment()
+    expect(r.enriched).toBe(1)
+    const final = state.updates.find((u) => u.values.enrichment)!.values
+    expect((final.enrichment as { stack: unknown; error: string }).stack).toBeNull()
+    expect((final.enrichment as { error: string }).error).toBe('robots_disallow')
+    expect(final.scoreReasons as string[]).not.toContain('No booking widget, no review engine — a phone number is their only door')
+    // W4: the robots stub is not a read page — no AI call, and the stored
+    // verdict carries none of the stub's zeros as weaknesses.
+    expect(aiMock).not.toHaveBeenCalled()
+    const verdict = final.aiVerdict as { hasWebsite: boolean; websiteRead?: boolean; weaknesses: string[]; websiteReasons: string[]; summary: string }
+    expect(verdict.weaknesses).toEqual([])
+    expect(verdict.websiteReasons).toEqual([])
+    // X1: an UNREAD verdict — the practice has a site, its quality is unknown.
+    expect(verdict).toMatchObject({ hasWebsite: true, websiteRead: false, summary: 'Website not read.' })
+    expect(final.scoreReasons as string[]).not.toContain('Not mobile-friendly')
+    expect(final.scoreReasons as string[]).toContain('Website not read — quality unknown')
+    expect(final.scoreReasons as string[]).not.toContain('No website at all — needs everything we sell')
+    expect(final.opportunityScore).toBeLessThan(90)
+    expect(final.scoreBand).not.toBe('hot')
+  })
+
+  it('V13: a page that does not answer is stored as an UNREAD crawl (stack null, error fetch_failed) — the card can say why; no AI call, no verdict from a page nobody read, no +6', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      const u = String(url)
+      if (u.endsWith('/robots.txt')) return { ok: true, body: bodyStream('User-agent: *\nAllow: /'), text: async () => 'User-agent: *\nAllow: /', url } as unknown as Response
+      throw new Error('ECONNRESET')
+    })
+    const quiet = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    state.selectQueue.push([PROSPECT])
+    placeMock.mockResolvedValue(found(PLACE))
+    const r = await runEnrichment()
+    quiet.mockRestore()
+    expect(r.enriched).toBe(1)
+    const final = state.updates.find((u) => u.values.enrichment)!.values
+    const enrichment = final.enrichment as { stack: unknown; error: string; builder: unknown; fetchedAt: string; ssl: boolean }
+    expect(enrichment.stack).toBeNull()
+    expect(enrichment.error).toBe('fetch_failed')
+    expect(enrichment.builder).toBeNull()
+    expect(enrichment.ssl).toBe(true)
+    expect(typeof enrichment.fetchedAt).toBe('string')
+    expect(aiMock).not.toHaveBeenCalled()
+    expect(final.scoreReasons as string[]).not.toContain('No booking widget, no review engine — a phone number is their only door')
+    // W4: the stored verdict carries none of the stub's zeros.
+    expect((final.aiVerdict as { weaknesses: string[] }).weaknesses).toEqual([])
+    expect(final.scoreReasons as string[]).not.toContain('Not mobile-friendly')
+    // X1: a fetch failure with a URL is an UNREAD verdict, never "no website" at 92.
+    expect(final.aiVerdict).toMatchObject({ hasWebsite: true, websiteRead: false, summary: 'Website not read.' })
+    expect(final.scoreReasons as string[]).toContain('Website not read — quality unknown')
+    expect(final.scoreReasons as string[]).not.toContain('No website at all — needs everything we sell')
+    expect(final.opportunityScore).toBeLessThan(90)
+    expect(unreadCrawlSignals('https://smiledental.com', 'fetch_failed', new Date('2026-11-10T12:00:00Z'))).toMatchObject({ stack: null, error: 'fetch_failed', fetchedAt: '2026-11-10T12:00:00.000Z', ssl: true })
+    expect(unreadCrawlSignals('http://smiledental.com', 'robots_disallow').ssl).toBe(false)
+  })
+
+  it('the crawl fingerprints the competitor stack across the hops and the score names it', async () => {
+    const STACKED = `<!doctype html><html><head><title>Smile Dental</title>
+      <meta name="viewport" content="width=device-width">
+      <script src="https://widget.nexhealth.com/book.js"></script></head>
+      <body><a href="/contact">contact</a>© 2026</body></html>`
+    const CONTACT = `<html><body><iframe src="https://birdeye.com/widget/1"></iframe></body></html>`
+    fetchMock.mockImplementation(async (url: string) => {
+      const u = String(url)
+      if (u.endsWith('/robots.txt')) return { ok: true, text: async () => 'User-agent: *\nAllow: /', url } as Response
+      const html = u.includes('/contact') ? CONTACT : STACKED
+      return { ok: true, body: bodyStream(html), text: async () => html, url: u } as unknown as Response
+    })
+    state.selectQueue.push([PROSPECT])
+    placeMock.mockResolvedValue(found(PLACE))
+    const r = await runEnrichment()
+    expect(r.enriched).toBe(1)
+    const final = state.updates.find((u) => u.values.enrichment)!.values
+    expect((final.enrichment as { stack: string[] }).stack).toEqual(['NexHealth', 'Birdeye'])
+    expect(final.scoreReasons as string[]).toContain('Already on NexHealth + Birdeye')
   })
 })

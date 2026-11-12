@@ -4,9 +4,9 @@ import { z } from 'zod'
 import { db, schema } from '@/lib/db'
 import { runClaudeJson, aiConfigured } from '@/lib/ai'
 import { findDentalPlaceCandidates, placesConfigured } from '@/lib/google-places'
-import { extractCrawlSignals, extractSiteEmails, findContactPath, findTeamPaths } from '@/lib/prospect-signals'
+import { detectStack, extractCrawlSignals, extractSiteEmails, findContactPath, findTeamPaths } from '@/lib/prospect-signals'
 import { detectVendors, type DetectedVendor } from '@/lib/prospect-vendors'
-import { computeOpportunityScore, heuristicVerdict } from '@/lib/prospect-scoring'
+import { computeOpportunityScore, fitScoreInputs, heuristicVerdict } from '@/lib/prospect-scoring'
 import { syncProspectContacts } from './prospect-contacts'
 import { robotsAllows } from './prospect-crawl-policy'
 import {
@@ -25,7 +25,7 @@ import {
   type GuardedFetchDeps,
   type GuardedSession,
 } from './prospect-site-liveness'
-import type { ProspectAiVerdict, ProspectCrawlSignals } from '@/lib/types/prospecting'
+import { crawlWasRead, siteGoneWasRead, type ProspectAiVerdict, type ProspectCrawlSignals } from '@/lib/types/prospecting'
 import {
   getProspectingConfig,
   bumpProspectingCounter,
@@ -87,6 +87,36 @@ async function fetchPage(
  * The crawler is not a proxy either: it rides the probe's guarded session
  * (`deps` inject the network edges for the tests).
  */
+/** The crawl errors the record keeps (`enrichment.error`): robots.txt
+ *  refused us, or the page did not answer. Either way NOBODY READ THE
+ *  PAGE: the stack is null (unknown), the builder unknown, nothing earned. */
+export type CrawlError = 'robots_disallow' | 'fetch_failed'
+
+/** An UNREAD crawl, stored so the record says why (fix pass II, V13 — the
+ *  Fit card's "Not read" names the reason; a fetch failure used to leave
+ *  `enrichment` null and the card blind). Its page facts are ZEROS, not
+ *  observations: every reader gates on `crawlWasRead` (the shared
+ *  predicate beside the type in lib/types/prospecting.ts — client-safe,
+ *  which this server-only module is not), and the enrich pass below never
+ *  hands a stub to the verdict or the score (fix pass III, W4 / W7). */
+export function unreadCrawlSignals(url: string, error: CrawlError, at: Date = new Date()): ProspectCrawlSignals {
+  return {
+    ssl: /^https:\/\//i.test(url),
+    mobileViewport: false,
+    copyrightYear: null,
+    titleTag: null,
+    metaDescription: null,
+    bookingWidget: false,
+    socialLinks: {},
+    builder: null,
+    stack: null,
+    pageWeightKb: 0,
+    emails: [],
+    fetchedAt: at.toISOString(),
+    error,
+  }
+}
+
 export async function crawlProspectSite(url: string, deps: GuardedFetchDeps = {}): Promise<ProspectCrawlSignals | null> {
   let session: GuardedSession | null = null
   try {
@@ -97,20 +127,9 @@ export async function crawlProspectSite(url: string, deps: GuardedFetchDeps = {}
     // robots.txt through the same guarded fetch: judged, pinned, never
     // followed, read through the capped stream.
     if (!(await robotsAllows(origin, session.fetch))) {
-      return {
-        ssl: normalized.startsWith('https://'),
-        mobileViewport: false,
-        copyrightYear: null,
-        titleTag: null,
-        metaDescription: null,
-        bookingWidget: false,
-        socialLinks: {},
-        builder: null,
-        pageWeightKb: 0,
-        emails: [],
-        fetchedAt: new Date().toISOString(),
-        error: 'robots_disallow',
-      }
+      // Nobody read the page: the stack is UNKNOWN (null), never "looked,
+      // none" — the no-stack credit is for a page somebody read.
+      return unreadCrawlSignals(normalized, 'robots_disallow')
     }
     const page = await fetchPage(session, normalized)
     if (!page) return null
@@ -127,6 +146,8 @@ export async function crawlProspectSite(url: string, deps: GuardedFetchDeps = {}
     // often only appears on a subpage, so accumulate across the hops too.
     const vendorByName = new Map<string, DetectedVendor>()
     for (const v of detectVendors(page.html)) vendorByName.set(v.name, v)
+    // The competitor stack (P-04, the opportunity score) rides the same hops.
+    const stack = new Set(signals.stack ?? [])
     const hops: string[] = []
     const contactPath = findContactPath(page.html)
     if (contactPath) hops.push(contactPath)
@@ -138,6 +159,7 @@ export async function crawlProspectSite(url: string, deps: GuardedFetchDeps = {}
         if (sub) {
           for (const e of extractSiteEmails(sub.html)) emails.add(e)
           for (const v of detectVendors(sub.html)) vendorByName.set(v.name, v)
+          for (const s of detectStack(sub.html)) stack.add(s)
         }
       } catch {
         /* a discovery hop is a bonus, never a failure */
@@ -145,6 +167,7 @@ export async function crawlProspectSite(url: string, deps: GuardedFetchDeps = {}
     }
     signals.emails = Array.from(emails).slice(0, 10)
     signals.vendors = Array.from(vendorByName.values())
+    signals.stack = Array.from(stack)
     return signals
   } catch (err) {
     console.warn('[prospect-enrich] crawl failed', url, err instanceof Error ? err.message : err)
@@ -185,6 +208,8 @@ async function aiVerdictForSite(input: {
     `HTTPS: ${s.ssl} · Mobile viewport: ${s.mobileViewport} · Copyright year: ${s.copyrightYear ?? 'none found'}`,
     `Title: ${s.titleTag ?? '(none)'} · Meta description: ${s.metaDescription ?? '(none)'}`,
     `Online booking markers: ${s.bookingWidget} · Site builder: ${s.builder ?? 'unknown/custom'} · Page weight: ${s.pageWeightKb}KB`,
+    // Only a READ page reaches this prompt (W4) — a stub never does.
+    `Booking / review tools fingerprinted on the site: ${Array.isArray(s.stack) ? (s.stack.length > 0 ? s.stack.join(', ') : 'none') : 'not read'}`,
     `Social profiles linked: ${Object.entries(s.socialLinks).filter(([, v]) => v).map(([k]) => k).join(', ') || 'none'}`,
   ].join('\n')
 
@@ -306,8 +331,11 @@ async function enrichOneProspect(
         })
         .where(eq(schema.prospect.id, p.id))
       // A practice that is gone leaves the drip too (a re-enrich can land
-      // here on a row a human enrolled).
+      // here on a row a human enrolled) — and a cold caller's slot (P-02 /
+      // P-04: a chain is nobody's to dial).
       await applyOutreachHold(p.id, verified.patch, verifyCtx.now)
+      const { releaseIfUnservable } = await import('./prospect-caller-release')
+      await releaseIfUnservable(p.id, verifyCtx.now)
       out.disqualified++
       return
     }
@@ -322,6 +350,12 @@ async function enrichOneProspect(
     //    one) is never handed to the crawler either — whatever the stored
     //    signal says.
     let signals: ProspectCrawlSignals | null = null
+    // A crawl that was tried and could not read the page — robots.txt
+    // refused us, or the fetch failed / answered non-2xx — is stored as an
+    // UNREAD crawl (V13, W4): the record says why, and the verdict and the
+    // score see NO signals (a stub's zeros are not page facts; the AI is
+    // never told "mobile viewport false" about a page nobody read).
+    let unread: ProspectCrawlSignals | null = null
     if (
       websiteUrl &&
       websiteStatus !== 'dead' &&
@@ -329,7 +363,9 @@ async function enrichOneProspect(
       verified.liveness?.cause !== 'policy' &&
       budget.crawlsUsed < budget.budgets.crawlsPerMonth
     ) {
-      signals = await crawlProspectSite(websiteUrl)
+      const crawled = await crawlProspectSite(websiteUrl)
+      if (crawlWasRead(crawled)) signals = crawled
+      else unread = crawled ?? unreadCrawlSignals(websiteUrl, 'fetch_failed')
       budget.crawlsUsed++
       out.crawls++
       await bumpProspectingCounter(budget.month, 'crawl')
@@ -354,13 +390,24 @@ async function enrichOneProspect(
         await bumpProspectingCounter(budget.month, 'ai_score')
       }
     }
-    if (!verdict) verdict = heuristicVerdict(signals, Boolean(websiteUrl))
+    // A site the probe found GONE — dead by DNS / refused / an HTTP answer
+    // / an invalid address, or parked — is not "unread": its state was
+    // read, the practice has no working website, and the ladder says so.
+    // A dead by TIMEOUT read nothing (Y1) and, like a site we could not
+    // crawl (budget, robots, a failed fetch), gets the UNREAD verdict (X1).
+    const siteGone = siteGoneWasRead(verified.patch.verification.website)
+    if (!verdict) verdict = heuristicVerdict(signals, Boolean(websiteUrl) && !siteGone)
 
-    // 4) Deterministic score.
+    // 4) Deterministic score — with what the crawl and the registry already
+    //    told us (P-04): the competitor stack, the builder, a new practice,
+    //    the practice size. Never a new fetch.
     const scored = computeOpportunityScore({
       verdict,
       reviewCount: place?.reviewCount ?? null,
       ratingTenths: place?.ratingTenths ?? null,
+      stack: signals?.stack ?? null,
+      builder: signals?.builder ?? null,
+      ...fitScoreInputs(verified.patch.verification),
     })
 
     // A manual re-enrich must never demote a prospect the pipeline has
@@ -376,7 +423,7 @@ async function enrichOneProspect(
         // no-match clears the old listing's, a pass with no lookup keeps
         // them, and only a listing that states a website replaces one.
         ...listingColumns(verified),
-        enrichment: signals,
+        enrichment: signals ?? unread,
         aiVerdict: verdict,
         opportunityScore: scored.score,
         scoreBand: scored.band,

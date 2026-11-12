@@ -12,6 +12,9 @@ import type {
   ProspectPhoneSource,
   ProspectCallOutcome,
 } from '@/lib/db/schema/prospecting'
+// The one list of the statuses a number is never dialled in — the standing
+// predicate reads it (Y3); the UI already does through quality-pills.
+import { BAD_PHONE_STATUSES } from '@/lib/db/schema/prospecting'
 
 export type {
   ProspectStatus,
@@ -73,6 +76,69 @@ export const PHONE_SOURCE_LABELS: Record<ProspectPhoneSource, string> = {
   nppes: 'NPI registry',
   places: 'Google listing',
   caller: 'a call',
+  // The two-source rule (P-04): the column now carries the number's
+  // STANDING; who stated it lives in verification.phone.sources.
+  corroborated: 'two sources agree',
+  single_source: 'one source only',
+}
+
+/** Who can state a prospect's number (verification.phone.sources, P-04):
+ *  the registry, the matched listing, a human on a call, the carrier
+ *  database saying the line is in service. */
+export const PHONE_SOURCE_NAMES = ['nppes', 'places', 'caller', 'carrier'] as const
+export type PhoneSourceName = (typeof PHONE_SOURCE_NAMES)[number]
+export const PHONE_SOURCE_NAME_LABELS: Record<PhoneSourceName, string> = {
+  nppes: 'NPI registry',
+  places: 'Google listing',
+  caller: 'a call',
+  carrier: 'carrier database',
+}
+/** `corroborated` = two non-carrier voices (the registry, the listing, a
+ *  human) state the number, or the carrier says in-service AND at least one
+ *  of them states it, or a human reached the practice on it;
+ *  `single_source` = anything less — the carrier alone says only that the
+ *  line is in service, never whose it is. No first-dial bucket (owner
+ *  ruling 2026-11-11). */
+export type PhoneStanding = 'corroborated' | 'single_source'
+
+/**
+ * THE TWO-SOURCE PREDICATE (P-04), pure: `corroborated` when two of the
+ * registry / the listing / a human state the number, or the carrier says
+ * in service AND at least one of them states it, or a human REACHED the
+ * practice on it (`caller` stated and the status is valid);
+ * `single_source` otherwise. The carrier ALONE is never corroboration
+ * (fix pass, G.1): "in service" says the line rings, not whose it is — the
+ * owner's ruling needs ACTIVE and THIS CLINIC'S. Lives here (client-safe)
+ * since fix pass IV: the verify pass and the dedupe merge both compute it.
+ */
+export function phoneStanding(stated: readonly PhoneSourceName[], phoneStatus: string | null): PhoneStanding {
+  // A BAD NUMBER HAS NO STANDING (fix pass IV, Y3): a number known to be
+  // wrong, dead or unassigned is never corroborated, whoever listed it —
+  // the voices that stated it are a verdict's context, not agreement.
+  if (phoneStatus && (BAD_PHONE_STATUSES as readonly string[]).includes(phoneStatus)) return 'single_source'
+  const voices = stated.filter((s) => s !== 'carrier')
+  if (voices.length >= 2) return 'corroborated'
+  if (stated.includes('carrier') && voices.length >= 1) return 'corroborated'
+  if (stated.includes('caller') && phoneStatus === 'valid') return 'corroborated'
+  return 'single_source'
+}
+
+/** Who states a row's number, read from BOTH places it can be written (fix
+ *  pass IV, Y2): the signal's `sources` AND the legacy `phone_source`
+ *  column when it still names a voice (`caller` / `nppes` / `places` —
+ *  pre-standing rows; `corroborated` / `single_source` name none). The
+ *  merge unions the two rows' voices so a statement is never lost. */
+export function phoneVoices(sources: readonly PhoneSourceName[] | null | undefined, column: string | null | undefined): PhoneSourceName[] {
+  const out: PhoneSourceName[] = [...(sources ?? [])]
+  if ((column === 'caller' || column === 'nppes' || column === 'places') && !out.includes(column)) out.push(column)
+  return out
+}
+
+/** The union of two rows' voices, the first row's order first. */
+export function unionPhoneVoices(a: readonly PhoneSourceName[], b: readonly PhoneSourceName[]): PhoneSourceName[] {
+  const out = [...a]
+  for (const s of b) if (!out.includes(s)) out.push(s)
+  return out
 }
 
 /** Plain labels for every call outcome (the call card, Call Mode, the log). */
@@ -191,7 +257,7 @@ export const CALLER_SKIP_REASON_LABELS: Record<CallerSkipReason, string> = {
 }
 
 // ── Verification (prospect.verification jsonb) ─────────────────────────────
-export const VERIFICATION_SIGNALS = ['places', 'business', 'npi', 'website', 'phone', 'reach'] as const
+export const VERIFICATION_SIGNALS = ['places', 'business', 'npi', 'website', 'phone', 'reviews', 'reach'] as const
 export type VerificationSignalId = (typeof VERIFICATION_SIGNALS)[number]
 
 export const VERIFICATION_SIGNAL_LABELS: Record<VerificationSignalId, string> = {
@@ -200,6 +266,7 @@ export const VERIFICATION_SIGNAL_LABELS: Record<VerificationSignalId, string> = 
   npi: 'NPI registry',
   website: 'Website',
   phone: 'Phone',
+  reviews: 'Google reviews',
   reach: 'Reached by a call',
 }
 
@@ -215,23 +282,223 @@ export interface VerificationSignal {
   source: string
 }
 
-export type ProspectVerification = Partial<Record<VerificationSignalId, VerificationSignal>>
+/** The phone signal carries the two-source rule (P-04): who stated the
+ *  number, its standing, and whether the line check ran. */
+export interface PhoneVerificationSignal extends VerificationSignal {
+  sources?: PhoneSourceName[]
+  standing?: PhoneStanding | null
+  /** off = the line check is not configured; skipped = it was configured
+   *  but did not run (budget, refused, unavailable); done = it answered. */
+  lineCheck?: 'off' | 'skipped' | 'done' | null
+  /** A DIFFERENT number the matched listing states for a caller-provided
+   *  row (fix pass II, V2): the typed number is never replaced, but the
+   *  listing's is kept here — ten digits, as the signal stores numbers —
+   *  so a typo has a trace ("Google lists (404) 555-9999 — kept the number
+   *  you typed"). */
+  alt?: { number: string; source: 'places'; at: string } | null
+}
+
+/** Liveness from the listing (P-04): the latest review's publish time and
+ *  whether the listing states opening hours. Statuses: recent (≤ 6 months)
+ *  · quiet (≤ 18) · stale (older) · none (no reviews) · unknown (Google
+ *  returned no dates). */
+export interface ReviewsVerificationSignal extends VerificationSignal {
+  latestAt?: string | null
+  hours?: boolean | null
+}
+
+export type OfficialTitleKind = 'clinician' | 'executive' | 'unknown'
+export type PracticeSize = 'solo' | 'small' | 'group' | 'unknown'
+
+/** The system follow-up a chain flag cleared, remembered so "Not a chain"
+ *  (or the sweep's own un-flag) can put it back. */
+export interface PriorFollowUp {
+  at: string
+  reason: string
+}
+
+/** Fit (P-04) — stored under `verification.fit.*`, each a signal with its
+ *  source and UTC stamp like every other, plus the facts the rule read. */
+export interface ProspectFitSignals {
+  /** A DSO / chain name on the practice, the NPI org or the listing
+   *  (status `match` | `none`); `priorStatus` / `priorFollowUp` remember
+   *  where the row was when the flag landed. */
+  dso?: VerificationSignal & {
+    name?: string | null
+    matchedOn?: 'practice' | 'npi' | 'listing' | null
+    priorStatus?: string | null
+    priorFollowUp?: PriorFollowUp | null
+  }
+  /** Our own data: a website host or a phone shared across ≥3 prospects at
+   *  different addresses (status `shared_host` | `shared_phone` | `none`,
+   *  or `cleared` once the sweep found the group under the threshold and
+   *  restored the row — `clearedAt` says when). */
+  chain?: VerificationSignal & {
+    kind?: 'shared_host' | 'shared_phone' | null
+    count?: number | null
+    key?: string | null
+    priorStatus?: string | null
+    priorFollowUp?: PriorFollowUp | null
+    clearedAt?: string | null
+  }
+  /** NPI-1 dentists at the org's address (status = PracticeSize). `retry`
+   *  marks an answer the registry could not give (an outage, a full ZIP
+   *  page that may hide the group) — the next pass asks again, whatever
+   *  the recheck clock says. */
+  size?: VerificationSignal & { dentists?: number | null; official?: OfficialTitleKind | null; retry?: boolean | null }
+  /** NPPES enumeration inside NEW_PRACTICE_MONTHS (status `new` | `established` | `unknown`). */
+  newPractice?: VerificationSignal & { enumeratedAt?: string | null }
+  /** The owner said "Not a chain" — never re-flagged. */
+  chainOverride?: VerificationSignal
+}
+export const FIT_SIGNALS = ['dso', 'chain', 'size', 'newPractice', 'chainOverride'] as const
+export type FitSignalId = (typeof FIT_SIGNALS)[number]
+export const FIT_SIGNAL_LABELS: Record<FitSignalId, string> = {
+  dso: 'DSO / chain name',
+  chain: 'Shared with other practices',
+  size: 'Practice size',
+  newPractice: 'Opened',
+  chainOverride: 'Not a chain',
+}
+
+/** The website probe's signal (P-04 fix pass IV, Y1): `cause` says what
+ *  the probe saw behind a `dead` / `parked` / `unknown` — `dns` · `refused`
+ *  · `http` · `invalid` · `timeout` · `parked` · `policy` · `resolver` ·
+ *  `redirects` (lib/services/prospect-site-liveness.ts). A `dead` whose
+ *  cause is `timeout` read NOTHING: the opportunity verdict treats it as
+ *  an unread site, never "no website". */
+export interface WebsiteVerificationSignal extends VerificationSignal {
+  cause?: string | null
+}
+
+/** The probe's own wording for a double timeout (lib/services/
+ *  prospect-site-liveness.ts) — the one thing a cause-less legacy `dead`
+ *  can say that proves nothing was read (fix pass V, Z2). */
+const LEGACY_TIMEOUT_DETAIL = /timed out twice/i
+
+/** Did the probe READ that the site is gone? True for a dead by DNS /
+ *  refused / an HTTP answer / an invalid address and for a parked page
+ *  (those were observed — the no-website / parked verdicts stand); false
+ *  for a dead by TIMEOUT (nothing was read — the unread verdict) and for
+ *  every other status. A stored `dead` from before the cause was kept (no
+ *  `cause`) reads as gone — EXCEPT one whose detail is the probe's own
+ *  "timed out twice" (Z2): that row read nothing either, and the stamp
+ *  survives wherever a later probe does not replace it (site checks
+ *  paused, a probe answering unknown). */
+export function siteGoneWasRead(website: WebsiteVerificationSignal | null | undefined): boolean {
+  if (!website) return false
+  if (website.status === 'parked') return true
+  if (website.status !== 'dead') return false
+  if (website.cause) return website.cause !== 'timeout'
+  return !LEGACY_TIMEOUT_DETAIL.test(website.detail ?? '')
+}
+
+export type ProspectVerification = Partial<Record<VerificationSignalId, VerificationSignal>> & {
+  phone?: PhoneVerificationSignal
+  website?: WebsiteVerificationSignal
+  reviews?: ReviewsVerificationSignal
+  fit?: ProspectFitSignals
+}
+
+function parsePriorFollowUp(v: unknown): PriorFollowUp | null {
+  if (!v || typeof v !== 'object') return null
+  const r = v as Record<string, unknown>
+  return typeof r.at === 'string' && typeof r.reason === 'string' ? { at: r.at, reason: r.reason } : null
+}
+
+function parsePhoneAlt(v: unknown): PhoneVerificationSignal['alt'] {
+  if (!v || typeof v !== 'object') return null
+  const r = v as Record<string, unknown>
+  return typeof r.number === 'string' && r.source === 'places' && typeof r.at === 'string' ? { number: r.number, source: 'places', at: r.at } : null
+}
+
+function parseSignal(v: unknown): (VerificationSignal & Record<string, unknown>) | null {
+  if (!v || typeof v !== 'object') return null
+  const r = v as Record<string, unknown>
+  if (typeof r.status !== 'string' || typeof r.checkedAt !== 'string') return null
+  return {
+    ...r,
+    status: r.status,
+    detail: typeof r.detail === 'string' ? r.detail : null,
+    checkedAt: r.checkedAt,
+    source: typeof r.source === 'string' ? r.source : 'unknown',
+  }
+}
 
 /** Junk-tolerant read of the jsonb column. */
 export function parseVerification(raw: unknown): ProspectVerification {
   if (!raw || typeof raw !== 'object') return {}
   const out: ProspectVerification = {}
   for (const id of VERIFICATION_SIGNALS) {
-    const v = (raw as Record<string, unknown>)[id]
-    if (!v || typeof v !== 'object') continue
-    const r = v as Record<string, unknown>
-    if (typeof r.status !== 'string' || typeof r.checkedAt !== 'string') continue
-    out[id] = {
-      status: r.status,
-      detail: typeof r.detail === 'string' ? r.detail : null,
-      checkedAt: r.checkedAt,
-      source: typeof r.source === 'string' ? r.source : 'unknown',
+    const sig = parseSignal((raw as Record<string, unknown>)[id])
+    if (!sig) continue
+    const base: VerificationSignal = { status: sig.status, detail: sig.detail, checkedAt: sig.checkedAt, source: sig.source }
+    if (id === 'phone') {
+      const sources = Array.isArray(sig.sources)
+        ? sig.sources.filter((s): s is PhoneSourceName => (PHONE_SOURCE_NAMES as readonly string[]).includes(s as string))
+        : undefined
+      const standing = sig.standing === 'corroborated' || sig.standing === 'single_source' ? sig.standing : null
+      const lineCheck = sig.lineCheck === 'off' || sig.lineCheck === 'skipped' || sig.lineCheck === 'done' ? sig.lineCheck : null
+      const alt = parsePhoneAlt(sig.alt)
+      out.phone = { ...base, ...(sources ? { sources } : {}), ...(standing ? { standing } : {}), ...(lineCheck ? { lineCheck } : {}), ...(alt ? { alt } : {}) }
+    } else if (id === 'reviews') {
+      out.reviews = {
+        ...base,
+        latestAt: typeof sig.latestAt === 'string' ? sig.latestAt : null,
+        hours: typeof sig.hours === 'boolean' ? sig.hours : null,
+      }
+    } else if (id === 'website') {
+      out.website = { ...base, ...(typeof sig.cause === 'string' ? { cause: sig.cause } : {}) }
+    } else {
+      out[id] = base
     }
+  }
+  const fitRaw = (raw as Record<string, unknown>).fit
+  if (fitRaw && typeof fitRaw === 'object') {
+    const fit: ProspectFitSignals = {}
+    for (const id of FIT_SIGNALS) {
+      const sig = parseSignal((fitRaw as Record<string, unknown>)[id])
+      if (!sig) continue
+      const base: VerificationSignal = { status: sig.status, detail: sig.detail, checkedAt: sig.checkedAt, source: sig.source }
+      const priorFollowUp = parsePriorFollowUp(sig.priorFollowUp)
+      switch (id) {
+        case 'dso':
+          fit.dso = {
+            ...base,
+            name: typeof sig.name === 'string' ? sig.name : null,
+            matchedOn: sig.matchedOn === 'practice' || sig.matchedOn === 'npi' || sig.matchedOn === 'listing' ? sig.matchedOn : null,
+            priorStatus: typeof sig.priorStatus === 'string' ? sig.priorStatus : null,
+            ...(priorFollowUp ? { priorFollowUp } : {}),
+          }
+          break
+        case 'chain':
+          fit.chain = {
+            ...base,
+            kind: sig.kind === 'shared_host' || sig.kind === 'shared_phone' ? sig.kind : null,
+            count: typeof sig.count === 'number' ? sig.count : null,
+            key: typeof sig.key === 'string' ? sig.key : null,
+            priorStatus: typeof sig.priorStatus === 'string' ? sig.priorStatus : null,
+            ...(priorFollowUp ? { priorFollowUp } : {}),
+            ...(typeof sig.clearedAt === 'string' ? { clearedAt: sig.clearedAt } : {}),
+          }
+          break
+        case 'size':
+          fit.size = {
+            ...base,
+            dentists: typeof sig.dentists === 'number' ? sig.dentists : null,
+            official: sig.official === 'clinician' || sig.official === 'executive' || sig.official === 'unknown' ? sig.official : null,
+            ...(sig.retry === true ? { retry: true } : {}),
+          }
+          break
+        case 'newPractice':
+          fit.newPractice = { ...base, enumeratedAt: typeof sig.enumeratedAt === 'string' ? sig.enumeratedAt : null }
+          break
+        case 'chainOverride':
+          fit.chainOverride = base
+          break
+      }
+    }
+    if (Object.keys(fit).length > 0) out.fit = fit
   }
   return out
 }
@@ -284,10 +551,21 @@ export interface ProspectCrawlSignals {
   metaDescription: string | null
   bookingWidget: boolean
   socialLinks: { facebook?: string; instagram?: string; tiktok?: string; youtube?: string }
-  builder: string | null // 'wix'|'squarespace'|'godaddy'|'wordpress'|null
+  /** A BUILDER_LABELS key (wix · squarespace · godaddy · weebly · prosites ·
+   *  pbhs · officite · tntdental · wordpress) or null = custom / unknown. */
+  builder: string | null
+  /** The competitor stack (P-04): booking widgets and review engines
+   *  fingerprinted by their HOSTS on the site (STACK names). Optional —
+   *  older crawls lack it; absent or null means "not read" (an older crawl,
+   *  a robots.txt refusal), [] means "read, none" (a phone number is their
+   *  only door). Only [] ever earns the no-stack credit. */
+  stack?: string[] | null
   pageWeightKb: number
   emails: string[] // mailto/contact-page discoveries (never guessed)
   fetchedAt: string // ISO
+  /** Set when NOBODY READ THE PAGE: `robots_disallow` (their robots.txt
+   *  refused crawlers) or `fetch_failed` (the site did not answer). The
+   *  Fit card's "Not read" names which; a builder is never claimed. */
   error?: string
   // Brand capture (added for presenter mode — optional, older crawls lack
   // them; jsonb tolerates absence, re-enrich backfills).
@@ -305,9 +583,57 @@ export interface ProspectCrawlSignals {
   vendors?: Array<{ name: string; category: string; estMonthly: number }>
 }
 
+/** A crawl somebody READ — no `error` on it. The only shape whose page
+ *  facts (mobile viewport, booking widget, socials, builder, weight) may be
+ *  presented as observed. */
+export type ReadCrawlSignals = ProspectCrawlSignals & { error?: undefined }
+
+/**
+ * THE ONE GATE ON A CRAWL'S PAGE FACTS (fix pass III, W4 / W7). An unread
+ * crawl is stored with the same shape as a read one — `error` set
+ * (`robots_disallow`, or `fetch_failed`: a timeout, a reset, ANY non-2xx
+ * answer) and every page fact at its zero — so the record can say why. No
+ * reader may present those zeros as "not mobile-friendly" / "no online
+ * booking" / "no socials": every reader of the page facts asks this first.
+ * Client-safe (the demo gaps, the brief prompt and the track router run
+ * outside server-only), so it lives beside the type rather than beside
+ * `unreadCrawlSignals` in lib/services/prospect-enrich.ts.
+ */
+export function crawlWasRead(signals: ProspectCrawlSignals | null | undefined): signals is ReadCrawlSignals {
+  return signals != null && !signals.error
+}
+
+/** Why nobody read the page, as a clause for a sentence or a prompt. */
+export function crawlUnreadReason(error: string | null | undefined): string {
+  return error === 'robots_disallow' ? 'robots.txt refused crawlers' : 'the site could not be read'
+}
+
+/** The site builders the crawl fingerprints, in words (P-04). DIY builders
+ *  and dental template vendors raise the opportunity score. */
+export const BUILDER_LABELS: Record<string, string> = {
+  wix: 'Wix',
+  squarespace: 'Squarespace',
+  godaddy: 'GoDaddy Website Builder',
+  weebly: 'Weebly',
+  wordpress: 'WordPress',
+  prosites: 'ProSites',
+  pbhs: 'PBHS',
+  officite: 'Officite',
+  tntdental: 'TNT Dental',
+}
+export const DIY_BUILDERS = ['wix', 'squarespace', 'godaddy', 'weebly'] as const
+export const TEMPLATE_VENDOR_BUILDERS = ['prosites', 'pbhs', 'officite', 'tntdental'] as const
+
 // ── AI verdict (prospect.ai_verdict jsonb) ─────────────────────────────────
 export interface ProspectAiVerdict {
   hasWebsite: boolean
+  /** False ONLY for an UNREAD website (P-04 fix pass IIIb, X1): the
+   *  practice has a URL we could not read — a budget-skipped crawl,
+   *  robots.txt refused us, the site could not be read. Absent = true (every
+   *  stored AI verdict, every heuristic from a read page). An unread verdict
+   *  claims nothing about the site: quality 0 is a placeholder, never a
+   *  grade, and every reader says "Website not read" (`isWebsiteUnread`). */
+  websiteRead?: boolean
   websiteQuality: number // 0-100
   websiteReasons: string[]
   socialPresence: number // 0-100
@@ -315,6 +641,17 @@ export interface ProspectAiVerdict {
   weaknesses: string[] // feed personalized outreach copy
   summary: string
 }
+
+/** The practice has a website nobody read: the verdict's quality and
+ *  summary are not findings. The one gate every reader of
+ *  `websiteQuality` / `summary` asks (X1). */
+export function isWebsiteUnread(verdict: ProspectAiVerdict | null | undefined): boolean {
+  return verdict?.hasWebsite === true && verdict.websiteRead === false
+}
+
+/** What every surface says for an unread website — never "Weak website
+ *  (0/100)", never "No website at all". */
+export const WEBSITE_NOT_READ = 'Website not read — quality unknown'
 
 // ── Outreach segments (sequence ↔ prospect matching) ───────────────────────
 export const OUTREACH_SEGMENTS = ['no_website', 'weak_website', 'weak_presence'] as const
@@ -433,7 +770,9 @@ export interface ProspectingConfig {
   }
   /** THE QUALITY FLOOR (P-01). The queues and the hunter serve only
    *  prospects whose quality_score reaches this; everything under it is
-   *  "parked" until a re-verify or a human says otherwise. 0–100. */
+   *  "parked" until a re-verify or a human says otherwise. 0–100. Ships
+   *  at 70 since P-04 (the fit + liveness signals exist to stand behind
+   *  it); a stored config keeps whatever it had. */
   qualityFloor: number
   /** The hunter: auto-enroll enriched prospects into segment sequences.
    *  Ships OFF. Runs even in dry-run (enrollments are DB-only/reversible —
@@ -505,7 +844,7 @@ export const PROSPECTING_DEFAULTS: ProspectingConfig = {
   warmup: { startPerDay: 20, incrementPerWeek: 10, ceilingPerDay: 150, startedAt: null },
   sendWindow: { startHour: 8, endHour: 17 },
   budgets: { placesPerMonth: 2000, crawlsPerMonth: 3000, aiPerMonth: 3000, phoneValidatePerMonth: 1500 },
-  qualityFloor: 60,
+  qualityFloor: 70,
   autoEnroll: { enabled: false, bands: ['hot', 'warm'], perDay: 50 },
   watchdog: {
     enabled: true,
@@ -691,14 +1030,27 @@ export interface ProspectListRow {
   // Hygiene (P-03): a merged row says where it went (the table's door).
   mergedIntoProspectId: string | null
   mergedIntoName: string | null
+  /** Why a row was set aside (retired · closed · chain · …) — the table's
+   *  "Chain" pill (P-04). */
+  suppressedReason: string | null
 }
 
 /** The hunt panel's hygiene tile (P-03): what the sweep did today, how many
- *  rows are resting, and the last territory it re-swept (UTC stamped). */
+ *  rows are resting, and the last territory it re-swept (UTC stamped).
+ *  P-04 adds the chains set aside and a territory whose refresh the callers
+ *  pulled forward. */
 export interface ProspectHygieneStats {
   mergedToday: number
   resting: number
   lastRefresh: { state: string; zipPrefix: string; at: Date } | null
+  /** Rows set aside as a chain / DSO (status disqualified, reason chain). */
+  chainsRemoved: number
+  /** Rows the sweep RESTORED today — a flagged group that fell under the
+   *  threshold (a duplicate merged, a phone corrected) goes back on its own. */
+  chainsRestoredToday: number
+  /** The territory whose refresh was pulled forward and has not run yet:
+   *  "Refreshing TX 787 early — 3 closed practices this month". */
+  earlyRefresh: { state: string; zipPrefix: string; reason: string; at: Date } | null
 }
 
 /** What a stale drawer or card hears when its row was merged meanwhile
@@ -772,6 +1124,8 @@ export interface ProspectFunnelStats {
   /** Hygiene (P-03) — off the funnel, counted for the table's filters. */
   dormant: number
   merged: number
+  /** Chains / DSOs set aside (P-04) — hidden by default, one chip away. */
+  chains: number
 }
 
 export interface ProspectFilters {
@@ -781,12 +1135,33 @@ export interface ProspectFilters {
   qualityBand?: ProspectQualityBand
   hasWebsite?: boolean
   search?: string
+  /** Only the rows set aside as a chain (P-04). */
+  chain?: boolean
 }
 
 /** "(404) 555-1212" from 10 bare digits; anything else echoes as-is. */
 export function formatProspectPhone(digits: string | null | undefined): string | null {
   if (!digits) return null
   return digits.length === 10 ? `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}` : digits
+}
+
+/** The sentence the Verification card reads when the matched listing lists
+ *  ANOTHER number for a caller-provided row (`verification.phone.alt`, V2):
+ *  the typed number is never replaced, and this says what Google lists.
+ *  One writer of the sentence — the verify pass attaches it, a caller's
+ *  write carries it (fix pass III, W1–W3). */
+export function listingAltNote(number: string): string {
+  return `Google lists ${formatProspectPhone(number)} — kept the number you typed`
+}
+
+const LISTING_ALT_NOTE = /(?:;\s*)?Google lists [^;]*? — kept the number you typed/g
+
+/** A signal's detail with the listing-alt sentence taken out, so a pass can
+ *  re-attach the current one without stacking two. */
+export function withoutListingAltNote(detail: string | null | undefined): string | null {
+  if (!detail) return null
+  const out = detail.replace(LISTING_ALT_NOTE, '').replace(/^\s*;\s*/, '').trim()
+  return out || null
 }
 
 /** "4.7★ (212)" display helper; null-safe. */

@@ -245,6 +245,24 @@ export async function mergeProspectAction(
   return r.ok ? { ok: true, survivorId: r.survivorId, loserId: r.loserId } : { ok: false, reason: r.reason }
 }
 
+/**
+ * "Not a chain" (P-04): the owner's override. The flag lifts, the row
+ * returns to where it was, and the override is stored for good — neither
+ * the verify pass nor the chain sweep re-flags it. A refusal is returned,
+ * never thrown (a throw is the deployment-skew case runAction classifies).
+ */
+export async function clearChainFlagAction(
+  prospectId: string,
+): Promise<{ ok: true; status: string } | { ok: false; reason: string }> {
+  await requirePlatformAdmin()
+  const { clearChainFlag } = await import('@/lib/services/prospect-fit')
+  const r = await clearChainFlag(z.string().min(1).parse(prospectId))
+  revalidatePath('/platform/prospecting')
+  revalidatePath('/platform/prospecting/call-list')
+  revalidatePath('/platform/prospecting/call-mode')
+  return r
+}
+
 const hygieneSchema = z.object({
   staleAfterDays: z.number().int().min(7).max(730),
   reverifyAfterDays: z.number().int().min(7).max(365),

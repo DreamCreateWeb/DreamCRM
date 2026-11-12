@@ -35,4 +35,11 @@ describe('segmentForProspect', () => {
     expect(segmentForProspect(verdict({ websiteQuality: 55 }))).toBe('weak_presence')
     expect(segmentForProspect(verdict({ websiteQuality: 95 }))).toBe('weak_presence')
   })
+
+  it('X1: a website nobody read is never "weak" on its placeholder 0 — the presence pitch, which claims nothing about the site', () => {
+    expect(segmentForProspect(verdict({ websiteRead: false, websiteQuality: 0, summary: 'Website not read.' }))).toBe('weak_presence')
+    // The flag only means something on a practice WITH a site; absent = read.
+    expect(segmentForProspect(verdict({ websiteRead: true, websiteQuality: 0 }))).toBe('weak_website')
+    expect(segmentForProspect(verdict({ hasWebsite: false, websiteRead: false, websiteQuality: 0 }))).toBe('no_website')
+  })
 })

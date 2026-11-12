@@ -4,7 +4,7 @@ import type { ProspectingConfig, ProspectHygieneStats, ProspectQualityCounts } f
 import { INTENT_SIGNAL_LABELS, formatUtcStamp, type ProspectIntentSignal } from '@/lib/types/prospecting'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
-import { TONE_PILL, type Tone } from '@/lib/ui/encodings'
+import { TONE_PILL, TONE_TEXT, type Tone } from '@/lib/ui/encodings'
 import { MiniTrend } from '@/components/ui/charts'
 import { PLATFORM_BUCKET_NOTE } from '@/lib/metrics-registry'
 import type { Heartbeat } from '@/lib/metric-series'
@@ -114,6 +114,14 @@ export default function HuntPanel({
             {tile('Good', quality.good, 'quality 60–79')}
             {tile('Parked', quality.parked, 'not served', quality.parked > 0 ? 'warn' : undefined)}
             {tile('Not verified yet', quality.unverified, 'the sweep is on it')}
+            {hygiene &&
+              tile(
+                'Chains removed',
+                hygiene.chainsRemoved,
+                hygiene.chainsRestoredToday > 0
+                  ? `set aside — targeted later · ${hygiene.chainsRestoredToday.toLocaleString()} restored today`
+                  : 'set aside — targeted later',
+              )}
             {hygiene && (
               <div className="rounded-[var(--r-xs)] bg-[color:var(--color-surface-sunk)] p-3 sm:col-span-2" data-hygiene-tile>
                 <div className="text-xs text-gray-500 dark:text-gray-400">Hygiene · today</div>
@@ -128,6 +136,12 @@ export default function HuntPanel({
                     ? `last refresh ${formatUtcStamp(hygiene.lastRefresh.at)}`
                     : `a finished territory is re-swept once it is ${config.hygiene.discoveryRefreshDays} days old`}
                 </div>
+                {hygiene.earlyRefresh && (
+                  <div className={`mt-1 text-xs ${TONE_TEXT.warn}`} data-early-refresh>
+                    Refreshing {hygiene.earlyRefresh.state} {hygiene.earlyRefresh.zipPrefix} early — {hygiene.earlyRefresh.reason}
+                    <span className="text-gray-500 dark:text-gray-400"> · pulled {formatUtcStamp(hygiene.earlyRefresh.at)}</span>
+                  </div>
+                )}
               </div>
             )}
           </div>

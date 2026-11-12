@@ -204,6 +204,15 @@ describe('reportProspectingFailure', () => {
     })
   })
 
+  it('carries one line of context beside the class when a producer gives one (the merge’s restore, P-04 W8)', async () => {
+    expect(await reportProspectingFailure('hygiene', new Date('2026-11-10T12:00:00Z'), { step: 'restore_after_merge', prospectId: 'pros_a', error: 'connection reset' })).toBe(true)
+    expect(recorded.calls[0]).toMatchObject({
+      capability: 'prospecting',
+      summary: PROSPECTING_FAILURE_CLASSES.hygiene,
+      detail: { class: 'hygiene', step: 'restore_after_merge', prospectId: 'pros_a', error: 'connection reset' },
+    })
+  })
+
   it('one a day per CLASS — a second class the same day still lands', async () => {
     ledger.rows = [{ detail: { failure: true, class: 'places_auth' }, summary: 'x', occurredAt: new Date() }]
     expect(await reportProspectingFailure('places_auth')).toBe(false)

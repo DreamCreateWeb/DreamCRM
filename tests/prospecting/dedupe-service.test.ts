@@ -32,7 +32,38 @@ vi.mock('@/lib/services/prospect-caller-release', () => ({
   releaseCooldownUntil: (now: Date) => new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000),
 }))
 const configMock = vi.hoisted(() => vi.fn())
-vi.mock('@/lib/services/prospecting', () => ({ getProspectingConfig: configMock }))
+vi.mock('@/lib/services/prospecting', () => ({
+  getProspectingConfig: configMock,
+  // The real restore (run un-mocked in the F.2(b) tests below) imports
+  // these; it never calls them on a restore.
+  stopActiveEnrollments: vi.fn(),
+  clearSystemFollowUp: vi.fn(),
+  // The real verify pass (run on a MERGED row in the Y2 test below) reads
+  // the month counter and the config through these.
+  counterMonth: () => '2026-11',
+  getProspectingCounter: vi.fn(async () => 0),
+  bumpProspectingCounter: vi.fn(async () => {}),
+  pauseActiveEnrollments: vi.fn(),
+  resumeVerifyPausedEnrollments: vi.fn(),
+}))
+// The verify pass's network edges, spies: the Y2 test hands the listing in
+// and the merged row has no NPI, no website and the line check off.
+vi.mock('@/lib/nppes', () => ({ lookupNpi: vi.fn(), searchDentistsAtAddress: vi.fn() }))
+vi.mock('@/lib/google-places', () => ({ findDentalPlaceCandidates: vi.fn(), placesConfigured: () => true }))
+vi.mock('@/lib/services/prospect-site-liveness', () => ({ checkSiteLiveness: vi.fn() }))
+vi.mock('@/lib/services/phone-validate', () => ({ phoneValidateDriver: () => 'none', validatePhoneLine: vi.fn() }))
+// The one chain restore (P-04 fix pass) is its own module with its own
+// tests; here it is a spy, so the merge's writes stay its own — except in
+// the F.2(b) tests that hand the spy the REAL restore (V10 / V11), so the
+// merge and the restore are seen working on one row together.
+const fitMocks = vi.hoisted(() => ({
+  restore: vi.fn<typeof import('@/lib/services/prospect-fit').restoreChainFlagged>(async () => ({ ok: true as const, status: 'contacted' })),
+}))
+vi.mock('@/lib/services/prospect-fit', () => ({ restoreChainFlagged: fitMocks.restore }))
+// The engine's failure registry (W8: a restore that throws after the merge
+// committed is a strike, never a throw out of the merge).
+const strikeMock = vi.hoisted(() => vi.fn(async (_cls: string, _at?: Date, _context?: unknown) => true))
+vi.mock('@/lib/services/engine-failures', () => ({ reportProspectingFailure: strikeMock }))
 
 vi.mock('@/lib/db', async () => {
   const schema = await vi.importActual<Record<string, unknown>>('@/lib/db/schema')
@@ -84,7 +115,8 @@ import {
   runExactDedupeSweep,
   survivorOf,
 } from '@/lib/services/prospect-dedupe'
-import { PROSPECTING_DEFAULTS } from '@/lib/types/prospecting'
+import { newVerifyRunCtx, verifyProspectSignals } from '@/lib/services/prospect-verify'
+import { PROSPECTING_DEFAULTS, parseVerification } from '@/lib/types/prospecting'
 
 const NOW = new Date('2026-11-10T12:00:00Z')
 const DAY = 24 * 60 * 60 * 1000
@@ -129,6 +161,7 @@ beforeEach(() => {
   callerMocks.release.mockClear()
   configMock.mockReset()
   configMock.mockResolvedValue(CONFIG)
+  fitMocks.restore.mockClear()
 })
 
 describe('survivorOf', () => {
@@ -372,6 +405,230 @@ describe('mergeProspects — the merge', () => {
     }
   })
 
+  it('the owner’s "Not a chain" rules a merge (F.2): an overridden survivor never inherits a chain-flagged loser’s verdict, keeps its status, keeps the override', async () => {
+    const AT = '2026-11-09T00:00:00.000Z'
+    const override = { status: 'not_a_chain', detail: 'by hand', checkedAt: AT, source: 'owner' }
+    const flag = { status: 'shared_phone', detail: 'shares', checkedAt: AT, source: 'our_data', kind: 'shared_phone', count: 3, priorStatus: 'enriched' }
+    state.selectQueue.push(
+      [
+        prospect({ id: 'a', status: 'contacted', qualityScore: 90, verification: { fit: { chainOverride: override } } }),
+        prospect({ id: 'b', status: 'disqualified', suppressedReason: 'chain', suppressedAt: new Date(AT), qualityScore: 0, verification: { fit: { chain: flag } } }),
+      ],
+      [], [], [], // no contacts, no live drip on the survivor
+    )
+    const r = await mergeProspects('a', 'b', { now: NOW })
+    expect(r).toMatchObject({ ok: true })
+    const s = updates('prospect')[0].values
+    expect(s).not.toHaveProperty('status')
+    expect(s).not.toHaveProperty('suppressedReason')
+    expect(s).not.toHaveProperty('suppressedAt')
+    // The loser's drip (none here) would re-point, never stop "merged_disqualified"; no thread of the survivor's closes.
+    expect(updates('outreachEnrollment').some((u) => u.values?.stopReason === 'merged_disqualified')).toBe(false)
+    expect(fitMocks.restore).not.toHaveBeenCalled()
+  })
+
+  it('…and the other direction: a chain-flagged survivor takes the loser’s override and is RESTORED through the one restore (never left set aside with an override on it)', async () => {
+    const AT = '2026-11-09T00:00:00.000Z'
+    const override = { status: 'not_a_chain', detail: 'by hand', checkedAt: AT, source: 'owner' }
+    const flag = { status: 'shared_phone', detail: 'shares', checkedAt: AT, source: 'our_data', kind: 'shared_phone', count: 3, priorStatus: 'contacted' }
+    state.selectQueue.push(
+      [
+        prospect({ id: 'a', status: 'disqualified', suppressedReason: 'chain', suppressedAt: new Date(AT), qualityScore: 0, verifiedAt: new Date(AT), verification: { fit: { chain: flag } } }),
+        prospect({ id: 'b', status: 'contacted', qualityScore: null, verification: { fit: { chainOverride: override } } }),
+      ],
+      [], [], [],
+    )
+    const r = await mergeProspects('a', 'b', { now: NOW })
+    expect(r).toMatchObject({ ok: true })
+    const s = updates('prospect')[0].values!
+    const fit = (s.verification as { fit: Record<string, unknown> }).fit
+    expect(fit.chainOverride).toEqual(override)
+    expect(fit.chain).toMatchObject(flag)
+    // The loser's live drip is NOT stopped as "merged" on the way in: the survivor is about to be live again.
+    expect(updates('outreachEnrollment').some((u) => u.values?.stopReason === 'merged')).toBe(false)
+    // Both sides contacted: no "at least" for the restore (V11).
+    expect(fitMocks.restore).toHaveBeenCalledWith('a', NOW, 'override', { atLeast: null })
+  })
+
+  it('F.2(b) with the REAL restore (V10 + V11): survivor sweep-flagged while enriched, loser contacted + override + a live drip + caller X + a promised callback → the merged row is CONTACTED, the drip stays live, the callback survives the restore, and X keeps it through the hand-over on the RESTORED row', async () => {
+    const actual = await vi.importActual<typeof import('@/lib/services/prospect-fit')>('@/lib/services/prospect-fit')
+    fitMocks.restore.mockImplementationOnce((id, now, mode, opts) => actual.restoreChainFlagged(id, now, mode, opts))
+    const AT = '2026-11-09T00:00:00.000Z'
+    const override = { status: 'not_a_chain', detail: 'by hand', checkedAt: AT, source: 'owner' }
+    const flag = {
+      status: 'shared_phone', detail: 'shares', checkedAt: AT, source: 'our_data', kind: 'shared_phone', count: 3, key: '4045551212',
+      priorStatus: 'enriched',
+      // The system nudge the flag cleared — its time has passed.
+      priorFollowUp: { at: '2026-11-05T15:00:00.000Z', reason: 'No answer — try again' },
+    }
+    const signals = {
+      places: { status: 'matched', detail: null, checkedAt: AT, source: 'places' },
+      business: { status: 'open', detail: null, checkedAt: AT, source: 'places' },
+      npi: { status: 'active', detail: null, checkedAt: AT, source: 'nppes' },
+      website: { status: 'alive', detail: null, checkedAt: AT, source: 'crawl' },
+      phone: { status: 'well_formed', detail: null, checkedAt: AT, source: 'nanp', sources: ['nppes', 'places'], standing: 'corroborated' },
+    }
+    const promised = new Date('2026-11-14T15:00:00.000Z')
+    const heldSince = new Date('2026-11-08T00:00:00Z')
+    const survivor = prospect({
+      id: 'a', status: 'disqualified', suppressedReason: 'chain', suppressedAt: new Date(AT), qualityScore: 0, verifiedAt: new Date(AT),
+      verification: { ...signals, fit: { chain: flag } }, nextFollowUpAt: null, followUpReason: null,
+      phoneStatus: 'unknown', phoneLineType: null, businessStatus: 'OPERATIONAL', reviewCount: 40, websiteUrl: 'https://smile.com',
+    })
+    const loser = prospect({
+      id: 'b', status: 'contacted', qualityScore: 80, verification: { fit: { chainOverride: override } },
+      assignedCallerId: 'pcal_x', assignedAt: heldSince,
+      nextFollowUpAt: promised, followUpReason: 'They asked for a callback',
+      intentSignal: 'clicked', intentAt: new Date('2026-11-07T00:00:00Z'), intentSummary: 'Clicked the pricing link',
+    })
+    state.selectQueue.push(
+      [survivor, loser],
+      [], [], [], // no contacts, no live drip on the survivor (the loser's re-points)
+      // The restore's read: the row as the merge left it — still set aside,
+      // the override on it, the loser's callback carried onto it.
+      [
+        {
+          id: 'a', status: 'disqualified', suppressedReason: 'chain', verifiedAt: new Date(AT),
+          verification: { ...signals, fit: { chain: flag, chainOverride: override } },
+          phoneStatus: 'unknown', phoneLineType: null, businessStatus: 'OPERATIONAL', reviewCount: 40, websiteUrl: 'https://smile.com',
+          nextFollowUpAt: promised, followUpReason: 'They asked for a callback', dormantFromStatus: null,
+        },
+      ],
+      // The hand-over read, AFTER the restore: the survivor passes the one predicate.
+      [{ id: 'a' }],
+    )
+    const r = await mergeProspects('a', 'b', { now: NOW })
+    expect(r).toMatchObject({ ok: true, survivorId: 'a', loserId: 'b' })
+
+    const [fill, merged, restore, carry] = updates('prospect')
+    // Inside the transaction: the survivor is NOT moved by status (the restore
+    // owns that), the override lands, the callback and the intent carry, and
+    // no caller is written blind.
+    expect(fill.values).not.toHaveProperty('status')
+    expect((fill.values!.verification as { fit: Record<string, unknown> }).fit.chainOverride).toEqual(override)
+    expect(fill.values).toMatchObject({ nextFollowUpAt: promised, followUpReason: 'They asked for a callback', intentSignal: 'clicked', intentSummary: 'Clicked the pricing link' })
+    expect(fill.values).not.toHaveProperty('assignedCallerId')
+    expect(merged.values).toMatchObject({ status: 'merged', mergedIntoProspectId: 'a', assignedCallerId: null })
+    // The loser's live drip re-points, never stopped as "merged".
+    expect(updates('outreachEnrollment').some((u) => u.values?.stopReason === 'merged')).toBe(false)
+    expect(updates('outreachEnrollment')[0].values).toEqual({ prospectId: 'a' })
+    // The REAL restore ran with the loser's further status as its "at least":
+    // the merged practice is CONTACTED, the suppression clears, quality is
+    // recomputed under the restored status — and the carried callback is
+    // left alone (V10): no stale system nudge over a human's promise.
+    expect(fitMocks.restore).toHaveBeenCalledWith('a', NOW, 'override', { atLeast: 'contacted' })
+    expect(restore.values).toMatchObject({ status: 'contacted', suppressedReason: null, suppressedAt: null, dormantFromStatus: null })
+    expect(restore.values!.qualityScore).toBeGreaterThan(0)
+    expect(restore.values).not.toHaveProperty('nextFollowUpAt')
+    expect(restore.values).not.toHaveProperty('followUpReason')
+    expect((restore.values!.verification as { fit: Record<string, unknown> }).fit.chainOverride).toEqual(override)
+    // The restore's resume of a chain-stopped drip runs (its WHERE keeps it
+    // idle while the loser's drip is live).
+    expect(updates('outreachEnrollment').at(-1)!.values).toEqual({ status: 'active', nextSendAt: NOW, stoppedAt: null, stopReason: null })
+    // The hand-over ran AFTER the restore, against the restored row, through
+    // P-02's one predicate — X keeps the practice.
+    expect(carry.values).toMatchObject({ assignedCallerId: 'pcal_x', assignedAt: heldSince, callerCooldownUntil: null })
+    expect(render(carry.where).sql).toContain('"prospect"."assigned_caller_id" is null')
+    expect(callerMocks.servable).toHaveBeenCalledWith(NOW)
+    const handover = render(state.selectWheres.at(-1))
+    expect(handover.sql).toContain('"prospect"."id" = $1')
+    expect(handover.sql).toContain('"prospect"."assigned_caller_id" is null')
+    expect(handover.params).toEqual(['a'])
+    expect(updates('prospect')).toHaveLength(4) // no cooldown write: the slot was carried
+    expect(callerMocks.release).toHaveBeenCalledWith('a', NOW)
+  })
+
+  it('F.2(b) with the REAL restore, the other way round: the loser is no further along and holds no follow-up → the restore returns the survivor to where it was and puts the remembered system nudge back (due now); a hand-over the restored row REFUSES releases the slot with the cooldown', async () => {
+    const actual = await vi.importActual<typeof import('@/lib/services/prospect-fit')>('@/lib/services/prospect-fit')
+    fitMocks.restore.mockImplementationOnce((id, now, mode, opts) => actual.restoreChainFlagged(id, now, mode, opts))
+    const AT = '2026-11-09T00:00:00.000Z'
+    const override = { status: 'not_a_chain', detail: 'by hand', checkedAt: AT, source: 'owner' }
+    const flag = {
+      status: 'shared_phone', detail: 'shares', checkedAt: AT, source: 'our_data', kind: 'shared_phone', count: 3, key: '4045551212',
+      priorStatus: 'queued',
+      priorFollowUp: { at: '2026-11-05T15:00:00.000Z', reason: 'No answer — try again' },
+    }
+    state.selectQueue.push(
+      [
+        prospect({ id: 'a', status: 'disqualified', suppressedReason: 'chain', suppressedAt: new Date(AT), qualityScore: 0, verifiedAt: null, verification: { fit: { chain: flag } } }),
+        prospect({ id: 'b', status: 'enriched', qualityScore: 70, verification: { fit: { chainOverride: override } }, assignedCallerId: 'pcal_x', assignedAt: NOW }),
+      ],
+      [], [], [],
+      [
+        {
+          id: 'a', status: 'disqualified', suppressedReason: 'chain', verifiedAt: null,
+          verification: { fit: { chain: flag, chainOverride: override } },
+          phoneStatus: 'unknown', phoneLineType: null, businessStatus: null, reviewCount: null, websiteUrl: null,
+          nextFollowUpAt: null, followUpReason: null, dormantFromStatus: null,
+        },
+      ],
+      [], // the hand-over read: the restored row fails the predicate (say, a bad number)
+    )
+    await mergeProspects('a', 'b', { now: NOW })
+    const [fill, merged, restore, cooldown] = updates('prospect')
+    expect(fill.values).not.toHaveProperty('status')
+    expect(merged.values).toMatchObject({ status: 'merged' })
+    // queued (remembered) outranks the loser's enriched: no "at least".
+    expect(fitMocks.restore).toHaveBeenCalledWith('a', NOW, 'override', { atLeast: null })
+    expect(restore.values).toMatchObject({ status: 'queued', suppressedReason: null, qualityScore: null, nextFollowUpAt: NOW, followUpReason: 'No answer — try again' })
+    expect(cooldown.values).toEqual({ callerCooldownUntil: new Date(NOW.getTime() + 3 * DAY), updatedAt: NOW })
+    expect(render(cooldown.where).sql).toContain('"prospect"."assigned_caller_id" is null')
+    expect(callerMocks.release).toHaveBeenCalledWith('a', NOW)
+  })
+
+  it('W8: the restore THROWS after the merge committed → no throw out of the merge, a strike with one line of context, the hand-over still runs (refused against the still-disqualified row → the cooldown), the release hook runs, the merge result returned', async () => {
+    fitMocks.restore.mockRejectedValueOnce(new Error('connection reset'))
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const AT = '2026-11-09T00:00:00.000Z'
+    const override = { status: 'not_a_chain', detail: 'by hand', checkedAt: AT, source: 'owner' }
+    const flag = { status: 'shared_phone', detail: 'shares', checkedAt: AT, source: 'our_data', kind: 'shared_phone', count: 3, key: '4045551212', priorStatus: 'enriched' }
+    state.selectQueue.push(
+      [
+        prospect({ id: 'a', status: 'disqualified', suppressedReason: 'chain', suppressedAt: new Date(AT), qualityScore: 0, verifiedAt: new Date(AT), verification: { fit: { chain: flag } } }),
+        prospect({ id: 'b', status: 'contacted', qualityScore: 80, verification: { fit: { chainOverride: override } }, assignedCallerId: 'pcal_x', assignedAt: NOW }),
+      ],
+      [], [], [],
+      [], // the hand-over read: the row still reads disqualified — the predicate refuses
+    )
+    let result: unknown
+    try {
+      result = await mergeProspects('a', 'b', { now: NOW })
+    } finally {
+      quiet.mockRestore()
+    }
+    expect(result).toMatchObject({ ok: true, survivorId: 'a', loserId: 'b' })
+    expect(fitMocks.restore).toHaveBeenCalledWith('a', NOW, 'override', { atLeast: 'contacted' })
+    // The strike: the hygiene class, the row and the error in the context.
+    expect(strikeMock).toHaveBeenCalledTimes(1)
+    expect(strikeMock).toHaveBeenCalledWith('hygiene', NOW, { step: 'restore_after_merge', prospectId: 'a', loserId: 'b', error: 'connection reset' })
+    // The hand-over ran against the still-disqualified row, was refused, and
+    // the cooldown was written — X's slot is not lost silently.
+    const [fill, merged, cooldown] = updates('prospect')
+    expect(fill.values).not.toHaveProperty('assignedCallerId')
+    expect(merged.values).toMatchObject({ status: 'merged', mergedIntoProspectId: 'a', assignedCallerId: null })
+    expect(cooldown.values).toEqual({ callerCooldownUntil: new Date(NOW.getTime() + 3 * DAY), updatedAt: NOW })
+    expect(render(cooldown.where).sql).toContain('"prospect"."assigned_caller_id" is null')
+    expect(updates('prospect')).toHaveLength(3)
+    expect(callerMocks.release).toHaveBeenCalledWith('a', NOW)
+    // …and a failing strike itself never escapes either.
+    strikeMock.mockRejectedValueOnce(new Error('ledger down'))
+    fitMocks.restore.mockRejectedValueOnce(new Error('again'))
+    const quiet2 = vi.spyOn(console, 'error').mockImplementation(() => {})
+    state.ops = []
+    state.selectQueue.push(
+      [
+        prospect({ id: 'a', status: 'disqualified', suppressedReason: 'chain', suppressedAt: new Date(AT), qualityScore: 0, verifiedAt: new Date(AT), verification: { fit: { chain: flag } } }),
+        prospect({ id: 'b', status: 'contacted', qualityScore: 80, verification: { fit: { chainOverride: override } } }),
+      ],
+      [], [], [],
+    )
+    try {
+      expect(await mergeProspects('a', 'b', { now: NOW })).toMatchObject({ ok: true })
+    } finally {
+      quiet2.mockRestore()
+    }
+  })
+
   it('a loser’s terminal verdict is CARRIED onto a live survivor — status, reason, its threads closed — never overwritten by "merged"', async () => {
     state.selectQueue.push(
       [
@@ -537,7 +794,9 @@ describe('mergeProspects — the merge', () => {
     const w = updates('prospect')[0].values!
     expect(w).not.toHaveProperty('phone') // its own spelling stands…
     expect(w).toMatchObject({ phoneStatus: 'disconnected', phoneLineType: null, phoneSource: 'caller', phoneValidatedAt: new Date('2026-11-09T00:00:00Z') })
-    expect(w.verification).toEqual({ ...good, phone: disconnected }) // …the verdict is about this line
+    // …the verdict is about this line — and the merge keeps BOTH rows' voices on it (Y2): the survivor's legacy
+    // column 'nppes' and the loser's 'caller' become the signal's sources; a dead number has no standing (Y3).
+    expect(w.verification).toEqual({ ...good, phone: { ...disconnected, sources: ['nppes', 'caller'], standing: 'single_source' } })
     // The rescore: a dead number is a hard zero, in the caller's words.
     expect(w).toMatchObject({ qualityScore: 0, qualityBand: 'parked', qualityReasons: [disconnected.detail] })
 
@@ -566,6 +825,175 @@ describe('mergeProspects — the merge', () => {
     await mergeProspects('a', 'b', { now: NOW, config: CONFIG })
     expect(updates('prospect')[0].values).not.toHaveProperty('phoneStatus')
     expect(updates('prospect')[0].values).not.toHaveProperty('verification')
+  })
+
+  it('Y2: the same-number verdict take keeps the survivor’s statement — sources = union of both rows’ voices (signal sources AND legacy columns), the standing recomputed, the survivor’s alt and its sentence kept, the column caller when either side’s was', async () => {
+    const AT = '2026-11-09T00:00:00.000Z'
+    const typed = { status: 'well_formed', detail: 'Well-formed US number — this month’s line checks are used up', checkedAt: AT, source: 'nanp', sources: ['caller'], standing: 'single_source', lineCheck: 'skipped' }
+    const invalid = { status: 'invalid', detail: 'Carrier database: not an assigned number', checkedAt: AT, source: 'aws_pinpoint', sources: ['nppes'], standing: 'single_source', lineCheck: 'done' }
+    // Probe 1 — the standing shape: survivor hand-added (column single_source, sources [caller]) + loser {invalid, sources [nppes]}.
+    state.selectQueue.push(
+      [
+        prospect({ id: 'a', phone: '4045550000', phoneStatus: 'unknown', phoneLineType: null, phoneSource: 'single_source', phoneValidatedAt: null, qualityScore: 47, qualityBand: 'weak', verifiedAt: new Date(AT), verification: { phone: typed } }),
+        prospect({ id: 'b', phone: '4045550000', phoneStatus: 'invalid', phoneLineType: null, phoneSource: 'single_source', phoneValidatedAt: new Date(AT), qualityScore: 0, qualityBand: 'parked', verification: { phone: invalid } }),
+      ],
+      [], [], [],
+    )
+    await mergeProspects('a', 'b', { now: NOW, config: CONFIG })
+    const w = updates('prospect')[0].values!
+    expect(w).toMatchObject({ phoneStatus: 'invalid', phoneValidatedAt: new Date(AT), qualityScore: 0, qualityBand: 'parked' })
+    const signal = (w.verification as { phone: Record<string, unknown> }).phone
+    // Both voices kept; a bad number has no standing (Y3) — the predicate's own word, on the signal and the column.
+    expect(signal).toEqual({ ...invalid, sources: ['caller', 'nppes'], standing: 'single_source' })
+    expect(w.phoneSource).toBe('single_source')
+
+    // Probe 2 — legacy columns, no sources on either signal: the columns are the voices; the column stays 'caller'.
+    state.ops = []
+    const { sources: _s1, standing: _st1, ...typedLegacy } = typed
+    const { sources: _s2, standing: _st2, ...invalidLegacy } = invalid
+    state.selectQueue.push(
+      [
+        prospect({ id: 'a', phone: '4045550000', phoneStatus: 'unknown', phoneSource: 'caller', verification: { phone: typedLegacy } }),
+        prospect({ id: 'b', phone: '4045550000', phoneStatus: 'invalid', phoneSource: 'nppes', phoneValidatedAt: new Date(AT), verification: { phone: invalidLegacy } }),
+      ],
+      [], [], [],
+    )
+    await mergeProspects('a', 'b', { now: NOW, config: CONFIG })
+    const legacy = updates('prospect')[0].values!
+    expect(legacy.phoneSource).toBe('caller')
+    expect((legacy.verification as { phone: Record<string, unknown> }).phone).toEqual({ ...invalidLegacy, sources: ['caller', 'nppes'], standing: 'single_source' })
+
+    // The survivor's alt (Google lists another number) rides the loser's verdict, its sentence appended ONCE; the loser's alt only when the survivor has none.
+    state.ops = []
+    const alt = { number: '4045559999', source: 'places', at: AT }
+    state.selectQueue.push(
+      [
+        prospect({ id: 'a', phone: '4045550000', phoneStatus: 'unknown', phoneSource: 'single_source', verification: { phone: { ...typed, alt, detail: `${typed.detail}; Google lists (404) 555-9999 — kept the number you typed` } } }),
+        prospect({ id: 'b', phone: '4045550000', phoneStatus: 'invalid', phoneSource: 'single_source', verification: { phone: invalid } }),
+      ],
+      [], [], [],
+    )
+    await mergeProspects('a', 'b', { now: NOW, config: CONFIG })
+    const withAlt = (updates('prospect')[0].values!.verification as { phone: Record<string, unknown> }).phone
+    expect(withAlt).toMatchObject({ status: 'invalid', alt, detail: 'Carrier database: not an assigned number; Google lists (404) 555-9999 — kept the number you typed' })
+    expect((withAlt.detail as string).match(/Google lists/g)).toHaveLength(1)
+    state.ops = []
+    state.selectQueue.push(
+      [
+        prospect({ id: 'a', phone: '4045550000', phoneStatus: 'unknown', phoneSource: 'single_source', verification: { phone: typed } }),
+        prospect({ id: 'b', phone: '4045550000', phoneStatus: 'invalid', phoneSource: 'single_source', verification: { phone: { ...invalid, alt: { ...alt, number: '4045558888' } } } }),
+      ],
+      [], [], [],
+    )
+    await mergeProspects('a', 'b', { now: NOW, config: CONFIG })
+    expect((updates('prospect')[0].values!.verification as { phone: Record<string, unknown> }).phone).toMatchObject({ alt: { number: '4045558888' } })
+  })
+
+  it('Y2: the FILL of a verification-less survivor — the loser’s phone signal about the SAME number lands with both rows’ voices and the caller column kept; one about ANOTHER number never lands at all', async () => {
+    const AT = '2026-11-09T00:00:00.000Z'
+    const places = { status: 'matched', detail: null, checkedAt: AT, source: 'places' }
+    const theirs = { status: 'valid', detail: 'Carrier database: landline', checkedAt: AT, source: 'aws_pinpoint', sources: ['nppes', 'places'], standing: 'corroborated', lineCheck: 'done' }
+    // Same number: a hand-added, never-verified survivor (column caller, no verification) + a verified loser.
+    state.selectQueue.push(
+      [
+        prospect({ id: 'a', phone: '4045550000', phoneStatus: null, phoneSource: 'caller', verification: null }),
+        prospect({ id: 'b', phone: '4045550000', phoneStatus: 'valid', phoneSource: 'corroborated', phoneLineType: 'landline', verification: { places, phone: theirs } }),
+      ],
+      [], [], [],
+    )
+    await mergeProspects('a', 'b', { now: NOW, config: CONFIG })
+    const same = updates('prospect')[0].values!
+    expect(same.verification).toEqual({ places, phone: { ...theirs, sources: ['caller', 'nppes', 'places'], standing: 'corroborated' } })
+    expect(same.phoneSource).toBe('caller') // the column stays 'caller' — the loser's 'corroborated' never replaces it
+    // Another number: the loser's signal describes a line this row does not hold — the fill keeps the rest, drops the phone signal.
+    state.ops = []
+    state.selectQueue.push(
+      [
+        prospect({ id: 'a', phone: '4045550000', phoneStatus: null, phoneSource: 'caller', verification: null }),
+        prospect({ id: 'b', phone: '4045551234', phoneStatus: 'valid', phoneSource: 'corroborated', verification: { places, phone: theirs } }),
+      ],
+      [], [], [],
+    )
+    await mergeProspects('a', 'b', { now: NOW, config: CONFIG })
+    const other = updates('prospect')[0].values!
+    expect(other.verification).toEqual({ places })
+    expect(other).not.toHaveProperty('phone')
+    expect(other).not.toHaveProperty('phoneSource')
+  })
+
+  it('Y2 end to end: the MERGED row’s next verify pass (the REAL verifyProspectSignals) keeps the typed number against a listing that lists another — the alt attached, never replaced', async () => {
+    const AT = '2026-11-09T00:00:00.000Z'
+    const typed = { status: 'well_formed', detail: 'Well-formed US number — the line check is off', checkedAt: AT, source: 'nanp', sources: ['caller'], standing: 'single_source', lineCheck: 'off' }
+    const invalid = { status: 'invalid', detail: 'Carrier database: not an assigned number', checkedAt: AT, source: 'aws_pinpoint', sources: ['nppes'], standing: 'single_source', lineCheck: 'done' }
+    const survivor = prospect({ id: 'a', name: 'Smile Dental PC', addressLine1: '123 Main St', phone: '4045550000', phoneStatus: 'unknown', phoneLineType: null, phoneSource: 'single_source', phoneValidatedAt: null, npiNumber: null, verifiedAt: new Date(AT), verification: { phone: typed } })
+    state.selectQueue.push(
+      [survivor, prospect({ id: 'b', phone: '4045550000', phoneStatus: 'invalid', phoneSource: 'single_source', phoneValidatedAt: new Date(AT), qualityScore: 0, verification: { phone: invalid } })],
+      [], [], [],
+    )
+    await mergeProspects('a', 'b', { now: NOW, config: CONFIG })
+    const fill = updates('prospect')[0].values!
+    const merged = { ...survivor, ...fill, verification: parseVerification(fill.verification) }
+    const listing = { placeId: 'place_1', displayName: 'Smile Dental', formattedAddress: '123 Main St, Atlanta, GA 30309, USA', nationalPhoneNumber: '4045559999', websiteUri: null, ratingTenths: 47, reviewCount: 22, businessStatus: 'OPERATIONAL', googleMapsUri: 'https://maps.google.com/x', latestReviewAt: null, hasOpeningHours: true }
+    const ctx = await newVerifyRunCtx({ ...PROSPECTING_DEFAULTS, killSwitch: false }, NOW)
+    const out = await verifyProspectSignals(merged as never, { ok: true, places: [listing] }, ctx)
+    expect(out.patch.phone).toBe('4045550000')
+    expect(out.patch.verification.phone).toMatchObject({ sources: ['nppes', 'caller'], alt: { number: '4045559999', source: 'places' } })
+    expect(out.patch.verification.phone?.detail).toMatch(/Google lists \(404\) 555-9999 — kept the number you typed/)
+    expect(out.patch.verification.phone?.detail).not.toMatch(/the registry had/)
+  })
+
+  it('Z1: the union runs whenever the numbers are the same, whichever row carries the caller — the typed row as the LOSER (discovery twin the survivor, no verdict, a verification of its own): the loser’s caller voice, column and alt land on the survivor’s kept signal, and the REAL verify pass keeps the typed digits', async () => {
+    const AT = '2026-11-09T00:00:00.000Z'
+    const registry = { status: 'valid', detail: 'Carrier database: landline', checkedAt: AT, source: 'aws_pinpoint', sources: ['nppes'], standing: 'single_source', lineCheck: 'done' }
+    const alt = { number: '4045559999', source: 'places', at: AT }
+    const typed = { status: 'well_formed', detail: `Number entered by hand on Nov 8, 2026 — line not checked yet; Google lists (404) 555-9999 — kept the number you typed`, checkedAt: AT, source: 'caller', sources: ['caller'], standing: 'single_source', alt }
+    const survivorVerification = { places: { status: 'matched', detail: null, checkedAt: AT, source: 'places' }, phone: registry }
+    const survivor = prospect({ id: 'a', name: 'Smile Dental PC', addressLine1: '123 Main St', phone: '4045550000', phoneStatus: 'valid', phoneLineType: 'landline', phoneSource: 'single_source', phoneValidatedAt: new Date(AT), npiNumber: null, qualityScore: 80, qualityBand: 'best', verifiedAt: new Date(AT), verification: survivorVerification })
+    const loser = prospect({ id: 'b', phone: '4045550000', phoneStatus: 'unknown', phoneLineType: null, phoneSource: 'caller', phoneValidatedAt: null, qualityScore: 40, qualityBand: 'weak', verification: { phone: typed } })
+    state.selectQueue.push([survivor, loser], [], [], [])
+    await mergeProspects('a', 'b', { now: NOW, config: CONFIG })
+    const fill = updates('prospect')[0].values!
+    // The survivor's own signal is kept (status, detail, line facts) — with the loser's voice, its alt and its sentence.
+    expect(fill).not.toHaveProperty('phoneStatus')
+    expect(fill.phoneSource).toBe('caller')
+    expect((fill.verification as { phone: Record<string, unknown> }).phone).toEqual({
+      ...registry,
+      sources: ['nppes', 'caller'],
+      standing: 'corroborated',
+      alt,
+      detail: 'Carrier database: landline; Google lists (404) 555-9999 — kept the number you typed',
+    })
+    expect((fill.verification as { places: unknown }).places).toEqual(survivorVerification.places)
+    // Then the next verify pass, for real, against a listing stating the other number: the typed digits stay.
+    const merged = { ...survivor, ...fill, verification: parseVerification(fill.verification) }
+    const listing = { placeId: 'place_1', displayName: 'Smile Dental', formattedAddress: '123 Main St, Atlanta, GA 30309, USA', nationalPhoneNumber: '4045559999', websiteUri: null, ratingTenths: 47, reviewCount: 22, businessStatus: 'OPERATIONAL', googleMapsUri: 'https://maps.google.com/x', latestReviewAt: null, hasOpeningHours: true }
+    const out = await verifyProspectSignals(merged as never, { ok: true, places: [listing] }, await newVerifyRunCtx({ ...PROSPECTING_DEFAULTS, killSwitch: false }, NOW))
+    expect(out.patch.phone).toBe('4045550000')
+    expect(out.patch.verification.phone).toMatchObject({ sources: ['nppes', 'caller'], alt: { number: '4045559999', source: 'places' } })
+    expect(out.patch.verification.phone?.detail).toMatch(/Google lists \(404\) 555-9999 — kept the number you typed/)
+    expect(out.patch.verification.phone?.detail).not.toMatch(/the registry had/)
+
+    // The standing shape of the same loser (column single_source, sources [caller]): the column becomes the recomputed standing, the voice still lands.
+    state.ops = []
+    state.selectQueue.push([survivor, prospect({ ...loser, phoneSource: 'single_source', verification: { phone: { ...typed, alt: undefined, detail: 'Number entered by hand on Nov 8, 2026 — line not checked yet' } } })], [], [], [])
+    await mergeProspects('a', 'b', { now: NOW, config: CONFIG })
+    const standing = updates('prospect')[0].values!
+    expect(standing.phoneSource).toBe('corroborated')
+    expect((standing.verification as { phone: Record<string, unknown> }).phone).toEqual({ ...registry, sources: ['nppes', 'caller'], standing: 'corroborated' })
+    const again = await verifyProspectSignals({ ...survivor, ...standing, verification: parseVerification(standing.verification) } as never, { ok: true, places: [listing] }, await newVerifyRunCtx({ ...PROSPECTING_DEFAULTS, killSwitch: false }, NOW))
+    expect(again.patch.phone).toBe('4045550000')
+
+    // A loser that adds no voice (the same registry source, no alt) writes nothing — the survivor's signal and column stand untouched.
+    state.ops = []
+    state.selectQueue.push([survivor, prospect({ ...loser, phoneSource: 'single_source', verification: { phone: { ...registry, standing: 'single_source' } } })], [], [], [])
+    await mergeProspects('a', 'b', { now: NOW, config: CONFIG })
+    expect(updates('prospect')[0].values).not.toHaveProperty('verification')
+    expect(updates('prospect')[0].values).not.toHaveProperty('phoneSource')
+
+    // The CONTROL — the survivor as the pre-fix merge left it (sources [nppes], column single_source): the typed number is REPLACED.
+    const lost = { ...survivor, verification: parseVerification(survivorVerification) }
+    const replaced = await verifyProspectSignals(lost as never, { ok: true, places: [listing] }, await newVerifyRunCtx({ ...PROSPECTING_DEFAULTS, killSwitch: false }, NOW))
+    expect(replaced.patch.phone).toBe('4045559999')
   })
 
   it('V1: a `reach` heard on the same line is kept, and rescores only a row the pass has looked at', async () => {

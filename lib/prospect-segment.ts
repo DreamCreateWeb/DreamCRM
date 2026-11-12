@@ -1,8 +1,4 @@
-import type {
-  OutreachSegment,
-  ProspectAiVerdict,
-  ProspectCrawlSignals,
-} from '@/lib/types/prospecting'
+import { isWebsiteUnread, type OutreachSegment, type ProspectAiVerdict, type ProspectCrawlSignals } from '@/lib/types/prospecting'
 
 /**
  * Segment router — which pitch a prospect gets. Pure + client-safe; the
@@ -19,6 +15,9 @@ export function segmentForProspect(
   _signals?: ProspectCrawlSignals | null,
 ): OutreachSegment {
   if (!verdict || !verdict.hasWebsite) return 'no_website'
+  // A website nobody read (X1) is never "weak" on a placeholder 0: the
+  // generic presence pitch, which claims nothing about the site.
+  if (isWebsiteUnread(verdict)) return 'weak_presence'
   if (verdict.websiteQuality < 40) return 'weak_website'
   return 'weak_presence'
 }

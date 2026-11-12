@@ -23,7 +23,9 @@ import DuplicateCard from './duplicate-card'
 import DemoFollowupDrafter from './demo-followup-drafter'
 import ContactsPanel from './contacts-panel'
 import { VerificationCard } from './verification-card'
+import { FitCard, unreadStackTitle } from './fit-card'
 import PhoneEditor from './phone-editor'
+import { BUILDER_LABELS, WEBSITE_NOT_READ, crawlWasRead, isWebsiteUnread } from '@/lib/types/prospecting'
 import { PhoneStandingPill, QualityPill, isBadPhone } from './quality-pills'
 import { formatProspectPhone } from '@/lib/types/prospecting'
 
@@ -104,6 +106,9 @@ export default function ProspectDrawer({
               label={`${SCORE_BAND_LABELS[p.scoreBand as keyof typeof SCORE_BAND_LABELS]} · ${p.opportunityScore}`}
               title="Opportunity score — how much this practice needs what we sell"
             />
+          )}
+          {p.status === 'disqualified' && p.suppressedReason === 'chain' && (
+            <StatusPill tone="neutral" label="Chain" title="Set aside as a chain / DSO — we target chains later" />
           )}
           {p.intentSignal && (
             <StatusPill
@@ -221,6 +226,20 @@ export default function ProspectDrawer({
           />
         </div>
 
+        {/* Fit (P-04) — a chain? a group? new? the stack and the builder */}
+        <div className={SECTION}>
+          <div className={SECTION_TITLE}>Fit</div>
+          <FitCard
+            verification={p.verification}
+            signals={signals}
+            prospectId={p.id}
+            prospectName={p.name}
+            status={p.status}
+            suppressedReason={p.suppressedReason}
+            readOnly={folded || p.status === 'converted'}
+          />
+        </div>
+
         {/* Reachability — every discovered/entered address, ranked + verified */}
         <div className={SECTION}>
           <ContactsPanel prospectId={p.id} contacts={detail.contacts} readOnly={folded} />
@@ -264,7 +283,16 @@ export default function ProspectDrawer({
               )}
             </span>
           </div>
-          {signals && (
+          {/* An UNREAD crawl (robots refused us, the site could not be read)
+              claims no page fact — one line names the reason instead of the
+              yes / no rows (fix pass III, W4). */}
+          {signals && !crawlWasRead(signals) && (
+            <div className={ROW} data-site-unread>
+              <span className={KEY}>Online presence</span>
+              <span className={VAL}>Site not read — {unreadStackTitle(signals.error)}</span>
+            </div>
+          )}
+          {crawlWasRead(signals) && (
             <>
               <div className={ROW}>
                 <span className={KEY}>HTTPS / mobile-ready</span>
@@ -282,7 +310,7 @@ export default function ProspectDrawer({
               </div>
               <div className={ROW}>
                 <span className={KEY}>Site builder</span>
-                <span className={VAL}>{signals.builder ?? 'custom / unknown'}</span>
+                <span className={VAL}>{signals.builder ? (BUILDER_LABELS[signals.builder] ?? signals.builder) : 'custom / unknown'}</span>
               </div>
               <div className={ROW}>
                 <span className={KEY}>Social linked</span>
@@ -300,7 +328,7 @@ export default function ProspectDrawer({
         {/* Deal room — who we'd displace + the consolidation math */}
         <div className={SECTION}>
           <div className={SECTION_TITLE}>💰 Deal room</div>
-          <DealRoom vendors={(signals?.vendors ?? []) as DetectedVendor[]} crawled={Boolean(signals)} />
+          <DealRoom vendors={(crawlWasRead(signals) ? (signals.vendors ?? []) : []) as DetectedVendor[]} crawled={crawlWasRead(signals)} />
         </div>
 
         {/* Why this score */}
@@ -315,8 +343,11 @@ export default function ProspectDrawer({
                 </li>
               ))}
             </ul>
-            {verdict.summary && (
-              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{verdict.summary}</p>
+            {/* A website nobody read is never summarised as a grade (X1). */}
+            {(isWebsiteUnread(verdict) || verdict.summary) && (
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400" data-verdict-summary>
+                {isWebsiteUnread(verdict) ? WEBSITE_NOT_READ : verdict.summary}
+              </p>
             )}
           </div>
         )}

@@ -1,4 +1,4 @@
-import type { ProspectAiVerdict, ProspectCrawlSignals } from '@/lib/types/prospecting'
+import { crawlWasRead, type ProspectAiVerdict, type ProspectCrawlSignals } from '@/lib/types/prospecting'
 
 /**
  * Beat ↔ gap mapping — pure + client-safe. Turns a prospect's verified
@@ -73,7 +73,11 @@ export function deriveDemoGaps(
   if (verdict && !verdict.hasWebsite) {
     push('website', 'No website at all', 'signal')
   }
-  if (signals) {
+  // "Exact, provable" means a page somebody READ: an unread crawl (robots
+  // refused us, the site could not be read) yields no signal gap — its
+  // zeros would otherwise reach the prospect-facing demo skin's weaknesses
+  // as "Site isn't mobile-friendly" (fix pass III, W4).
+  if (crawlWasRead(signals)) {
     if (!signals.bookingWidget) push('appointments', 'No online booking today', 'signal')
     if (!signals.mobileViewport) push('website', "Site isn't mobile-friendly", 'signal')
     if (signals.copyrightYear != null && signals.copyrightYear < currentYear - 1) {
