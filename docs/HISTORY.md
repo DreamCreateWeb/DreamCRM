@@ -7656,5 +7656,10 @@ closed, 1 disconnected this month" truthfully). Readers: territory coverage
 counts exactly as `getBandCounts`; the hunt tile's "Chains removed" and the
 early-refresh line in the registry's warn ink. An adversarial review (34
 raised, 29 confirmed, 1 split, 4 refuted) was fixed in full as the branch's
-second commit (fix groups A–J; `scratchpad` record in the session) and
-confirmed by a verification round before merge.
+second commit (fix groups A–J); four verification rounds (6, 4, 3 and 2
+checkers) each raised narrower residuals — 13, 8, 3, 2 — and each was
+fixed in full (five more commits: the DSO domains, the listing's other
+number kept across passes, the durable typed-number guard, unread crawls
+claiming no page fact, an unread site never "no website", a bad number
+never corroborated, the merge's provenance union in both directions);
+the last commit was read directly against its rulings before merge.
