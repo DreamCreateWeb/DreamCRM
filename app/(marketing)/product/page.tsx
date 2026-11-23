@@ -26,6 +26,7 @@ import { liveDesigns } from '@/components/marketing/design-gallery-data'
 import { DesignGallery } from '@/components/marketing/design-gallery'
 import { INCLUDED_MONTHLY_INSURANCE_CHECKS } from '@/lib/insurance-eligibility'
 import { INCLUDED_MONTHLY_INSURANCE_DISCOVERIES } from '@/lib/insurance-discovery'
+import { pageMetadata } from '@/lib/marketing/seo'
 
 /**
  * THE PRODUCT TOUR — `BRAND.md` Part 8 move 6, page 3.
@@ -118,12 +119,12 @@ import { INCLUDED_MONTHLY_INSURANCE_DISCOVERIES } from '@/lib/insurance-discover
  * frame; nothing on this page states one of them in our own voice.
  */
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: 'Platform tour — DreamCRM',
-  alternates: { canonical: '/product' },
   description:
     'A deep dive through every module: the front-desk daily-ops layer, website studio, online booking, patient portal, unified messages, reviews & surveys, insurance checks, recall & loyalty, shop & memberships, and the PMS sync.',
-}
+  path: '/product',
+})
 
 interface ModuleSection {
   id: string

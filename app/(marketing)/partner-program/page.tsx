@@ -10,17 +10,17 @@ import {
   DAY_WIRE,
   type ToneTileGlyph,
 } from '@/components/marketing/ui'
-import { JsonLd, breadcrumbLd, faqPageLd } from '@/lib/marketing/seo'
+import { JsonLd, breadcrumbLd, faqPageLd, pageMetadata } from '@/lib/marketing/seo'
 import { getQuotedPlan } from '@/lib/stripe-config'
 import { PAYOUT_MIN_CENTS, formatBps } from '@/lib/types/referrals'
 import ApplyForm from './apply-form'
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: 'DreamCRM partner program — 10% recurring for dental consultants & advisors',
   description:
     'Refer dental practices to DreamCRM and earn 10% of every payment, month after month, for as long as they stay. For practice consultants, dental CPAs and bookkeepers, IT providers, and agencies.',
-  alternates: { canonical: '/partner-program' },
-}
+  path: '/partner-program',
+})
 
 /**
  * THE PARTNER PROGRAM — `BRAND.md` Part 8 move 6, page 6 (the tools).

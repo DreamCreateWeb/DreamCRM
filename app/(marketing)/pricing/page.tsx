@@ -10,7 +10,7 @@ import {
   DAY_WIRE,
   type ToneTileGlyph,
 } from '@/components/marketing/ui'
-import { JsonLd, faqPageLd, softwareApplicationLd } from '@/lib/marketing/seo'
+import { JsonLd, faqPageLd, pageMetadata, softwareApplicationLd } from '@/lib/marketing/seo'
 import { usd } from '@/lib/marketing/site'
 import { getQuotedPlan } from '@/lib/stripe-config'
 import { PriceCard } from './price-card'
@@ -201,15 +201,15 @@ const PRICING_FAQS: Array<{ q: string; a: string }> = [
   },
 ]
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: 'Pricing — DreamCRM',
-  alternates: { canonical: '/pricing' },
   description:
     `One plan, everything included: ${usd(PRICE.rateMonthly)}/mo founding practice rate` +
     `${PRICE.listMonthly ? ` (regularly ${usd(PRICE.listMonthly)})` : ''}. ` +
     'Website, booking, portal, messaging, reviews, recall, shop, insurance checks, PMS sync. ' +
     `Month-to-month, no contract — or annual with 2 months free (${usd(PRICE.rateAnnual)}/year).`,
-}
+  path: '/pricing',
+})
 
 /* `SectionOpener` moved to `components/marketing/ui.tsx` on move 6 page 2
    (DREAMCRM-76). It was local here on purpose while ONE page wanted the shape;

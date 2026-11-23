@@ -208,20 +208,29 @@ export function MarketingHeader() {
                       <path d="M6 8.5 1.5 4h9L6 8.5Z" />
                     </svg>
                   </Link>
-                  {openMenu === item.label && (
-                    <div className="absolute left-0 top-full pt-1.5">
-                      <div
-                        className={`rounded-[14px] border bg-white p-2 shadow-[0_28px_70px_-30px_rgb(47_82_179/0.55)] ${
-                          item.children.length > 5 ? 'grid w-[34rem] grid-cols-2 gap-x-2' : 'w-72'
-                        }`}
-                        style={{ borderColor: DAY_WIRE }}
-                      >
-                        {item.children.map((child) => (
-                          <ChildLink key={child.href} child={child} onNavigate={() => setOpenMenu(null)} />
-                        ))}
-                      </div>
+                  {/* ALWAYS IN THE DOCUMENT, closed with `hidden` — never mounted
+                      on open. Mounted-on-open meant the server HTML carried
+                      five nav links and none of the twenty-odd behind them:
+                      a crawler (search or AI — neither hovers) could reach
+                      the grader, the calculator, the growth library and half
+                      the comparisons only through the footer or a hub page,
+                      and the live link graph showed it. `hidden` is
+                      `display:none`, so a closed panel is still out of the
+                      tab order and the accessibility tree exactly as an
+                      unmounted one was. Held by
+                      `tests/marketing/nav-links-in-html.test.tsx`. */}
+                  <div className="absolute left-0 top-full pt-1.5" hidden={openMenu !== item.label}>
+                    <div
+                      className={`rounded-[14px] border bg-white p-2 shadow-[0_28px_70px_-30px_rgb(47_82_179/0.55)] ${
+                        item.children.length > 5 ? 'grid w-[34rem] grid-cols-2 gap-x-2' : 'w-72'
+                      }`}
+                      style={{ borderColor: DAY_WIRE }}
+                    >
+                      {item.children.map((child) => (
+                        <ChildLink key={child.href} child={child} onNavigate={() => setOpenMenu(null)} />
+                      ))}
                     </div>
-                  )}
+                  </div>
                 </div>
               ) : (
                 <Link

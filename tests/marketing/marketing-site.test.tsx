@@ -253,7 +253,14 @@ describe('content config integrity', () => {
       expect(c.matrix).toHaveLength(14)
       expect(c.theirStrengths.length).toBeGreaterThanOrEqual(3)
       expect(c.ourStrengths.length).toBeGreaterThanOrEqual(3)
-      expect(c.reportedPricing.toLowerCase()).toMatch(/reported|custom/)
+      // Every pricing line says WHERE its number comes from: a third-party
+      // report, a custom quote — or, since Weave began publishing its own
+      // (2026-11-23), the vendor's own page. A bare figure with no provenance
+      // is what this refuses.
+      expect(c.reportedPricing.toLowerCase()).toMatch(/reported|custom|published/)
+      // "Published" is a claim about THEIR site, so it must come with the
+      // dated check that read it.
+      if (/published/i.test(c.reportedPricing)) expect(c.pricingChecked, `${c.slug} says "published" with no dated check`).toBeTruthy()
     }
   })
 

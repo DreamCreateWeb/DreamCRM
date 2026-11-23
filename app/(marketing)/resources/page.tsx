@@ -9,7 +9,7 @@ import {
   MONO_LABEL,
   DAY_WIRE,
 } from '@/components/marketing/ui'
-import { JsonLd, SITE_URL } from '@/lib/marketing/seo'
+import { JsonLd, SITE_URL, pageMetadata } from '@/lib/marketing/seo'
 
 /**
  * THE PRACTICE GROWTH LIBRARY — `BRAND.md` Part 8 move 6, page 5 (the hub).
@@ -57,12 +57,12 @@ import { JsonLd, SITE_URL } from '@/lib/marketing/seo'
  * Part 5's table is untouched. The longer version is in `guide-ui.tsx`.
  */
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: 'Practice growth library — free guides for dental practices',
-  alternates: { canonical: '/resources' },
   description:
     'Free, copy-ready guides for growing a dental practice: recall scripts that get patients back, membership plan pricing math, and the patient-growth playbook in the right order.',
-}
+  path: '/resources',
+})
 
 export default function ResourcesIndexPage() {
   const total = String(RESOURCE_GUIDES.length).padStart(2, '0')

@@ -9,6 +9,7 @@ import {
   MONO_LABEL,
   DAY_WIRE,
 } from '@/components/marketing/ui'
+import { pageMetadata } from '@/lib/marketing/seo'
 
 /**
  * THE HELP DOCS INDEX — `BRAND.md` Part 8 move 6, page 6 (the second half).
@@ -53,12 +54,12 @@ import {
  * a row, and Part 5's table is untouched.
  */
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: 'Help docs — DreamCRM',
-  alternates: { canonical: '/docs' },
   description:
     'Setup guides and how-tos for every part of DreamCRM: website, booking, patient portal, reviews, recall, shop, and the PMS sync.',
-}
+  path: '/docs',
+})
 
 const pad = (n: number) => String(n).padStart(2, '0')
 

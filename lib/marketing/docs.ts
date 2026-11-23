@@ -808,6 +808,38 @@ export function getDoc(slug: string): DocArticle | undefined {
   return DOCS.find((d) => d.slug === slug)
 }
 
+/**
+ * The "More in <category>" list for one article: the NEXT few articles in its
+ * category, wrapping at the end.
+ *
+ * It used to be `category.filter(not me).slice(0, 3)` — the FIRST three in the
+ * category, for every reader. So the same three articles collected every
+ * cross-link in their category and the rest collected none: the live link
+ * graph (2026-11-23) showed fifteen help articles with exactly one inbound
+ * link on the whole site, the docs index. A page one click from a single hub
+ * is the weakest position a page can hold for a crawler, and it is no better
+ * for a reader, who was offered "Create your practice account" from the
+ * custom-domains article.
+ *
+ * Walking the category as a RING gives every article the same number of
+ * inbound links as it has outbound ones, and offers the reader what comes
+ * next rather than what came first. Held by
+ * `tests/marketing/docs-related-ring.test.ts`.
+ */
+export function relatedDocs(slug: string, count = 3): DocArticle[] {
+  const doc = getDoc(slug)
+  if (!doc) return []
+  const siblings = DOCS.filter((d) => d.category === doc.category)
+  const at = siblings.findIndex((d) => d.slug === slug)
+  const take = Math.min(count, siblings.length - 1)
+  const out: DocArticle[] = []
+  for (let k = 1; k <= take; k++) {
+    const next = siblings[(at + k) % siblings.length]
+    if (next) out.push(next)
+  }
+  return out
+}
+
 export function docsByCategory(): Array<{ category: DocCategory; articles: DocArticle[] }> {
   return DOC_CATEGORIES.map((category) => ({
     category,

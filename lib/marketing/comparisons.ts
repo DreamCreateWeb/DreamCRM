@@ -51,6 +51,24 @@ export interface VendorComparison {
   category: string
   /** Reported pricing band with sourcing hedge. */
   reportedPricing: string
+  /**
+   * WHEN the pricing line was last read against the vendor's OWN page, and
+   * which page — present only on an entry somebody actually re-read.
+   *
+   * It exists because the Weave entry sat here saying "reported ~$249–$449,
+   * annual agreements" for months after Weave started publishing a $199 base
+   * price and a "no long-term contracts" answer on its own site (found on the
+   * 2026-11-23 marketing audit). A comparison page is where our paid traffic
+   * lands and what an AI assistant quotes back, so a stale competitor fact is
+   * both a conversion problem and an honesty one. A date on an UNCHECKED line
+   * would be that same problem wearing a timestamp, which is why this is
+   * optional rather than defaulted: no check, no date, and the page falls
+   * back to the registry-wide disclaimer.
+   *
+   * `on` is an ISO day. It renders under the price panel with a link to
+   * `url`, and it is the page's `lastmod` in the sitemap.
+   */
+  pricingChecked?: { on: string; source: string; url: string }
   summary: string
   /** What they genuinely do better — 3 honest bullets. */
   theirStrengths: Array<{ title: string; body: string }>
@@ -110,9 +128,11 @@ export const COMPARISONS: VendorComparison[] = [
     slug: 'weave',
     name: 'Weave',
     category: 'Phones-first patient communication platform',
-    reportedPricing: 'Reported ~$249–$449/mo per location depending on tier, plus phone hardware (third-party pricing reviews, 2026)',
+    reportedPricing:
+      'Published at $199/mo for the base plan (calls, two-way texting, text-to-pay); online scheduling, digital forms, reminders and recall are a $149/mo bundle on top, and reviews plus email marketing a second $149/mo bundle, while its Pro, Elite and Ultimate tiers stay quote-only',
+    pricingChecked: { on: '2026-11-23', source: 'Weave’s own plans and pricing pages', url: 'https://www.getweave.com/plans/' },
     summary:
-      'Weave is the category leader in dental phone systems — VoIP with caller-context screen pops, texting, and payments. It is genuinely excellent at the phone. But it has no practice website, no patient portal, and its online scheduling and digital forms are gated to its higher tiers. DreamCRM starts where the phone call ends: the website that wins the patient, the portal they come back to, and one inbox for everything they send you.',
+      'Weave is the category leader in dental phone systems — VoIP with caller-context screen pops, texting, and payments. It is genuinely excellent at the phone, and it now publishes a starting price and says it requires no long-term contract. But it has no practice website and no patient portal, its online scheduling, digital forms and recall are a paid bundle on top of the base plan, and it offers no free trial of the full platform. DreamCRM starts where the phone call ends: the website that wins the patient, the portal they come back to, and one inbox for everything they send you.',
     theirStrengths: [
       { title: 'The phone experience', body: 'VoIP with patient context on screen when the phone rings is Weave’s signature, and nothing in DreamCRM replaces your phone system.' },
       { title: 'Two-way texting today', body: 'Mature SMS with missed-call auto-text. Our SMS channel is still on the roadmap — if texting is your #1 need today, Weave is ahead.' },
@@ -121,23 +141,24 @@ export const COMPARISONS: VendorComparison[] = [
     ourStrengths: [
       { glyph: 'globe', title: 'The website is included', body: 'Weave assumes you already have a website vendor. DreamCRM ships one — with an edit-in-place studio, SEO plumbing, and AI copy help — replacing that retainer entirely.' },
       { glyph: 'people', title: 'A real patient portal', body: 'Confirm, self-reschedule, forms, balances, online payment — in your branding, with per-feature toggles. Weave has no patient portal.' },
-      { glyph: 'layers', title: 'Everything in the base price', body: `Weave gates online scheduling and digital forms to its Elite tier per its published pricing. In DreamCRM, booking and forms are in the one ${RATE_MONTHLY}/mo plan with no per-location phone hardware.` },
+      { glyph: 'layers', title: 'Everything in the base price', body: `Weave’s published plans put online scheduling, digital forms and recall in a $149/mo bundle on top of the $199 base, and reviews plus email marketing in a second $149/mo bundle — $497/mo for the base and both. In DreamCRM, booking, forms, recall and reviews are all in the one ${RATE_MONTHLY}/mo plan.` },
       { glyph: 'cart', title: 'Shop & memberships', body: 'Whitening kits and in-house membership plans sold from your own site — no equivalent in Weave.' },
     ],
     matrix: baseMatrix({
       website: ['no', 'Assumes an existing site'],
-      booking: ['partial', 'Gated to Elite tier per published pricing'],
+      booking: ['partial', 'In the $149/mo Coordinate bundle, on top of the base plan'],
       portal: ['no'],
       inbox: ['partial', 'Calls + SMS unified; no portal/email patient threads'],
-      reviews: ['yes'],
-      recall: ['yes', 'Via texting tiers'],
+      reviews: ['yes', 'In the $149/mo Attract bundle'],
+      recall: ['yes', 'In the $149/mo Coordinate bundle'],
       social: ['partial', 'Reviews + Google tools; limited social'],
       shop: ['no'],
       careers: ['no'],
       pms: ['yes', 'Broad PMS coverage via its sync app'],
       phones: ['yes', 'Their core product'],
       sms: ['yes'],
-      contract: ['partial', 'Reported annual agreements + hardware'],
+      insurance: ['yes', 'Listed for dental on its pricing page; which plans include it is not shown'],
+      contract: ['yes', 'No long-term contract required, per its plans page; year-long terms are discounted'],
     }),
     bottomLine:
       'Keep your phones — Weave’s or anyone’s. If what you’re missing is the patient-facing layer (website, booking, portal, reviews, shop) at a flat monthly price, that is exactly the layer DreamCRM is.',
@@ -396,6 +417,24 @@ export const COMPARISONS: VendorComparison[] = [
   },
 ]
 
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+
+/**
+ * `2026-11-23` → `November 23, 2026`, for the "last checked" line.
+ *
+ * STRING IN, STRING OUT — no `Date`. An ISO day pushed through `new Date()`
+ * is midnight UTC, and formatted on a client west of Greenwich it reads as
+ * the day BEFORE; the page would then claim a check on a date nobody made
+ * one. A calendar day has no timezone, so it is never given one. A malformed
+ * value comes back unchanged rather than as "undefined NaN".
+ */
+export function formatCheckedOn(isoDay: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDay)
+  const month = m ? MONTHS[Number(m[2]) - 1] : undefined
+  if (!m || !month) return isoDay
+  return `${month} ${Number(m[3])}, ${m[1]}`
+}
+
 export function getComparison(slug: string): VendorComparison | undefined {
   return COMPARISONS.find((c) => c.slug === slug)
 }
@@ -431,7 +470,7 @@ export function buildComparisonFaq(c: VendorComparison): Array<{ q: string; a: s
 }
 
 export const COMPARISON_DISCLAIMER =
-  'Competitor details reflect public vendor materials and independent reviews as of June 2026 and may change — verify specifics with each vendor. We aim to be scrupulously fair: every vendor on this page is good at something, and we say so.'
+  'Competitor details reflect public vendor materials and independent reviews as of June 2026, except where a page shows a later “last checked” date, and may change — verify specifics with each vendor. We aim to be scrupulously fair: every vendor on this page is good at something, and we say so.'
 
 /**
  * How many comparisons there are, spelled for a headline.

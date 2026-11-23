@@ -200,8 +200,11 @@ describe('assertion 1 — the surface FOLLOWS the config (DREAMCRM-38)', () => {
     const { COMPARISONS, buildComparisonFaq } = await import('@/lib/marketing/comparisons')
     const faq = buildComparisonFaq(COMPARISONS[0]!)
     expect(faq.map((f) => f.a).join(' ')).toContain('$314/mo published')
-    // The band beside it is somebody else's number and must NOT move.
-    expect(COMPARISONS[0]!.reportedPricing).toContain('$249')
+    // The figure beside it is somebody else's number and must NOT move. (It
+    // was `$249`, the low end of a third-party band, until 2026-11-23 — Weave
+    // publishes `$199` on its own plans page now, and the registry quotes
+    // that. Still theirs, still not ours to reprice.)
+    expect(COMPARISONS[0]!.reportedPricing).toContain('$199')
   })
 
   it('follows the config in the prospecting product knowledge a model reads aloud', async () => {

@@ -7,7 +7,7 @@ import {
 import { PageHero, SectionOpener, MONO_LABEL, DAY_WIRE } from '@/components/marketing/ui'
 import { usd } from '@/lib/marketing/site'
 import { getQuotedPlan } from '@/lib/stripe-config'
-import { JsonLd, SITE_URL } from '@/lib/marketing/seo'
+import { JsonLd, SITE_URL, pageMetadata } from '@/lib/marketing/seo'
 
 /**
  * THE COMPARISON INDEX — `BRAND.md` Part 8 move 6, page 2 (with
@@ -47,11 +47,11 @@ import { JsonLd, SITE_URL } from '@/lib/marketing/seo'
 /** Ours, resolved rather than typed. Pure config — no database, no Stripe. */
 const PLAN = getQuotedPlan()
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: 'Compare DreamCRM to the alternatives',
-  alternates: { canonical: '/compare' },
   description: `Honest, page-length comparisons against ${COMPARISONS.map((c) => c.name).join(', ')} — reported pricing included, plus what each vendor does better than us.`,
-}
+  path: '/compare',
+})
 
 /**
  * What a practice typically pays for the jobs DreamCRM does as one product.

@@ -1,4 +1,3 @@
-import type { Metadata } from 'next'
 import {
   PageHero,
   SectionOpener,
@@ -8,12 +7,14 @@ import {
   type ToneTileGlyph,
 } from '@/components/marketing/ui'
 import GradeForm from './grade-form'
+import { pageMetadata } from '@/lib/marketing/seo'
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: 'Grade your dental practice’s online presence — DreamCRM',
   description:
     'Free grader for dental practices: your website, your Google Business listing, and your reviews — scored in seconds, with what patients actually experience.',
-}
+  path: '/grade',
+})
 
 /**
  * THE PRACTICE GRADER — `BRAND.md` Part 8 move 6, page 6 (the tools).

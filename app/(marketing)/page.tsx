@@ -6,7 +6,7 @@ import { getServerSession } from '@/lib/session'
 import { DEMO_URL, usd } from '@/lib/marketing/site'
 import { getQuotedPlan } from '@/lib/stripe-config'
 import { COMPARISONS } from '@/lib/marketing/comparisons'
-import { JsonLd, softwareApplicationLd } from '@/lib/marketing/seo'
+import { JsonLd, pageMetadata, softwareApplicationLd } from '@/lib/marketing/seo'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import CinematicSpine from '@/components/marketing/cinematic-spine'
 import {
@@ -49,23 +49,26 @@ const PRICE = {
   listMonthly: PLAN.listPrice ?? null,
 }
 
-export const metadata = {
+/**
+ * THE HEAD, through `pageMetadata` — and the search snippet cut to fit.
+ *
+ * The description ran 290 characters, with the price and the trial as its
+ * LAST clause — the part a result page truncates. It is under 160 now with
+ * the category first and the price inside the visible window; the warmer line
+ * stays on the link-preview card, where there is room for it.
+ */
+export const metadata = pageMetadata({
   title: 'DreamCRM — the patient-relationship platform for dental practices',
   description:
-    'The patient-relationship platform for dental practices: website, online booking, patient portal, messaging, reviews, recall, and an online store — one system, wrapped around the PMS you already run. 7-day free trial, no card. ' +
+    'Dental practice software in one system: website, booking, portal, messages, reviews, recall. ' +
     `${usd(PRICE.rateMonthly)}/mo founding practice rate` +
-    `${PRICE.listMonthly ? ` (regularly ${usd(PRICE.listMonthly)})` : ''}, month-to-month.`,
-  openGraph: {
-    title: 'DreamCRM — the patient-relationship platform for dental practices',
+    `${PRICE.listMonthly ? ` (regularly ${usd(PRICE.listMonthly)})` : ''}. 7-day free trial.`,
+  path: '/',
+  social: {
     description:
       'Everything between you and your patients — website, booking, portal, messages, reviews, recall — in one calm system. Keep your PMS.',
-    type: 'website',
-    // A page-level openGraph block replaces the inherited one wholesale,
-    // dropping the root file-convention image — re-add it explicitly
-    // (resolved absolute via metadataBase).
-    images: ['/opengraph-image'],
   },
-}
+})
 
 const PILLARS: Array<{ title: string; body: string; href: string; glyph: React.ReactNode }> = [
   {

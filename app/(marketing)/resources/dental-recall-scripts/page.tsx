@@ -2,14 +2,15 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getResourceGuide } from '@/lib/marketing/resources'
 import { GuideShell, GuideH2, GuideP, GuideList, GuideNote, ScriptCard } from '../guide-ui'
+import { pageMetadata } from '@/lib/marketing/seo'
 
 const guide = getResourceGuide('dental-recall-scripts')
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: 'Dental recall scripts: email, text & phone templates that work',
-  description: guide?.description,
-  alternates: { canonical: '/resources/dental-recall-scripts' },
-}
+  description: guide?.description ?? '',
+  path: '/resources/dental-recall-scripts',
+})
 
 export default function RecallScriptsGuide() {
   if (!guide) notFound()

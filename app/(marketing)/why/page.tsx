@@ -10,6 +10,7 @@ import {
 } from '@/components/marketing/ui'
 import { usd } from '@/lib/marketing/site'
 import { getQuotedPlan } from '@/lib/stripe-config'
+import { pageMetadata } from '@/lib/marketing/seo'
 
 /**
  * THE MANIFESTO — `BRAND.md` Part 8 move 6, page 4.
@@ -94,12 +95,12 @@ import { getQuotedPlan } from '@/lib/stripe-config'
  *  no Stripe call — so this costs nothing at render. */
 const PLAN = getQuotedPlan()
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: 'Why DreamCRM — what this platform believes',
-  alternates: { canonical: '/why' },
   description:
     'DreamCRM is the patient-relationship platform for dental practices. Dental-only, wraps the PMS you already run, warm software for real front desks — with our gaps marked and no lock-in.',
-}
+  path: '/why',
+})
 
 const BELIEFS: Array<{
   glyph: ToneTileGlyph

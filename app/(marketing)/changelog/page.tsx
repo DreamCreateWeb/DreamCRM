@@ -14,7 +14,7 @@ import {
   MONO_LABEL,
   DAY_WIRE,
 } from '@/components/marketing/ui'
-import { JsonLd, SITE_URL } from '@/lib/marketing/seo'
+import { JsonLd, SITE_URL, pageMetadata } from '@/lib/marketing/seo'
 
 /**
  * THE CHANGELOG — `BRAND.md` Part 8 move 6, page 6 (the second half).
@@ -83,12 +83,12 @@ import { JsonLd, SITE_URL } from '@/lib/marketing/seo'
  * "The docs and the changelog, measured".
  */
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: 'Changelog — what’s new in DreamCRM',
-  alternates: { canonical: '/changelog' },
   description:
     'Everything that changes in DreamCRM, summarized once a week in plain English: new features, improvements, and fixes across the website, booking, patient portal, messages, and payments.',
-}
+  path: '/changelog',
+})
 
 /**
  * THE KIND IS A WORD; THE COLOUR BELONGS TO THE SUBJECT — `BRAND.md` Part 2

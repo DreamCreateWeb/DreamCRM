@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { COMPARISONS, COMPARISON_DISCLAIMER, buildComparisonFaq, getComparison } from '@/lib/marketing/comparisons'
+import { COMPARISONS, COMPARISON_DISCLAIMER, buildComparisonFaq, formatCheckedOn, getComparison } from '@/lib/marketing/comparisons'
 import {
   PageHero,
   PrimaryCta,
@@ -14,7 +14,7 @@ import {
 } from '@/components/marketing/ui'
 import { DEMO_URL, usd } from '@/lib/marketing/site'
 import { getQuotedPlan } from '@/lib/stripe-config'
-import { JsonLd, breadcrumbLd, faqPageLd } from '@/lib/marketing/seo'
+import { JsonLd, breadcrumbLd, faqPageLd, pageMetadata } from '@/lib/marketing/seo'
 
 /**
  * THE VENDOR COMPARISON — `BRAND.md` Part 8 move 6, page 2.
@@ -154,11 +154,11 @@ export async function generateMetadata({ params }: Props) {
   // "{vendor} pricing" and "{vendor} alternative(s)" (marketing-engine
   // Part 5: BOFU comparison pages, the terms thin-domain challengers rank
   // for today).
-  return {
+  return pageMetadata({
     title: `DreamCRM vs ${c.name}: pricing, features & alternatives`,
     description: `${c.name} pricing as reported, what it genuinely does well, and an honest feature-by-feature comparison with DreamCRM — a ${usd(PLAN.price)}/mo published, dentistry-native alternative.`,
-    alternates: { canonical: `/compare/${c.slug}` },
-  }
+    path: `/compare/${c.slug}`,
+  })
 }
 
 export default async function ComparePage({ params }: Props) {
@@ -214,6 +214,25 @@ export default async function ComparePage({ params }: Props) {
               </dd>
             </div>
           </dl>
+          {/* THE DATE AND THE SOURCE, when somebody actually re-read the
+              vendor's page (`pricingChecked` in the registry — absent means
+              unchecked, and an unchecked line gets no date). A buyer, and an
+              assistant quoting this page back to one, can both see how old
+              the number is and where to confirm it. `nofollow`: the link is a
+              citation, not an endorsement. */}
+          {c.pricingChecked && (
+            <p className="mt-4 border-t pt-3 text-[0.8rem] leading-relaxed text-gray-600" style={{ borderColor: DAY_WIRE }}>
+              {c.name} pricing last checked {formatCheckedOn(c.pricingChecked.on)} against{' '}
+              <a
+                href={c.pricingChecked.url}
+                rel="nofollow noopener noreferrer"
+                className="font-medium text-teal-700 underline underline-offset-2 hover:text-teal-800"
+              >
+                {c.pricingChecked.source}
+              </a>
+              .
+            </p>
+          )}
         </div>
       </PageHero>
 

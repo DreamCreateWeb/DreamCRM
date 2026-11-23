@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { DOCS, getDoc, DOC_CATEGORY_GLYPH } from '@/lib/marketing/docs'
-import { JsonLd, breadcrumbLd } from '@/lib/marketing/seo'
+import { DOCS, getDoc, relatedDocs, DOC_CATEGORY_GLYPH } from '@/lib/marketing/docs'
+import { JsonLd, breadcrumbLd, pageMetadata } from '@/lib/marketing/seo'
 import {
   PageHero,
   PrimaryCta,
@@ -107,11 +107,11 @@ export async function generateMetadata({ params }: Props) {
   const { slug } = await params
   const doc = getDoc(slug)
   if (!doc) return {}
-  return {
+  return pageMetadata({
     title: `${doc.title} — DreamCRM docs`,
     description: doc.summary,
-    alternates: { canonical: `/docs/${slug}` },
-  }
+    path: `/docs/${slug}`,
+  })
 }
 
 /**
@@ -132,7 +132,7 @@ export default async function DocArticlePage({ params }: Props) {
   const doc = getDoc(slug)
   if (!doc) notFound()
 
-  const related = DOCS.filter((d) => d.category === doc.category && d.slug !== doc.slug).slice(0, 3)
+  const related = relatedDocs(doc.slug)
   const glyph = DOC_CATEGORY_GLYPH[doc.category]
 
   return (
