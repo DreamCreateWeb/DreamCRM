@@ -1770,3 +1770,48 @@ Not done here, by decision or because it is not marketing-site code: the
 "regularly $500" wording, the legal pages, the clinic-site canonical, the demo
 practice's indexability, the homepage's per-request render, and click-id
 capture for ad conversion upload (11.5 and `site-audit.md`).
+
+**Part 11 slice 2 — ad readiness: the click kept whole, and the campaign as data (2026-11-23, no migration).**
+Owner directive, same day: "we need 2 new customers per month from our web
+marketing alone", and "walk me through which ad account to set up". The
+arithmetic that answers the first: two paying practices a month is 25 trials
+at the 8% survey median (17 at 12%, 40 at 5%), about $3,000 a month at ~$120 a
+trial — so the target needs a larger budget, a trial-to-paid rate at or above
+the median, AND trials that cost nothing per click, together. The runbook for
+the second is `docs/ads-go-live.md`.
+
+- **The sensor keeps the click id's VALUE and the keyword.** It recorded only
+  that a `gclid` was present — enough to name the channel, useless for telling
+  Google which click became a trial (its Data Manager upload requires the id
+  when no tag collects user data, and we run no ad-platform tag on a domain
+  that also serves clinic sites). `AttributionTouch` gains `clickId { kind,
+  value }` for `gclid` / `gbraid` / `wbraid` / `msclkid` and `utmTerm`. Case
+  is preserved (the ids are case-sensitive; the UTM cleaner lowercases), an
+  over-long or malformed id is REJECTED rather than clipped, and presence
+  still classifies a touch whose value could not be kept. The cookie carries
+  them as three OPTIONAL short keys with no version bump, so every 90-day
+  memory already in a browser keeps parsing and a touch with neither costs
+  the cookie nothing. The signup stamp inherits both; `adClickIdFor(stamp,
+  platform)` answers "which click do I report?" — the most recent touch from
+  THAT platform.
+- **Two classification defects closed on the way.** Google's iOS click ids
+  (`gbraid`, `wbraid`) were not looked for at all, so those ad clicks arrived
+  with a google.com referrer and were filed under organic search. And paid
+  Bing intent was filed under Google Ads. **`microsoft_ads` is a channel now**
+  (registry, label, the dials' bar and spend list), and it is asked BEFORE
+  Google: a campaign imported from Google keeps `utm_source=google`, so on a
+  Bing click the click id is the truth and the UTM is a leftover.
+- **The campaign is data** — `lib/marketing/ad-campaigns.ts`. An ad is typed
+  into somebody else's system and never re-read, and it quotes the three
+  things here that change: the price, the trial length, and which comparison
+  pages were actually checked. The campaign resolves all three
+  (`getQuotedPlan`, `TRIAL_DAYS`, `pricingChecked`): **an ad group exists only
+  for a vendor whose page carries a dated check**, so an unverified page gets
+  no paid traffic by construction. `tests/marketing/ad-campaign.test.ts` holds
+  Google's limits, that no rival is named in ad text, that any dollar figure
+  in the copy is the resolved price, and that the brief in
+  `docs/ads-go-live.md` — the text that gets pasted — is the one the code
+  renders (`UPDATE_ADS_BRIEF=1` regenerates it).
+- **Not built:** the conversion upload itself (trial started / became paying,
+  through Google's Data Manager); a keyword readout on the Acquisition panel;
+  the Privacy Policy and Terms the campaign must not launch without.

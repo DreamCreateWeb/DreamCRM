@@ -238,6 +238,7 @@ describe('getAcquisitionReport', () => {
       'powered_by',
       'grader',
       'google_ads',
+      'microsoft_ads',
       'meta_ads',
       'organic_search',
       'ai_assistant',

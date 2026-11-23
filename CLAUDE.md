@@ -30,7 +30,7 @@ open those — do not guess.
 | [`docs/AUDITS.md`](./docs/AUDITS.md) | Phase-audit certificates, retrospectives, the standing self-sweep checklist. |
 | [`docs/STRUCTURE-AUDIT.md`](./docs/STRUCTURE-AUDIT.md) | The information-architecture reference. Read before moving/renaming any surface. |
 | [`docs/COMPETITIVE-GAPS.md`](./docs/COMPETITIVE-GAPS.md) | The module-deepening roadmap + owner rulings (e.g. insurance checks stay MANUAL, 2026-10-02). |
-| Deep dives | `docs/custom-domains.md` · `docs/inbound-email.md` · `docs/insurance-go-live.md` · `docs/financing-providers.md` · `docs/onboarding-overhaul.md` · `docs/sms-provider-evaluation.md` · `docs/marketing-engine.md` · `docs/intake-forms-overhaul.md` · `docs/zernio-google-integration.md` · `docs/outreach-go-live.md` · `docs/E2E.md` · `docs/CI.md` · `docs/PROD-READ-ACCESS.md` |
+| Deep dives | `docs/custom-domains.md` · `docs/inbound-email.md` · `docs/insurance-go-live.md` · `docs/financing-providers.md` · `docs/onboarding-overhaul.md` · `docs/sms-provider-evaluation.md` · `docs/marketing-engine.md` · `docs/intake-forms-overhaul.md` · `docs/zernio-google-integration.md` · `docs/outreach-go-live.md` · `docs/ads-go-live.md` · `docs/E2E.md` · `docs/CI.md` · `docs/PROD-READ-ACCESS.md` |
 
 ## Stack
 

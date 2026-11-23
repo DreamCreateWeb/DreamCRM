@@ -38,6 +38,7 @@ export const CAC_LAG_DAYS = 60
  *  without an entry have no bar — spend there is judged blended-only. */
 export const CHANNEL_TRIAL_BARS: Partial<Record<MarketingChannel, number>> = {
   google_ads: 120_00, // competitor/alternative terms: cost/trial <$120
+  microsoft_ads: 120_00, // the same campaign mirrored onto Bing, so the same bar
   meta_ads: 80_00, // trial $30–80; over $80 is the kill bar
 }
 
@@ -45,6 +46,7 @@ export const CHANNEL_TRIAL_BARS: Partial<Record<MarketingChannel, number>> = {
  *  channel; this is just what a human plausibly buys. */
 export const SPENDABLE_CHANNELS: MarketingChannel[] = [
   'google_ads',
+  'microsoft_ads',
   'meta_ads',
   'social',
   'email',
