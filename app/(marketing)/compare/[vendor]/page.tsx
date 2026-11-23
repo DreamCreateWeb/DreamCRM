@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { COMPARISONS, COMPARISON_DISCLAIMER, buildComparisonFaq, formatCheckedOn, getComparison } from '@/lib/marketing/comparisons'
+import { TRIAL_DAYS } from '@/lib/trial'
 import {
   PageHero,
   PrimaryCta,
@@ -184,6 +185,25 @@ export default async function ComparePage({ params }: Props) {
       />
 
       <PageHero eyebrow="Comparison" title={`DreamCRM vs ${c.name}`} sub={c.summary}>
+        {/* ── THE DOOR, AT THE TOP ────────────────────────────────────────
+               This page's only way into a trial was the closing block, some
+               fourteen hundred words down. On a desktop the header's button
+               covers for that; below `lg` the header is a logo and a menu
+               icon, so a visitor on a phone had no door at all until the
+               bottom of the page. These are the pages paid search lands on
+               (`lib/marketing/ad-campaigns.ts`), where every arrival has been
+               paid for, so the door goes ahead of the evidence rather than
+               after it.
+
+               The line beside it RESOLVES its two numbers — the trial length
+               and the price — like every other copy of them on this page.
+               Held by `tests/marketing/compare-hero-cta.test.tsx`. ── */}
+        <div className="mb-8 flex max-w-2xl flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
+          <PrimaryCta href="/signup">Start your free trial</PrimaryCta>
+          <p className="text-[0.85rem] leading-relaxed text-gray-600">
+            {TRIAL_DAYS} days free, no card. {usd(PLAN.price)}/mo after, month-to-month.
+          </p>
+        </div>
         {/* ── THE PRICE PANEL, BREAKING THE SEAM ──────────────────────────
                Move 6 page 1's grid-break, in the form this page has one: the
                two prices side by side, in the hero's own light, rather than a

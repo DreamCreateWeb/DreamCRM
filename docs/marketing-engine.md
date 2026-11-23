@@ -1812,6 +1812,15 @@ the second is `docs/ads-go-live.md`.
   in the copy is the resolved price, and that the brief in
   `docs/ads-go-live.md` — the text that gets pasted — is the one the code
   renders (`UPDATE_ADS_BRIEF=1` regenerates it).
+- **The landing pages have a door at the top.** A comparison page's only way
+  into a trial was its closing block, after the strengths, the matrix and the
+  FAQ. The header's button covers that on a desktop; below `lg` the header is
+  a logo and a menu icon. Measured in a browser at 390×844 on the built app:
+  the first trial button now sits at y≈660 on the Weave page and y≈580 on
+  NexHealth's — on the first screen — where it used to be at the bottom of a
+  page about 9,500px tall. The line beside it resolves the trial length and
+  the price. `tests/marketing/compare-hero-cta.test.tsx` holds its POSITION
+  (before the first section and the matrix) on every page in the registry.
 - **Not built:** the conversion upload itself (trial started / became paying,
   through Google's Data Manager); a keyword readout on the Acquisition panel;
   the Privacy Policy and Terms the campaign must not launch without.
