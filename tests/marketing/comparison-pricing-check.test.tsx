@@ -5,13 +5,12 @@ import React from 'react'
 /**
  * A DATED PRICING CHECK — the comparison refresh of 2026-11-23.
  *
- * The Weave page said "reported ~$249–$449/mo … annual agreements" for months
- * after Weave began publishing a $199 base price, two $149 bundles and a "no
- * long-term contracts" answer on its own site. Nothing in the tree could say
- * how old the number was, so nothing prompted anyone to re-read it. A
- * comparison page is where paid traffic lands and what an assistant quotes
- * back to a buyer, so a stale competitor fact is a conversion problem and an
- * honesty one at once.
+ * The Weave page said "reported ~$249–$449/mo … annual agreements" while
+ * Weave's own site published a $199 base price, two $149 bundles and a "no
+ * long-term contracts" answer. Nothing in the tree could say how old the
+ * number was, so nothing prompted anyone to re-read it. A comparison page is
+ * where paid traffic lands and what an assistant quotes back to a buyer, so a
+ * stale competitor fact is a conversion problem and an honesty one at once.
  *
  * `pricingChecked` is the answer: an entry somebody actually re-read against
  * the vendor's OWN page carries the day and the page, the comparison renders

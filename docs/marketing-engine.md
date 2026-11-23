@@ -1021,17 +1021,22 @@ organizer's own page on 2026-11-23.
 ### 11.0 Corrections to Parts 0–10 (read these before quoting the earlier parts)
 
 1. **"Not one of 24 dental vendors publishes a real price or is self-serve"
-   (10.0 #2) is no longer true as written.** Weave now publishes its plans:
-   base $199/mo, a $149/mo Coordinate bundle (online scheduling, forms,
-   reminders, recall) and a $149/mo Attract bundle (reviews, email marketing,
-   bulk texting), and answers "Do I have to commit to a long-term contract?"
-   with "No" (**VERIFIED**, getweave.com/plans). It still offers no free trial
-   of the full platform and the purchase path is "Checkout and demo". Flex
-   Dental sells a self-serve checkout at $299/mo + a $15 pass-through, Open
-   Dental only (FACT, flexdental.com/pricing, per the research thread). The
-   claim that survives: **self-serve, published price, free trial, and works
-   across PMSs — together.** Never "the only self-serve door".
-2. **The like-for-like Weave number is now public and it is $497/mo** for the
+   (10.0 #2) is not true as written — and for Weave it was not true in
+   September either.** Pass 2's own research file recorded a "$199/mo
+   advertised" base and both $149 bundles from third-party pages; the 10.0
+   summary dropped it. Weave's own pages publish a base plan at $199/mo, a
+   $149/mo Coordinate bundle (online scheduling, forms, reminders, recall)
+   and a $149/mo Attract bundle (reviews, email marketing, bulk texting), and
+   answer "Do I have to commit to a long-term contract?" with "No"
+   (**VERIFIED**, getweave.com/plans). Weave still offers no free trial of the
+   full platform and the purchase path is "Checkout and demo". Solutionreach
+   publishes "Pricing starts at $199" with every package by quote
+   (**VERIFIED**, solutionreach.com/pricing). Flex Dental sells a self-serve
+   checkout at $299/mo + a $15 pass-through, Open Dental only (FACT,
+   flexdental.com/pricing, per the research thread). The claim that survives:
+   **self-serve, published price, free trial, and works across PMSs —
+   together.** Never "the only self-serve door".
+2. **The like-for-like Weave number is public and it is $497/mo** for the
    base plus both bundles (arithmetic on Weave's published prices) against our
    $200 flat — stronger than the old third-party band, and checkable.
 3. **Weave is private.** Francisco Partners closed the ~$650M take-private on
@@ -1046,9 +1051,13 @@ organizer's own page on 2026-11-23.
    custom-audience terms could not be retrieved; treat as unverified.
 5. **No-card trial conversion is lower than Part 0 assumed.** ChartMogul's
    2026 conversion report (200 B2B products) puts the median free-to-paid at
-   8% and a card-required trial at 30%, "more than 5x" a no-card one; the old
-   9–18% planning range is optimistic at its upper end (VENDOR DATA). At 8%,
-   a $120 trial is a $1,500 customer — inside the ceiling, with no margin.
+   8% and a card-required trial at 30%, "more than 5x" a no-card one, and
+   counts 4–6% as GOOD for a no-card trial; the old 9–18% planning range is
+   optimistic throughout (survey, published 2026-03-18). At 8%, a $120 trial
+   is a $1,500 customer — inside the ceiling, with no margin; at 5% it is
+   $2,400. And at $1,000/mo the test buys about eight trials a month, so it
+   can measure cost per trial and click-to-trial but NOT trial-to-paid, which
+   has to be read on trials pooled from every source.
 6. **FAQ rich results are gone** (ended 2026-05-07 per secondary sources); the
    FAQPage markup on /compare and /pricing is still valid and now earns no
    SERP feature. **SoftwareApplication rich results require a rating or a
@@ -1162,6 +1171,11 @@ only source).
 5. **The demo practice**: `noindex`?
 6. **Spend**: the $1,000/mo Google test needs an Ads account, a card, and the
    advertiser-verification documents.
+7. **Two sentences of site copy**: `/product`'s "a shop and membership plans
+   nobody else ships" (membership-plan software is a category of its own), and
+   the help article that says integrations go through "the vendor's sanctioned
+   path … not a database scraper" beside Open Dental's published statement
+   about the bridge we ride. Both are in `site-audit.md`; neither was changed.
 
 
 ## Build log

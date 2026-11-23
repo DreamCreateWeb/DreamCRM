@@ -79,7 +79,7 @@ requests, proxy latency included).
    could see it: a closed panel is not laid out.
 9. **Three comparison pages trailed the vendors' own sites.**
    - *Weave* said "reported ~$249–$449/mo … annual agreements … scheduling
-     gated to Elite". Weave's own site now reads: base plan $199/mo;
+     gated to Elite". Weave's own site reads: base plan $199/mo;
      Coordinate bundle $149/mo (online scheduling, forms, reminders, recall);
      Attract bundle $149/mo (reviews, email marketing, bulk texting); "we
      don't require any long-term contracts"; no free trial of the full

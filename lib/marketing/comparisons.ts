@@ -56,14 +56,16 @@ export interface VendorComparison {
    * which page — present only on an entry somebody actually re-read.
    *
    * It exists because the Weave entry sat here saying "reported ~$249–$449,
-   * annual agreements" for months after Weave started publishing a $199 base
-   * price and a "no long-term contracts" answer on its own site (found on the
-   * 2026-11-23 marketing audit). A comparison page is where our paid traffic
-   * lands and what an AI assistant quotes back, so a stale competitor fact is
-   * both a conversion problem and an honesty one. A date on an UNCHECKED line
-   * would be that same problem wearing a timestamp, which is why this is
-   * optional rather than defaulted: no check, no date, and the page falls
-   * back to the registry-wide disclaimer.
+   * annual agreements" while Weave's own site published a $199 base price and
+   * a "no long-term contracts" answer (found on the 2026-11-23 marketing
+   * audit). HOW LONG the two had disagreed nobody could say — which is the
+   * point: nothing in the tree recorded when the line was last read, so
+   * nothing prompted anyone to read it again. A comparison page is where our
+   * paid traffic lands and what an AI assistant quotes back, so a stale
+   * competitor fact is both a conversion problem and an honesty one. A date on
+   * an UNCHECKED line would be that same problem wearing a timestamp, which is
+   * why this is optional rather than defaulted: no check, no date, and the
+   * page falls back to the registry-wide disclaimer.
    *
    * `on` is an ISO day. It renders under the price panel with a link to
    * `url`, and it is the page's `lastmod` in the sitemap.
@@ -132,7 +134,7 @@ export const COMPARISONS: VendorComparison[] = [
       'Published at $199/mo for the base plan (calls, two-way texting, text-to-pay); online scheduling, digital forms, reminders and recall are a $149/mo bundle on top, and reviews plus email marketing a second $149/mo bundle, while its Pro, Elite and Ultimate tiers stay quote-only',
     pricingChecked: { on: '2026-11-23', source: 'Weave’s own plans and pricing pages', url: 'https://www.getweave.com/plans/' },
     summary:
-      'Weave is the category leader in dental phone systems — VoIP with caller-context screen pops, texting, and payments. It is genuinely excellent at the phone, and it now publishes a starting price and says it requires no long-term contract. But it has no practice website and no patient portal, its online scheduling, digital forms and recall are a paid bundle on top of the base plan, and it offers no free trial of the full platform. DreamCRM starts where the phone call ends: the website that wins the patient, the portal they come back to, and one inbox for everything they send you.',
+      'Weave is the category leader in dental phone systems — VoIP with caller-context screen pops, texting, and payments. It is genuinely excellent at the phone, and it publishes a starting price and says it requires no long-term contract. But it has no practice website and no patient portal, its online scheduling, digital forms and recall are a paid bundle on top of the base plan, and it offers no free trial of the full platform. DreamCRM starts where the phone call ends: the website that wins the patient, the portal they come back to, and one inbox for everything they send you.',
     theirStrengths: [
       { title: 'The phone experience', body: 'VoIP with patient context on screen when the phone rings is Weave’s signature, and nothing in DreamCRM replaces your phone system.' },
       { title: 'Two-way texting today', body: 'Mature SMS with missed-call auto-text. Our SMS channel is still on the roadmap — if texting is your #1 need today, Weave is ahead.' },
