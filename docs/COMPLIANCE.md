@@ -102,6 +102,14 @@ To sell to a dental practice without misrepresentation, become **BAA-ready**:
 4. Confirm/execute the NexHealth BAA.
 5. Write the customer-facing legal pages (Privacy Policy, ToS, DPA, offered
    BAA) — none exist for dreamcreatestudio.com today.
+   *Update 2026-11-23:* a Privacy Policy (`/privacy`) and Terms of Service
+   (`/terms`) are published, written from the code's real data flows
+   (`lib/marketing/legal.ts`). They name every subprocessor in the table
+   above, including that AI features send content to Anthropic, and they make
+   NO compliance claim — `tests/marketing/legal-pages.test.tsx` holds this
+   section's vocabulary at zero over both documents. There is still no DPA and
+   no offered BAA, and no lawyer has read either page. Nothing about steps 1–4
+   changed.
 
 **Until AWS + AI + email BAAs are executed, put NO "HIPAA"/"compliant"/
 "secure patient data" language in any marketing or UI copy.** The gap is

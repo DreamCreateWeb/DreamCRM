@@ -2,7 +2,7 @@ import OnboardingHeader from './onboarding-header'
 import OnboardingImage from './onboarding-image'
 import OnboardingProgress from './onboarding-progress'
 
-/** The one chrome every onboarding screen wears: brand header, "N of 3", the side image. */
+/** The one chrome every onboarding screen wears: brand header, "N of 4", the side image. */
 export default function OnboardingFrame({ step, children }: { step: number; children: React.ReactNode }) {
   return (
     <main className="bg-white dark:bg-gray-900">

@@ -174,6 +174,17 @@ export default function SignUpForm() {
           {TRIAL.name}. You add a card on the last step — it is not charged until the trial ends, and you
           can cancel before then in Settings.
         </p>
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+          By creating an account you agree to the{' '}
+          <Link href="/terms" target="_blank" className="underline underline-offset-2 hover:text-gray-700 dark:hover:text-gray-200">
+            Terms of Service
+          </Link>{' '}
+          and acknowledge the{' '}
+          <Link href="/privacy" target="_blank" className="underline underline-offset-2 hover:text-gray-700 dark:hover:text-gray-200">
+            Privacy Policy
+          </Link>
+          .
+        </p>
       </div>
     </form>
   )

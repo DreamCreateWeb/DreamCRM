@@ -97,6 +97,11 @@ const PAGES: string[] = [
   '/grade',
   '/roi',
   '/partner-program',
+  // The two legal documents (2026-11-23): long single-column prose, which is
+  // exactly where an over-long unbroken string (an email address, a URL)
+  // pushes a phone layout sideways.
+  '/privacy',
+  '/terms',
   ...COMPARISONS.map((c) => `/compare/${c.slug}`),
   ...DOCS.map((d) => `/docs/${d.slug}`),
   ...RESOURCE_GUIDES.map((g) => `/resources/${g.slug}`),
@@ -107,7 +112,7 @@ test.describe('BRAND.md Part 10 — zero horizontal scroll on the marketing site
   // would make every loop below vacuous, and a suite that asserts nothing
   // looks exactly like a suite that passes.
   test('the page list is derived and non-empty', () => {
-    expect(PAGES.length).toBeGreaterThanOrEqual(11 + 8)
+    expect(PAGES.length).toBeGreaterThanOrEqual(13 + 8)
     expect(PAGES).toContain('/compare/weave')
     expect(PAGES.filter((p) => p.startsWith('/docs/')).length).toBeGreaterThan(0)
     expect(PAGES.filter((p) => p.startsWith('/resources/')).length).toBeGreaterThan(0)

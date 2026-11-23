@@ -33,7 +33,7 @@ const PracticeStep = z.object({
   country: z.string().trim().min(1).max(100),
 })
 
-// Screen 2 of 3 just validates input and routes forward; the form persists its
+// Screen 2 of 4 just validates input and routes forward; the form persists its
 // draft to sessionStorage via lib/onboarding/storage.ts. The real DB writes
 // happen in submitOnboarding on the last screen (software + web address).
 export async function saveOnboardingPractice(input: z.infer<typeof PracticeStep>) {

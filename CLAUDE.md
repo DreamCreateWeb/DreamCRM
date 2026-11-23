@@ -302,6 +302,11 @@ booking, intake, shop, the token landings. Brand-derived palette
   card" about our own trial, and any typed trial length, at zero across the
   public trees. Who is charged at Checkout is `trialDaysAtCheckout` and
   nothing the browser sends.
+- **The legal pages are data.** `/privacy` and `/terms` render
+  `lib/marketing/legal.ts`: every figure resolved, every company information
+  is sent to on ONE list (`SERVICE_PROVIDERS` — a new provider goes there in
+  the same change), and no compliance word
+  (`tests/marketing/legal-pages.test.tsx`). Not read by a lawyer.
 - **The PMS link has ONE read** — `lib/pms-link.ts` / `getPmsLink` (connected
   / pending / none). Any number that comes from the PMS says where it would
   come from; a practice with no PMS is never shown a PMS promise.

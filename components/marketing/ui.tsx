@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { FOOTER_COLUMNS, MARKETING } from '@/lib/marketing/site'
+import { FOOTER_COLUMNS, LEGAL_LINKS, MARKETING } from '@/lib/marketing/site'
 import { COMPARISONS } from '@/lib/marketing/comparisons'
 import { DreamCreateLogo } from '@/components/brand/dream-create-logo'
 import { TONE_FILL } from '@/lib/ui/encodings'
@@ -808,6 +808,16 @@ export function MarketingFooter() {
           <span>
             © {new Date().getFullYear()} {MARKETING.companyName}. All rights reserved.
           </span>
+          {/* The two documents every page owes a way to: gray-400 on gray-950
+              (6.71:1), underlined so the link does not depend on colour alone,
+              at the row's own 0.78rem — above the 12px floor. */}
+          <nav aria-label="Legal" className="flex items-center gap-4">
+            {LEGAL_LINKS.map((l) => (
+              <Link key={l.href} href={l.href} className="underline underline-offset-2 hover:text-white">
+                {l.label}
+              </Link>
+            ))}
+          </nav>
           <span>Built for dental practices. Your PMS stays yours.</span>
         </div>
         {/* CC BY 4.0 attribution for the animated emoji set — a LICENCE TERM,

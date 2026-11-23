@@ -58,6 +58,8 @@ const HEADS: Record<TopLevelPath, () => Promise<PageModule>> = {
   '/roi': () => import('@/app/(marketing)/roi/page'),
   '/partner-program': () => import('@/app/(marketing)/partner-program/page'),
   '/changelog': () => import('@/app/(marketing)/changelog/page'),
+  '/privacy': () => import('@/app/(marketing)/privacy/page'),
+  '/terms': () => import('@/app/(marketing)/terms/page'),
 }
 
 const GUIDE_HEADS: Record<string, () => Promise<PageModule>> = {

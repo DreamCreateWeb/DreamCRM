@@ -41,9 +41,11 @@ export const KNOWN_TOP_LEVEL_SEGMENTS: ReadonlySet<string> = new Set([
   'grade',
   'partner-program',
   'pricing',
+  'privacy',
   'product',
   'resources',
   'roi',
+  'terms',
   'why',
   // Root metadata files — app/icon.tsx, opengraph-image.tsx, robots.ts,
   // sitemap.ts. Next mints these as top-level routes.

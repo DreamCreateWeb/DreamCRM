@@ -171,7 +171,20 @@ function CardStep({
       </ul>
 
       {canManageBilling ? (
-        <PlanPicker startsTrial returnTo="onboarding" />
+        <>
+          <PlanPicker startsTrial returnTo="onboarding" />
+          <p className="mt-4 text-center text-xs text-gray-500 dark:text-gray-400">
+            The trial and your subscription run on the{' '}
+            <Link
+              href="/terms"
+              target="_blank"
+              className="font-medium text-gray-700 dark:text-gray-200 underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
+            >
+              Terms of Service
+            </Link>
+            .
+          </p>
+        </>
       ) : (
         <p className="rounded-[var(--r-md)] bg-[color:var(--color-surface-2)] px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
           Ask your clinic’s owner or an admin to add a card and start the trial.

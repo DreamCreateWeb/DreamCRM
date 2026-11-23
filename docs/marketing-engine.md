@@ -1180,8 +1180,9 @@ only source).
 **Ruled on 2026-11-23 (the owner, in the session that produced this part):**
 the trial is **14 days with a card required to sign up**, replacing the
 7-day no-card trial — built as "Part 11 slice 3" in the build log below. The
-same message supplied the operator details item 2 was waiting on. Items 1 and
-3–7 are still open.
+same message supplied the operator details item 2 was waiting on, and the two
+pages are published as "Part 11 slice 4"; the legal read item 2 asks for has
+NOT happened. Items 1 and 3–7 are still open.
 
 
 ## Build log
@@ -1884,3 +1885,30 @@ change: `subscription_status` is free text, and the new state is a value.
   cancellation-policy-link settings. **Not verifiable from here:** the
   Checkout request against Stripe itself — the first real signup after the
   deploy is the test.
+
+**Part 11 slice 4 — the Privacy Policy and the Terms of Service (2026-11-23, owner direction, no migration).**
+
+- **`/privacy` and `/terms`**, public (the same list the middleware and the
+  sitemap read), linked from the footer of every marketing page, from the
+  signup form ("by creating an account you agree…") and from the card step.
+  Two of the seven paths the DREAM-164 audit used as examples of pages that
+  did not exist now do.
+- **The words are data (`lib/marketing/legal.ts`) and every figure is
+  resolved** — the trial's length, the monthly and yearly price, the cookie
+  names and lifetimes — so the Terms cannot promise a trial the checkout does
+  not give. The Terms describe the trial exactly as slice 3 built it.
+- **One list of the companies information is sent to** (`SERVICE_PROVIDERS`),
+  quoted by the policy, including that AI features send the content they work
+  on to the AI provider. Adding a provider to the product means adding it
+  there in the same change.
+- **No compliance claim, by test.** `tests/marketing/legal-pages.test.tsx`
+  holds the vocabulary of docs/COMPLIANCE.md at zero over every sentence of
+  both documents; the Terms say whose duty the health-privacy laws are and
+  state that they claim nothing. Texting is not mentioned.
+- **What a careful reader should know:** nobody qualified has read these. The
+  clauses that most need it are the limit of liability, the governing-law
+  clause (Arkansas), the founding-rate promise restated as a term, and what
+  the Terms say — and deliberately do not say — about patient information. No
+  refund policy is stated; no data-processing addendum and no business
+  associate agreement is offered, because those decisions are still open
+  (11.5 item 3).

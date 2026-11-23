@@ -40,7 +40,7 @@ vi.mock('@/components/ui/logo', () => ({ default: () => null }))
 import { submitOnboarding } from '@/app/(onboarding)/actions'
 import Onboarding01 from '@/app/(onboarding)/onboarding-01/page'
 import Onboarding02 from '@/app/(onboarding)/onboarding-02/page'
-import OnboardingProgress from '@/app/(onboarding)/onboarding-progress'
+import OnboardingProgress, { ONBOARDING_STEPS } from '@/app/(onboarding)/onboarding-progress'
 import { PMS_ANSWER_CHOICES } from '@/lib/onboarding/pms-answer'
 
 const session = {
@@ -141,6 +141,15 @@ describe('four steps — the card is counted', () => {
     // A strip that stopped at 3 would make the card a surprise after the
     // finish line — on the screen where a signup is most likely to stop.
     expect(screen.getByText('Start trial')).toBeInTheDocument()
+  })
+
+  it('the sign-up page counts the same number of steps as the strip', () => {
+    // It said "1 of 3" beside a strip that had started saying "2 of 4" — the
+    // first screen of signup disagreeing with the second about how long
+    // signup is. One number, read from the registry the strip renders.
+    const src = readFileSync(join(process.cwd(), 'app/(auth)/signup/page.tsx'), 'utf8')
+    expect(ONBOARDING_STEPS).toHaveLength(4)
+    expect(src).toContain(`eyebrow="1 of ${ONBOARDING_STEPS.length} · Start your practice"`)
   })
 
   it('screen 2 holds the practice fields, address included', () => {

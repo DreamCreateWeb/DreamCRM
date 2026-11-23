@@ -82,8 +82,8 @@ exactly as on the registration or tax documents, and a business card.
 | Needed | Why | State on 2026-11-23 |
 |---|---|---|
 | The working branch merged | The ads land on comparison pages that were corrected on it, and the click-ID tracking ships with it | Not merged |
-| A Privacy Policy and Terms page on www | Google requires a policy for lead and audience features; a careful buyer looks for both — and a trial that bills a card when it ends needs its terms written down somewhere a customer can point to | Do not exist |
-| Stripe's trial messaging settings | Stripe shows a cancellation-policy link on receipts and can send its own reminder before a trial ends; both are off until switched on (Settings → Billing → Subscriptions and emails → Manage free trial messaging). The app sends its own notice a week before and the day before the charge | Not set |
+| A Privacy Policy and Terms page on www | Google requires a policy for lead and audience features; a careful buyer looks for both — and a trial that bills a card when it ends needs its terms written down somewhere a customer can point to | Published at `/privacy` and `/terms` on the working branch (2026-11-23). **Not read by a lawyer** |
+| Stripe's trial messaging settings | Stripe shows a cancellation-policy link on receipts and can send its own reminder before a trial ends; both are off until switched on (Settings → Billing → Subscriptions and emails → Manage free trial messaging). The app sends its own notice a week before and the day before the charge. The link to give Stripe is `https://www.dreamcreatestudio.com/terms#billing` | Not set |
 | A decision on "regularly $500" | It is on the pages the ads land on, and no practice has paid it | Open |
 | Advertiser verification passed | Google can pause an unverified account | Not started |
 

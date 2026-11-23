@@ -318,11 +318,11 @@ describe('apex + webhook host handling (Vercel redirector retired)', () => {
 })
 
 describe('unknown routes get a real 404, not the sign-in page (DREAM-164)', () => {
-  // The seven paths from the audit: six plausible, one deliberate nonsense
-  // control. All seven answered 200 with byte-identical sign-in HTML.
+  // The paths from the audit: plausible ones, and one deliberate nonsense
+  // control. All of them answered 200 with byte-identical sign-in HTML.
+  // (`/privacy` and `/terms` were two of the original seven; they became REAL
+  // pages on 2026-11-23 and are asserted as such just below.)
   const AUDITED = [
-    '/privacy',
-    '/terms',
     '/baa',
     '/security',
     '/legal',
@@ -336,6 +336,15 @@ describe('unknown routes get a real 404, not the sign-in page (DREAM-164)', () =
       const res = (await middleware(req)) as NextResponse
       expect(res.headers.get('location'), path).toBeNull()
       expect(res.headers.get('x-middleware-rewrite'), path).toContain('/_dc-not-found')
+    }
+  })
+
+  it('the Privacy Policy and the Terms are real, PUBLIC pages now — served, not 404ed and not sent to sign-in', async () => {
+    for (const path of ['/privacy', '/terms']) {
+      const req = makeRequest(`https://www.dreamcreatestudio.com${path}`)
+      const res = (await middleware(req)) as NextResponse
+      expect(res.headers.get('location'), path).toBeNull()
+      expect(res.headers.get('x-middleware-rewrite') ?? '', path).not.toContain('/_dc-not-found')
     }
   })
 
