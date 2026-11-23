@@ -80,6 +80,33 @@ describe('the registry', () => {
   })
 })
 
+describe('the other entries re-read the same day', () => {
+  it('Solutionreach is quoted from its own pricing page — the $199 floor and its yearly contracts', () => {
+    const sr = COMPARISONS.find((c) => c.slug === 'solutionreach')!
+    expect(sr.pricingChecked?.url).toContain('solutionreach.com')
+    expect(sr.reportedPricing).toContain('$199')
+    // The third-party figure this replaced.
+    expect(JSON.stringify(sr)).not.toContain('$329')
+    const contract = sr.matrix.find((r) => r.feature.startsWith('Month-to-month'))!
+    expect(contract.vendor).toBe('no')
+    expect(contract.vendorNote).toMatch(/yearly contract/i)
+  })
+
+  it('NexHealth is described as it describes itself — no published price, a monthly option, 90 days’ notice on annual', () => {
+    const nx = COMPARISONS.find((c) => c.slug === 'nexhealth')!
+    expect(nx.pricingChecked?.url).toContain('nexhealth.com')
+    // Its page shows no number, so ours must not present one as theirs: the
+    // only figure on the line is attributed to third parties.
+    expect(nx.reportedPricing).toMatch(/shows no price/)
+    expect(nx.reportedPricing).toMatch(/third-party reviews report/)
+    const contract = nx.matrix.find((r) => r.feature.startsWith('Month-to-month'))!
+    // The honest "yes": they do offer month-to-month. The page used to say
+    // "terms vary".
+    expect(contract.vendor).toBe('yes')
+    expect(contract.vendorNote).toMatch(/90 days/)
+  })
+})
+
 describe('the comparison page', () => {
   it('shows the day and links the source on a page whose pricing was re-read', async () => {
     const weave = COMPARISONS.find((c) => c.slug === 'weave')!

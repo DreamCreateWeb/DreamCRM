@@ -4,7 +4,7 @@ import { describe, it, expect, vi } from 'vitest'
  * THE SITEMAP ONLY STATES A `lastmod` IT CAN STAND BEHIND.
  *
  * Every entry used to carry `new Date()` — the instant of the request — so
- * the file told a crawler that all sixty pages had changed since it last
+ * the file told a crawler that every page had changed since it last
  * asked, every time it asked. Search engines document that as the reason they
  * stop trusting the field for a site, which costs the pages that really did
  * change. Found on the 2026-11-23 crawl, where every `<lastmod>` in the live

@@ -120,7 +120,7 @@ import { pageMetadata } from '@/lib/marketing/seo'
  */
 
 export const metadata = pageMetadata({
-  title: 'Platform tour — DreamCRM',
+  title: 'DreamCRM tour: dental website, booking, portal & recall',
   description:
     'A deep dive through every module: the front-desk daily-ops layer, website studio, online booking, patient portal, unified messages, reviews & surveys, insurance checks, recall & loyalty, shop & memberships, and the PMS sync.',
   path: '/product',

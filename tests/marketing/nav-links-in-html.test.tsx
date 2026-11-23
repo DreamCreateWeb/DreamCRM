@@ -23,7 +23,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 
 vi.mock('next/navigation', () => ({ usePathname: () => '/' }))
 
-import { MarketingHeader } from '@/components/marketing/chrome'
+import { MarketingHeader, panelAnchor } from '@/components/marketing/chrome'
 import { MARKETING_NAV } from '@/lib/marketing/site'
 
 const html = renderToStaticMarkup(<MarketingHeader />)
@@ -46,7 +46,7 @@ describe('the marketing header, as the server sends it', () => {
     const withChildren = MARKETING_NAV.filter((item) => item.children && item.children.length > 0)
     // `hidden` is display:none — the same reach as an unmounted panel had for a
     // keyboard or a screen reader, which is what makes "always rendered" safe.
-    const hiddenPanels = html.match(/<div class="absolute left-0 top-full pt-1\.5" hidden="">/g) ?? []
+    const hiddenPanels = html.match(/<div class="absolute top-full pt-1\.5 (?:left|right)-0" hidden="">/g) ?? []
     expect(hiddenPanels).toHaveLength(withChildren.length)
     // And no trigger claims to be expanded before anybody opened it.
     expect(html).not.toContain('aria-expanded="true"')
@@ -56,5 +56,44 @@ describe('the marketing header, as the server sends it', () => {
     for (const item of MARKETING_NAV) expect(html).toContain(inMarkup(item.href))
     expect(html).toContain(inMarkup('/signup'))
     expect(html).toContain(inMarkup('/signin'))
+  })
+})
+
+
+/**
+ * A WIDE PANEL NEVER HANGS OFF THE RIGHT EDGE OF THE WINDOW.
+ *
+ * Measured with the menu open on 2026-11-23, before the fix: the two-column
+ * panel under the last trigger ran 23px past a 1280px window, 87px past 1152
+ * and 191px past 1024, and the page scrolled sideways while it was open. No
+ * check at rest can see that — a closed panel is `display:none` — so the rule
+ * is stated on the function that decides the anchor, and on the markup the
+ * real nav produces from it.
+ */
+describe('which edge a dropdown hangs from', () => {
+  it('hangs a wide panel in the right half of the bar from its trigger’s RIGHT edge', () => {
+    // Five triggers, index 4 is the last: two columns there must grow leftward.
+    expect(panelAnchor(4, 9, 5)).toBe('right-0')
+    expect(panelAnchor(3, 6, 5)).toBe('right-0')
+    // The same wide panel on the left has the whole bar to its right.
+    expect(panelAnchor(0, 9, 5)).toBe('left-0')
+    // The middle trigger is not "the right half".
+    expect(panelAnchor(2, 9, 5)).toBe('left-0')
+  })
+
+  it('leaves a one-column panel on the left edge wherever it is — 18rem fits', () => {
+    expect(panelAnchor(4, 5, 5)).toBe('left-0')
+    expect(panelAnchor(1, 5, 5)).toBe('left-0')
+  })
+
+  it('the real nav: every wide panel past the midpoint is right-anchored in the markup', () => {
+    const wideOnTheRight = MARKETING_NAV.map((item, index) => ({ item, index })).filter(
+      ({ item, index }) => (item.children?.length ?? 0) > 5 && index > (MARKETING_NAV.length - 1) / 2,
+    )
+    // The premise: the nav has such a panel today (Resources). If it stops
+    // having one, this case is vacuous and should say so rather than pass.
+    expect(wideOnTheRight.length).toBeGreaterThan(0)
+    const rightAnchored = html.match(/<div class="absolute top-full pt-1\.5 right-0" hidden="">/g) ?? []
+    expect(rightAnchored).toHaveLength(wideOnTheRight.length)
   })
 })

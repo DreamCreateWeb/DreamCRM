@@ -55,7 +55,7 @@ import { pageMetadata } from '@/lib/marketing/seo'
  */
 
 export const metadata = pageMetadata({
-  title: 'Help docs — DreamCRM',
+  title: 'DreamCRM help docs: setup guides for the dental front office',
   description:
     'Setup guides and how-tos for every part of DreamCRM: website, booking, patient portal, reviews, recall, shop, and the PMS sync.',
   path: '/docs',

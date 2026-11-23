@@ -5,7 +5,7 @@ import type { Metadata } from 'next'
  * THE HEAD OF EVERY MARKETING PAGE — canonical, `og:url`, the share image and
  * the Twitter card, on all of them, agreeing with each other.
  *
- * WHY THIS FILE EXISTS. The live crawl on 2026-11-23 read sixty public pages
+ * WHY THIS FILE EXISTS. The live crawl on 2026-11-23 read every page in the sitemap
  * and found the HOMEPAGE and the grader with no canonical at all, and
  * `og:url` / `og:type` missing from every page that was not a blog post. Each
  * page had built its own `metadata` object by hand, and a hand-built object
@@ -35,7 +35,8 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/',
 }))
 
-import { MARKETING, MARKETING_PUBLIC_PATHS } from '@/lib/marketing/site'
+import { MARKETING, MARKETING_PUBLIC_PATHS, usd } from '@/lib/marketing/site'
+import { getQuotedPlan } from '@/lib/stripe-config'
 import { COMPARISONS } from '@/lib/marketing/comparisons'
 import { DOCS } from '@/lib/marketing/docs'
 import { RESOURCE_GUIDES } from '@/lib/marketing/resources'
@@ -134,6 +135,38 @@ describe('every top-level marketing route carries a complete head', () => {
     expect(description.length).toBeLessThanOrEqual(160)
     expect(description).toMatch(/\$\d+\/mo/)
     expect(description).toMatch(/free trial/i)
+  })
+})
+
+describe('a title says what the page is', () => {
+  /**
+   * `/pricing` was titled "Pricing — DreamCRM", `/product` "Platform tour —
+   * DreamCRM", `/blog` "Blog — DreamCRM". A section name and a brand tells a
+   * searcher, and an assistant reading the result, nothing about the subject —
+   * and on a brand name that collides with unrelated products ("DreamCRM" is
+   * also an iOS app and a SugarCRM reseller's product), nothing that says
+   * dental either. The floor is a length, because every way of naming the
+   * subject is longer than a section label; the ceiling is roughly where a
+   * result page stops showing the title at all.
+   */
+  it('is longer than a section label and short enough to be read — on every top-level route', async () => {
+    for (const path of Object.keys(HEADS) as TopLevelPath[]) {
+      const title = String((await HEADS[path]()).metadata?.title ?? '')
+      expect(title.length, `${path}: "${title}"`).toBeGreaterThanOrEqual(30)
+      expect(title.length, `${path}: "${title}"`).toBeLessThanOrEqual(75)
+      expect(title, `${path}: the brand is missing`).toMatch(/DreamCRM|dental/i)
+    }
+  })
+
+  it('pricing carries the RESOLVED monthly price, never a typed one', async () => {
+    const title = String((await HEADS['/pricing']()).metadata?.title ?? '')
+    expect(title).toContain(`${usd(getQuotedPlan().price)}/mo`)
+  })
+
+  it('the comparison hub names the first two vendors the registry lists', async () => {
+    const title = String((await HEADS['/compare']()).metadata?.title ?? '')
+    expect(title).toContain(COMPARISONS[0]!.name)
+    expect(title).toContain(COMPARISONS[1]!.name)
   })
 })
 

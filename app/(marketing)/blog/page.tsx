@@ -58,7 +58,7 @@ import { pageMetadata } from '@/lib/marketing/seo'
 export const dynamic = 'force-dynamic'
 
 export const metadata = pageMetadata({
-  title: 'Blog — DreamCRM',
+  title: 'DreamCRM blog — running a modern dental front office',
   description:
     'Product announcements and essays on running a modern dental front office — from the team building DreamCRM.',
   path: '/blog',

@@ -48,7 +48,9 @@ import { JsonLd, SITE_URL, pageMetadata } from '@/lib/marketing/seo'
 const PLAN = getQuotedPlan()
 
 export const metadata = pageMetadata({
-  title: 'Compare DreamCRM to the alternatives',
+  // The two names are READ from the registry, in its own order — the same
+  // reason the section opener's count is derived (`comparisonCountLabel`).
+  title: `DreamCRM vs ${COMPARISONS.slice(0, 2).map((c) => c.name).join(', ')} & more: honest comparisons`,
   description: `Honest, page-length comparisons against ${COMPARISONS.map((c) => c.name).join(', ')} — reported pricing included, plus what each vendor does better than us.`,
   path: '/compare',
 })

@@ -1,6 +1,6 @@
 # The Marketing Engine — research foundation + build log
 
-**Status: THE POWERHOUSE PROGRAM (Part 10, 2026-09-09) — foundation slices 1–4 shipped; Part 10 is the program of record.** This is the research foundation for
+**Status: THE POWERHOUSE PROGRAM (Part 10, 2026-09-09) — foundation slices 1–4 shipped; Part 10 is the program of record.** **Part 11 (2026-11-23) is research pass 3: it CORRECTS several facts in Parts 0–10 (11.0) and carries the site audit — read 11.0 before quoting an earlier part.** This is the research foundation for
 Dream Create's own growth program — the "marketing powerhouse" the owner
 directed: social campaigns via the existing Zernio key, email marketing,
 budget dials, and effectiveness monitors, all aimed at **driving self-serve
@@ -1004,6 +1004,166 @@ photo-consent wording, and whether the association should receive a
 goodwill commission from the partner rails even though none is owed.
 
 
+## Part 11 — Research pass 3 (2026-11-23): what changed since September, and the site audit
+
+**Owner directive (2026-11-23):** "focus entirely on marketing — research the
+app, then research 2026 marketing trends for my app, then … everything
+possible digitally from perfecting the SEO to setting up ad campaigns on
+various platforms." This part is the research half and the first build slice.
+Method: an outside-in audit of the live site (crawl of all 57 sitemap URLs,
+mobile Lighthouse, header and redirect probes, the internal link graph) plus
+fourteen web-research threads in two rounds. Full report:
+`docs/research/marketing-engine-2026-11/report.md`; the thread notes and the
+site audit sit beside it. Flags as before (FACT / VENDOR CLAIM / EST); a line
+marked **VERIFIED** was re-read by this session on the vendor's or
+organizer's own page on 2026-11-23.
+
+### 11.0 Corrections to Parts 0–10 (read these before quoting the earlier parts)
+
+1. **"Not one of 24 dental vendors publishes a real price or is self-serve"
+   (10.0 #2) is no longer true as written.** Weave now publishes its plans:
+   base $199/mo, a $149/mo Coordinate bundle (online scheduling, forms,
+   reminders, recall) and a $149/mo Attract bundle (reviews, email marketing,
+   bulk texting), and answers "Do I have to commit to a long-term contract?"
+   with "No" (**VERIFIED**, getweave.com/plans). It still offers no free trial
+   of the full platform and the purchase path is "Checkout and demo". Flex
+   Dental sells a self-serve checkout at $299/mo + a $15 pass-through, Open
+   Dental only (FACT, flexdental.com/pricing, per the research thread). The
+   claim that survives: **self-serve, published price, free trial, and works
+   across PMSs — together.** Never "the only self-serve door".
+2. **The like-for-like Weave number is now public and it is $497/mo** for the
+   base plus both bundles (arithmetic on Weave's published prices) against our
+   $200 flat — stronger than the old third-party band, and checkable.
+3. **Weave is private.** Francisco Partners closed the ~$650M take-private on
+   2026-10-26 (FACT, Weave newsroom, per the research thread). No pricing or
+   packaging change announced since. The ADA endorsement stands as far as
+   anything published shows.
+4. **Customer Match and list-based audiences are not a day-one tool.** Google
+   requires 90 days of account history and >$50k lifetime spend before a list
+   can be TARGETED, and limits uploads to data collected first-party (FACT,
+   Google Ads help, per the research thread). Part 3's "Meta custom audiences
+   seeded from the NPPES list" was not confirmed permitted — Meta's
+   custom-audience terms could not be retrieved; treat as unverified.
+5. **No-card trial conversion is lower than Part 0 assumed.** ChartMogul's
+   2026 conversion report (200 B2B products) puts the median free-to-paid at
+   8% and a card-required trial at 30%, "more than 5x" a no-card one; the old
+   9–18% planning range is optimistic at its upper end (VENDOR DATA). At 8%,
+   a $120 trial is a $1,500 customer — inside the ceiling, with no margin.
+6. **FAQ rich results are gone** (ended 2026-05-07 per secondary sources); the
+   FAQPage markup on /compare and /pricing is still valid and now earns no
+   SERP feature. **SoftwareApplication rich results require a rating or a
+   review** (Google's docs) — ours has neither and should not invent one.
+7. **Schema does not buy AI citations.** Ahrefs' May-2026 controlled test
+   (1,885 pages that added JSON-LD vs 4,000 controls) found no meaningful
+   lift in AI Overviews, AI Mode or ChatGPT. What correlates is third-party
+   brand mentions (Spearman 0.664 with AI Overview visibility across 75,000
+   brands — Ahrefs, read through a secondary summary) and referring domains. Part 5's "schema" line item is hygiene, not a lever.
+
+### 11.1 What is new in the market
+
+- **AI answers sit on top of nearly every comparison query.** Seer (Apr 2026,
+  53 brands, 5.47M queries): AI Overviews on 95% of comparison queries;
+  organic click-through on those queries ~1.3–2.4% against 3.8% without one.
+  G2 (n=1,076): 51% of software buyers start in an AI chatbot more often than
+  Google; ChatGPT is used by 62%. AI assistants are still under 2% of B2B
+  referral sessions (VENDOR). The assistants' fetchers read raw HTML and do
+  not run JavaScript (Resoneo, Jan 2026) — our pages are server-rendered.
+- **Self-promotional "best X" listicles are a liability.** Lily Ray (100 B2B
+  queries, Apr–Jun 2026): 69% of cited self-promo listicles came from brands
+  the AI did not recommend. Law 6 already forbids them; keep it.
+- **Google Ads changed under small advertisers.** AI Max is ON by default for
+  new Search campaigns (FACT, Google help); broad-match campaigns were
+  auto-upgraded to it on 2026-09-01; offline conversions and enhanced
+  conversions for leads moved to the Data Manager API on 2026-06-15. Consent
+  Mode is an EEA/UK requirement, not a US one. Competitor names are legal as
+  KEYWORDS and restricted in AD TEXT.
+- **New inventory:** ChatGPT self-serve ads (opened to US businesses
+  2026-05-05; CPC bidding; healthcare is a restricted category in OpenAI's ad
+  policy of 2026-11-20, with no line for B2B software); Google ads inside AI
+  Mode run from the normal auction; Microsoft offers LinkedIn-profile
+  targeting on Search. G2 now owns Capterra, Software Advice and GetApp
+  (closed 2026-02-05); G2 caps review incentives at $100, disclosed, never
+  conditioned on sentiment.
+- **What competitors actually advertise** (Google Ads Transparency Center,
+  loaded 2026-11-23): Weave leads with "$150 Amazon gift card with Weave
+  demo"; NexHealth with "NexHealth For Eaglesoft — Writes Back To Your
+  Schedule … See pricing". Rough active-ad counts: getweave.com ~800,
+  nexhealth.com ~700, revenuewell.com ~200, dentalintel.com 91, adit.com 75.
+  None of the sampled ads named a rival.
+- **The buyer is more cautious.** ADA HPI Q3 2026, as reported by Becker's:
+  dentist confidence at 26%, the lowest in several years; practice expenses outpacing revenue for
+  general-dentist owners; 21% with a hygienist role open six months or more.
+  43% of dentists use AI for at least one task, 10% at the front desk (ADA
+  HPI, Jul 2026). The savings argument is the stronger door-opener again.
+- **AI receptionists are the loudest new category** and none is ours to
+  chase: Viva AI from $350/mo (FACT, own page), others $299–$1,500 per
+  location (THIRD-PARTY). "AI employee" is used loosely by several small
+  vendors and is not ownable; the FTC's AI cases turn on unsubstantiated
+  results claims, so ours stays "drafts the work, your team approves it".
+- **Open Dental's vendor page names our bridge.** 2026-06-05 entry: "NexHealth
+  is not partnered with or associated with Open Dental in any way"; the
+  2024-08-08 entry advises against NexHealth products that claim to integrate
+  (FACT, opendental.com, per the research thread). An Open Dental practice
+  that checks will find it. The mitigation Part 10 named — an OD-API-based
+  listing — is unchanged and still unbuilt.
+
+### 11.2 The calendar (verified where marked)
+
+| When | What | Note |
+|---|---|---|
+| 2027-02-12 | NW Arkansas District Dental Society annual meeting | **VERIFIED** arkansasdentistry.org |
+| 2027-02-25–27 | Chicago Midwinter | aggregator listing |
+| **2027-03-11–13** | **Arkansas State Dental Association Annual Session, North Little Rock Convention Center** | **VERIFIED** — the Headshot Funnel's deadline (10.8) |
+| 2027-03-18–20 | Hinman, Atlanta | booth $4,400 inline (published) |
+| 2027-04-08–10 | Arkansas Mission of Mercy, Conway | **VERIFIED** |
+| 2027-04-29–05-01 | Tennessee Music City Dental Conference | organizer site |
+| 2027-04-30–05-01 | Oklahoma Dental Association, Tulsa | organizer site |
+| 2027-06-03–06 | Mississippi Dental Association | organizer site |
+| 2027-09-09–11 | AADOM, Scottsdale | organizer site |
+
+### 11.3 What the audit found on our own site
+
+The full list with measurements is in `site-audit.md`. In one paragraph: the
+site is technically sound — server-rendered, fast enough, 100 on Lighthouse
+SEO — and has almost no footprint. In the research threads' field checks no
+page of ours surfaced for any of ten buyer queries, and the brand name
+returned unrelated products (an iOS app and a SugarCRM-based product are
+also called DreamCRM). That is a search TOOL's view and not Google's index —
+Search Console is the instrument, and it is not connected. The site has
+three blog posts, no legal pages, no review-marketplace profiles, and no way
+to tell an ad platform that a click became a trial.
+
+### 11.4 What could not be established
+
+Keyword volumes and click costs for every target term (the keyword tools
+refuse automated access — pull them from Keyword Planner inside the Ads
+account); how many of our pages Google and Bing have indexed, and the
+domain's authority (read them from Search Console and Bing Webmaster Tools);
+Meta's rules on uploaded prospect lists and how it classifies a dental-
+software domain; sponsorship prices for every community and podcast (none is
+published); whether a longer trial would convert better for this buyer (no
+controlled study exists for a busy owner-operator — our own cohorts are the
+only source).
+
+### 11.5 Rulings needed (owner-only, per the rulebook's §8 list)
+
+1. **"Regularly $500."** No practice has been charged $500, and the FTC's
+   former-price guide defines a former price as one actually offered "on a
+   regular basis for a reasonably substantial period of time". Options: keep
+   it; or "founding rate $200/mo, locked while you subscribe" with no former
+   price; or a dated future list price if one is actually decided.
+2. **Privacy Policy + Terms on www** — required before ads, lead forms or a
+   review-marketplace listing. Needs the legal entity name, address and
+   contact, then a legal read.
+3. **BAAs.** Marketing to practices at any volume surfaces "do you sign a
+   BAA?" on the first call; COMPLIANCE.md's posture is unchanged.
+4. **Clinic-site addresses**: flip to the subdomain canonical
+   (`NEXT_PUBLIC_SITE_USE_SUBDOMAIN`) and stop serving them under `www/site/…`?
+5. **The demo practice**: `noindex`?
+6. **Spend**: the $1,000/mo Google test needs an Ads account, a card, and the
+   advertiser-verification documents.
+
+
 ## Build log
 
 **Slice 1 — the sensor layer + the loop (SHIPPED 2026-08-26, migration
@@ -1532,3 +1692,67 @@ grade, the consent footnote that says out loud which box was ticked).
 Still owner-gated: the event itself (create it on the Events tab once
 the conference date is known), the member rate + benefit page (10.8
 item 3), the statewide pre-scan (item 2).
+
+**Part 11 slice 1 — the technical SEO foundation (2026-11-23, no migration).**
+The first slice the audit paid for. Everything below was a measured defect on
+the live site, and each fix ships the test that was watched failing against
+it.
+
+- **The header menu is in the HTML.** The three dropdown panels were mounted
+  on hover, so the server document carried five nav links and none of the 23
+  behind them; `/resources` had three inbound pages on the whole site. The
+  panels are always rendered now and closed with `hidden` (still out of the
+  tab order and the accessibility tree). `components/marketing/chrome.tsx`;
+  `tests/marketing/nav-links-in-html.test.tsx` renders the header the way the
+  server does and reads the string.
+- **The Resources menu fits the window.** Found by the visual check of the
+  fix above, and older than it: the two-column panel under the last trigger
+  hung from the trigger's LEFT edge and ran 23px past a 1280px window, 87px
+  past 1152 and 191px past 1024, scrolling the page sideways while open — the
+  panel that holds the free tools. `panelAnchor()` hangs a wide panel in the
+  right half of the bar from the trigger's right edge. After: inside the
+  window at every width from 1024 up, zero sideways scroll.
+- **One head for every marketing page.** `pageMetadata()` in
+  `lib/marketing/seo.tsx` writes the canonical, `og:url`, `og:type`,
+  `og:site_name`, the share image and a matching Twitter card from one input;
+  every static marketing page and the two registry-driven ones build through
+  it. The homepage and the grader had no canonical; no page but a blog post
+  had an `og:url`. The homepage description went from 290 characters to under
+  160 with the price inside the visible window.
+  `tests/marketing/page-head.test.ts` derives its list from
+  `MARKETING_PUBLIC_PATHS`, so a new public route cannot ship a hand-built
+  head.
+- **The sitemap only states dates it can stand behind.** Every `lastmod` was
+  the time of the request. Now: a comparison is dated by its pricing check, a
+  guide by its revision day, a post by its own timestamps, and everything
+  else states none. `tests/marketing/sitemap-dates.test.ts`.
+- **Help articles link to each other.** "More in this category" walked the
+  first three articles for every reader, leaving fifteen articles with one
+  inbound link. `relatedDocs()` walks the category as a ring: inbound equals
+  outbound for every article. `tests/marketing/docs-related-ring.test.ts`.
+- **Three comparisons quote the vendor instead of a review site.** The
+  registry gained `pricingChecked { on, source, url }` — present only on an
+  entry somebody re-read against the vendor's own page — and the page renders
+  "pricing last checked <day> against <source>". **Weave** now carries its
+  published $199 base and two $149 bundles, its "no long-term contracts"
+  answer and the insurance-verification line from its pricing page; the
+  third-party band and the "annual agreements" and "Elite tier" lines are
+  gone. **Solutionreach** carries its own "pricing starts at $199" and its
+  "yearly contract options" answer in place of a $329 third-party figure.
+  **NexHealth** is described as it describes itself: no price on its pricing
+  page, a month-to-month option, annual plans paid up front with 90 days'
+  notice — the contract row moves from "terms vary" to an honest yes.
+  `tests/marketing/comparison-pricing-check.test.tsx`. **The other five
+  entries have not been re-read and carry no date** — the refresh law in 10.4
+  ("monthly, dated") now has the field it needs; it still needs the reading.
+- **Titles that say what the page is.** `/pricing`, `/product`, `/compare`
+  and `/blog` carried "Pricing — DreamCRM"-shaped titles; they now name the
+  subject and, on pricing, the resolved price.
+- **A help article's search snippet stopped contradicting its own first
+  paragraph** (`requesting-a-pms-integration` told a Dentrix practice to wait
+  for something the article says works today).
+
+Not done here, by decision or because it is not marketing-site code: the
+"regularly $500" wording, the legal pages, the clinic-site canonical, the demo
+practice's indexability, the homepage's per-request render, and click-id
+capture for ad conversion upload (11.5 and `site-audit.md`).

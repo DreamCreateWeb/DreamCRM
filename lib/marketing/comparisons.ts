@@ -167,7 +167,9 @@ export const COMPARISONS: VendorComparison[] = [
     slug: 'nexhealth',
     name: 'NexHealth',
     category: 'Patient booking & sync platform',
-    reportedPricing: 'Custom quotes; reported ~$300+/mo per location in third-party reviews (2025–2026)',
+    reportedPricing:
+      'Custom quote only — its own pricing page shows no price and asks for your details; third-party reviews report ~$300+/mo per location (2025–2026)',
+    pricingChecked: { on: '2026-11-23', source: 'NexHealth’s own pricing page', url: 'https://www.nexhealth.com/pricing' },
     summary:
       'NexHealth built an impressive real-time synchronizer across many PMSs and sells booking, forms, reminders, and payments on top of it. Its breadth of PMS coverage is real, and the sync infrastructure is genuinely strong engineering. The trade-offs are scope and terms: no practice website, no clinic-branded portal, no shop or memberships, and custom pricing. DreamCRM is the whole patient-facing stack — website through recall — on one published price.',
     theirStrengths: [
@@ -194,7 +196,7 @@ export const COMPARISONS: VendorComparison[] = [
       pms: ['yes', 'Many PMSs via its Synchronizer'],
       phones: ['no'],
       sms: ['yes'],
-      contract: ['partial', 'Custom quotes; terms vary'],
+      contract: ['yes', 'A month-to-month option, per its pricing page; yearly plans are paid up front and need 90 days’ notice not to renew'],
     }),
     bottomLine:
       'If you’re a DSO building custom tooling on the sync API, NexHealth-direct is the pragmatic pick. If you want the whole patient-facing stack — site, booking, portal, reviews, shop — riding the same class of PMS bridge at a flat published price, that’s DreamCRM.',
@@ -239,7 +241,9 @@ export const COMPARISONS: VendorComparison[] = [
     slug: 'solutionreach',
     name: 'Solutionreach',
     category: 'Patient reminders & engagement (the category veteran)',
-    reportedPricing: 'Reported ~$329/mo per location; setup fees reported by reviewers (2025–2026)',
+    reportedPricing:
+      'Published as “pricing starts at $199” for its entry package, with every package priced by quote and yearly contract options; setup fees reported by reviewers (2025–2026)',
+    pricingChecked: { on: '2026-11-23', source: 'Solutionreach’s own pricing page', url: 'https://www.solutionreach.com/pricing' },
     summary:
       'Solutionreach effectively invented automated patient reminders and still runs reliable SMS at serious scale. Twenty years in, the product is deep on messaging and surveys but dated around it: no website product, a legacy portal, and reviewer complaints about contracts and sync misfires. DreamCRM is the modern stack around the same jobs — with the website and portal included and month-to-month terms.',
     theirStrengths: [
@@ -250,7 +254,7 @@ export const COMPARISONS: VendorComparison[] = [
     ourStrengths: [
       { glyph: 'people', title: 'The modern patient surface', body: 'A warm, mobile-first portal with self-reschedule, forms, and online payments — versus a legacy portal experience.' },
       { glyph: 'globe', title: 'Website + SEO + careers + shop included', body: 'Solutionreach is comms-only; we replace the website vendor, the job board, and the storefront too.' },
-      { glyph: 'door', title: 'No contract', body: 'Reviewers consistently cite Solutionreach’s term contracts. DreamCRM is month-to-month; leave whenever, your content exports with you.' },
+      { glyph: 'door', title: 'No contract', body: 'Solutionreach’s pricing page answers “What are your contract options?” with yearly contracts. DreamCRM is month-to-month; leave whenever, your content exports with you.' },
       { glyph: 'chat', title: 'One inbox', body: 'Portal messages and patient email merge per patient; reminders are one thread of a relationship, not the product.' },
     ],
     matrix: baseMatrix({
@@ -266,7 +270,7 @@ export const COMPARISONS: VendorComparison[] = [
       pms: ['yes'],
       phones: ['partial', 'Add-on offerings'],
       sms: ['yes', 'Best-in-class depth'],
-      contract: ['no', 'Term contracts reported by reviewers'],
+      contract: ['no', 'Yearly contract options, per its pricing page'],
     }),
     bottomLine:
       'For pure reminder volume over SMS today, the veteran still delivers. For everything a patient actually touches — your website, booking, portal, reviews — and a price you can cancel monthly, DreamCRM is the modern answer.',

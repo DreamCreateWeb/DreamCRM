@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic'
  * `lastmod` IS A CLAIM, SO IT IS ONLY MADE WHERE IT IS TRUE.
  *
  * Every entry used to carry `new Date()` — the moment of the REQUEST. A
- * crawler fetching this file twice saw sixty pages "modified" twice, which is
+ * crawler fetching this file twice saw every page "modified" twice, which is
  * the pattern search engines document as the reason they stop reading the
  * field for a site at all (Google: it is used "if it's consistently and
  * verifiably accurate"; Bing asks for the true date for the same reason). A

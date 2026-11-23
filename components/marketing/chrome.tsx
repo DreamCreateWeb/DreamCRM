@@ -119,6 +119,37 @@ function ActiveSpark({ on }: { on: boolean }) {
   )
 }
 
+/** A panel this long lays out in two columns, 34rem wide; shorter ones are one column of 18rem. */
+const WIDE_PANEL_OVER = 5
+
+/**
+ * WHICH EDGE OF ITS TRIGGER A DROPDOWN HANGS FROM.
+ *
+ * Every panel used to hang from its trigger's LEFT edge. For the two-column
+ * panel under the LAST trigger that runs 34rem to the right of a button that
+ * already sits two-thirds of the way across the bar — measured on 2026-11-23
+ * with the menu open: clipped by 23px at a 1280px window, 87px at 1152 and
+ * 191px at 1024, and the document scrolled sideways by the same amount for as
+ * long as the menu was open. It is the panel that holds the free tools (the
+ * grader, the calculator, the growth library), and its right-hand column was
+ * the part cut off.
+ *
+ * A wide panel in the right half of the bar hangs from its trigger's RIGHT
+ * edge instead and grows leftward, where there is always room. Derived from
+ * position and length rather than naming "Resources", so reordering the nav or
+ * growing another menu past five items cannot bring the clipping back.
+ *
+ * NOTHING AT REST CAN SEE THIS. The layout gate grades the document with
+ * every menu closed, and a closed panel is `display:none`, so the overflow
+ * only ever existed under a hover. `tests/marketing/nav-links-in-html.test.tsx`
+ * holds the rule; the measurements are in the PR.
+ */
+export function panelAnchor(index: number, childCount: number, navLength: number = MARKETING_NAV.length): 'left-0' | 'right-0' {
+  const wide = childCount > WIDE_PANEL_OVER
+  const inRightHalf = index > (navLength - 1) / 2
+  return wide && inRightHalf ? 'right-0' : 'left-0'
+}
+
 export function MarketingHeader() {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -174,7 +205,7 @@ export function MarketingHeader() {
           </Link>
 
           <nav className="hidden items-center gap-1 lg:flex" aria-label="Main">
-            {MARKETING_NAV.map((item) =>
+            {MARKETING_NAV.map((item, index) =>
               item.children ? (
                 <div
                   key={item.label}
@@ -219,10 +250,13 @@ export function MarketingHeader() {
                       tab order and the accessibility tree exactly as an
                       unmounted one was. Held by
                       `tests/marketing/nav-links-in-html.test.tsx`. */}
-                  <div className="absolute left-0 top-full pt-1.5" hidden={openMenu !== item.label}>
+                  <div
+                    className={`absolute top-full pt-1.5 ${panelAnchor(index, item.children.length)}`}
+                    hidden={openMenu !== item.label}
+                  >
                     <div
                       className={`rounded-[14px] border bg-white p-2 shadow-[0_28px_70px_-30px_rgb(47_82_179/0.55)] ${
-                        item.children.length > 5 ? 'grid w-[34rem] grid-cols-2 gap-x-2' : 'w-72'
+                        item.children.length > WIDE_PANEL_OVER ? 'grid w-[34rem] grid-cols-2 gap-x-2' : 'w-72'
                       }`}
                       style={{ borderColor: DAY_WIRE }}
                     >

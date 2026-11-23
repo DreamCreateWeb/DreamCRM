@@ -672,7 +672,12 @@ export const DOCS: DocArticle[] = [
   {
     slug: 'requesting-a-pms-integration',
     title: 'Requesting your PMS integration',
-    summary: 'Run Dentrix, Eaglesoft, or Curve? Raise your hand and we’ll notify you when it’s ready.',
+    // The line a search result shows for this page. It used to read "Run
+    // Dentrix, Eaglesoft, or Curve? Raise your hand and we’ll notify you when
+    // it’s ready" — telling a Dentrix practice to wait for something the
+    // first paragraph below says works today. It agrees with its own article
+    // now (found on the 2026-11-23 crawl).
+    summary: 'Most systems connect today through one bridge. If yours is one we cannot reach yet, raise your hand and we’ll tell you the day it is.',
     category: 'Money & integrations',
     minutes: 2,
     sections: [

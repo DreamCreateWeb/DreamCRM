@@ -202,7 +202,9 @@ const PRICING_FAQS: Array<{ q: string; a: string }> = [
 ]
 
 export const metadata = pageMetadata({
-  title: 'Pricing — DreamCRM',
+  // The price in the title is RESOLVED like every other copy of it on this
+  // page (DREAMCRM-38) — a typed one would be the eleventh place to forget.
+  title: `DreamCRM pricing: ${usd(PRICE.rateMonthly)}/mo for the whole dental front office`,
   description:
     `One plan, everything included: ${usd(PRICE.rateMonthly)}/mo founding practice rate` +
     `${PRICE.listMonthly ? ` (regularly ${usd(PRICE.listMonthly)})` : ''}. ` +
