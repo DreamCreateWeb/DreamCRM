@@ -22,6 +22,7 @@ import type { ToneTileGlyph } from './tone-tiles'
 import { usd } from './site'
 import { getQuotedPlan } from '@/lib/stripe-config'
 import { INCLUDED_MONTHLY_INSURANCE_CHECKS } from '@/lib/insurance-eligibility'
+import { TRIAL } from '@/lib/marketing/site'
 
 /**
  * OUR OWN PRICE, RESOLVED — never typed (DREAMCRM-38's rule, arriving here on
@@ -458,7 +459,7 @@ export function buildComparisonFaq(c: VendorComparison): Array<{ q: string; a: s
   return [
     {
       q: `How much does ${c.name} cost?`,
-      a: `${c.reportedPricing}. By comparison, DreamCRM is ${RATE_MONTHLY}/mo published (founding practice rate), month-to-month, with a 7-day free trial and no card required to start.`,
+      a: `${c.reportedPricing}. By comparison, DreamCRM is ${RATE_MONTHLY}/mo published (founding practice rate), month-to-month, with a ${TRIAL.name}: a card starts it, and it is not charged until the trial ends.`,
     },
     {
       q: `What is a good ${c.name} alternative for a dental practice?`,
@@ -470,7 +471,7 @@ export function buildComparisonFaq(c: VendorComparison): Array<{ q: string; a: s
     },
     {
       q: `Can I switch from ${c.name} to DreamCRM?`,
-      a: `Yes. DreamCRM is month-to-month with a no-card 7-day trial, so you can run it alongside ${c.name} before deciding. Patients import via CSV, PMS sync connects through the NexHealth bridge, and you keep your existing phone system — and if you ever leave, your content exports with you.`,
+      a: `Yes. DreamCRM is month-to-month with a ${TRIAL.name}, so you can run it alongside ${c.name} before deciding. Patients import via CSV, PMS sync connects through the NexHealth bridge, and you keep your existing phone system — and if you ever leave, your content exports with you.`,
     },
   ]
 }

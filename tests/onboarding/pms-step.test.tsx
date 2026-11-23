@@ -25,7 +25,7 @@ vi.mock('@/lib/onboarding/defaults', () => ({ seedClinicDay0Defaults: vi.fn(asyn
 vi.mock('@/lib/services/starter-pack', () => ({ applyStarterFloor: vi.fn(async () => undefined) }))
 vi.mock('@/lib/services/pms-connect', () => ({ getPmsConnectRequest: mockGetReq, submitPmsConnectRequest: mockSubmitReq }))
 vi.mock('@/lib/services/prospecting', () => ({ convertProspectForSignup: vi.fn(async () => undefined) }))
-vi.mock('@/lib/email', () => ({ sendTrialWelcomeEmail: vi.fn(async () => undefined) }))
+vi.mock('@/lib/email', () => ({ sendTrialStartedEmail: vi.fn(async () => undefined) }))
 vi.mock('@/lib/db', () => ({
   db: { select: mockSelect, insert: mockInsert, update: mockUpdate, transaction: mockTransaction },
   schema: {
@@ -115,7 +115,7 @@ describe('the software answer (submitOnboarding)', () => {
     expect(mockSubmitReq).not.toHaveBeenCalled()
   })
 
-  it('still starts the no-card trial and writes every identity field (no Stripe import)', async () => {
+  it('still writes every identity field, awaiting its card (no Stripe import — Checkout is the next screen)', async () => {
     await submitOnboarding({ ...base, state: 'TX', brandColor: '#9CAF9F', pmsAnswer: 'dentrix' })
     expect(profiles[0]).toMatchObject({
       displayName: 'Bright Smile Dental',
@@ -126,18 +126,21 @@ describe('the software answer (submitOnboarding)', () => {
       postalCode: '78701',
       brandColor: '#9CAF9F',
       planTier: 'premium',
-      subscriptionStatus: 'trialing',
+      subscriptionStatus: 'awaiting_card',
     })
     const src = readFileSync(join(process.cwd(), 'app/(onboarding)/actions.ts'), 'utf8')
     expect(src).not.toMatch(/from '[^']*stripe[^']*'|import\('[^']*stripe/i)
   })
 })
 
-describe('three screens', () => {
-  it('the progress reads "N of 3" with a current step', () => {
+describe('four steps — the card is counted', () => {
+  it('the progress reads "N of 4" with a current step, and names the card step', () => {
     render(<OnboardingProgress step={2} />)
-    expect(screen.getByText('2 of 3')).toBeInTheDocument()
+    expect(screen.getByText('2 of 4')).toBeInTheDocument()
     expect(screen.getByText('Practice').closest('li')).toHaveAttribute('aria-current', 'step')
+    // A strip that stopped at 3 would make the card a surprise after the
+    // finish line — on the screen where a signup is most likely to stop.
+    expect(screen.getByText('Start trial')).toBeInTheDocument()
   })
 
   it('screen 2 holds the practice fields, address included', () => {
@@ -147,13 +150,20 @@ describe('three screens', () => {
     }
   })
 
-  it('screen 3 asks which software, offers None yet / Not sure, a skip, and the no-card trial', () => {
+  it('screen 3 asks which software, offers None yet / Not sure, a skip — and says a card comes next', () => {
     render(<Onboarding02 />)
     expect(screen.getByText(/which practice software do you use/i)).toBeInTheDocument()
     expect(PMS_ANSWER_CHOICES.map((c) => c.label)).toEqual(expect.arrayContaining(['Dentrix', 'None yet', 'Not sure']))
     for (const c of PMS_ANSWER_CHOICES) expect(screen.getByLabelText(c.label)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /skip the software question/i })).toBeInTheDocument()
     expect(screen.getByLabelText(/web address/i)).toBeInTheDocument()
-    expect(screen.getByText(/no card required/i)).toBeInTheDocument()
+    // Owner ruling 2026-11-23: a card is required to sign up. This screen
+    // may not promise otherwise, may not call itself the last step, and says
+    // what the card step costs today.
+    expect(screen.queryByText(/no card/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/last step/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/a card to start your 14-day free trial/i)).toBeInTheDocument()
+    expect(screen.getByText(/not charged until the\s+trial ends/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /save and continue/i })).toBeInTheDocument()
   })
 })

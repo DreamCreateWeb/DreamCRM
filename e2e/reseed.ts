@@ -68,44 +68,66 @@ function locateSeed(): { repoRoot: string; seedScript: string } {
   )
 }
 
+/**
+ * Run the seed for `scopes` as the harness runs it — a subprocess, same script,
+ * same arguments — rather than importing it. Two reasons: what a retry
+ * restores is then provably identical to what the run seeded, and the
+ * Playwright workers never hold a Postgres pool open across a spec they might
+ * fail inside.
+ */
+function runSeed(scopes: string[], doing: 'restoring' | 'applying'): void {
+  if (!process.env.DATABASE_URL) {
+    // Loud on purpose. Silently skipping would put the retry trap straight
+    // back, and the whole point of this file is that the suite stops lying
+    // about why it failed. `scripts/e2e-harness.sh` exports DATABASE_URL; if
+    // you are driving Playwright by hand, export it yourself.
+    throw new Error(
+      'DATABASE_URL is not set, so the seeded rows cannot be restored between attempts. ' +
+        'Run the suite through `pnpm test:e2e` (scripts/e2e-harness.sh), or export DATABASE_URL ' +
+        'pointing at the already-migrated E2E database.',
+    )
+  }
+
+  const { repoRoot, seedScript } = locateSeed()
+
+  try {
+    execFileSync(process.execPath, [seedScript, ...scopes], {
+      cwd: repoRoot,
+      stdio: 'pipe',
+      env: process.env,
+    })
+  } catch (err) {
+    // execFileSync's default message is "Command failed" and nothing else —
+    // the seed's actual complaint (a renamed column, an unknown scope) sits
+    // unread on the captured stderr. Re-throw WITH it: a fixture that cannot
+    // restore itself must say why, or we are back to a test lying about its
+    // failure.
+    const stderr = String((err as { stderr?: Buffer }).stderr ?? '').trim()
+    throw new Error(`${doing} seed scope(s) [${scopes.join(', ')}] failed${stderr ? `:\n${stderr}` : ''}`)
+  }
+}
+
 /** Declare the seed scope a spec file owns, restored before each of its tests. */
 export function restoresSeedScope(...scopes: string[]): void {
   test.beforeEach(async () => {
-    if (!process.env.DATABASE_URL) {
-      // Loud on purpose. Silently skipping would put the retry trap straight
-      // back, and the whole point of this file is that the suite stops lying
-      // about why it failed. `scripts/e2e-harness.sh` exports DATABASE_URL; if
-      // you are driving Playwright by hand, export it yourself.
-      throw new Error(
-        'DATABASE_URL is not set, so the seeded rows cannot be restored between attempts. ' +
-          'Run the suite through `pnpm test:e2e` (scripts/e2e-harness.sh), or export DATABASE_URL ' +
-          'pointing at the already-migrated E2E database.',
-      )
-    }
-
-    const { repoRoot, seedScript } = locateSeed()
-
-    // Run the seed as the harness runs it — a subprocess, same script, same
-    // arguments — rather than importing it. Two reasons: what a retry restores
-    // is then provably identical to what the run seeded, and the Playwright
-    // workers never hold a Postgres pool open across a spec they might fail
-    // inside.
-    try {
-      execFileSync(process.execPath, [seedScript, ...scopes], {
-        cwd: repoRoot,
-        stdio: 'pipe',
-        env: process.env,
-      })
-    } catch (err) {
-      // execFileSync's default message is "Command failed" and nothing else —
-      // the seed's actual complaint (a renamed column, an unknown scope) sits
-      // unread on the captured stderr. Re-throw WITH it: a fixture that cannot
-      // restore itself must say why, or we are back to a test lying about its
-      // failure.
-      const stderr = String((err as { stderr?: Buffer }).stderr ?? '').trim()
-      throw new Error(
-        `restoring seed scope(s) [${scopes.join(', ')}] failed${stderr ? `:\n${stderr}` : ''}`,
-      )
-    }
+    runSeed(scopes, 'restoring')
   })
+}
+
+/**
+ * Apply a scope NOW, in the middle of a test.
+ *
+ * For the one journey whose fixture cannot exist before it starts: the
+ * stranger signs up through the real form, and the next thing a real signup
+ * does is add a card on Stripe's hosted Checkout, which the harness cannot
+ * reach. `stranger` is the scope that writes what Stripe's webhook would
+ * have (scripts/e2e-seed.mjs); the spec calls this at that exact point.
+ *
+ * The spec must STILL claim the scope with `restoresSeedScope` at its top
+ * level — that declaration is what `tests/guards/e2e-seed-scopes.test.ts`
+ * reads to keep every scope owned by exactly one file. This call does not
+ * replace it.
+ */
+export function applySeedScope(...scopes: string[]): void {
+  runSeed(scopes, 'applying')
 }

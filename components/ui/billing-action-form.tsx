@@ -3,7 +3,7 @@
 import { useActionState, type ReactNode } from 'react'
 import type { BillingInterval, PlanId } from '@/lib/stripe-config'
 import type { BillingActionState } from '@/lib/services/billing-action-error'
-import { startStripeCheckoutFormAction } from '@/app/(default)/settings/actions'
+import { startSignupCheckoutFormAction, startStripeCheckoutFormAction } from '@/app/(default)/settings/actions'
 import { startActivationCheckoutFormAction } from '@/app/(default)/billing/activate/actions'
 
 /**
@@ -46,16 +46,22 @@ export function BillingActionError({ error }: { error: string | null }) {
 export function PlanCheckoutForm({
   planId,
   interval,
+  returnTo = 'billing',
   className,
   children,
 }: {
   planId: PlanId
   interval: BillingInterval
+  /** `onboarding` on the last signup step, so Checkout lands the new clinic
+   *  back in setup rather than on Settings → Billing. Picks WHICH ACTION
+   *  runs; it is never sent as a URL. */
+  returnTo?: 'billing' | 'onboarding'
   className?: string
   children: ReactNode
 }) {
+  const action = returnTo === 'onboarding' ? startSignupCheckoutFormAction : startStripeCheckoutFormAction
   const [state, formAction] = useActionState<BillingActionState, FormData>(
-    startStripeCheckoutFormAction.bind(null, planId, interval),
+    action.bind(null, planId, interval),
     { error: null },
   )
   return (

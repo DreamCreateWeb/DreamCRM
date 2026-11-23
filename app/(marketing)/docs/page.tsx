@@ -10,6 +10,7 @@ import {
   DAY_WIRE,
 } from '@/components/marketing/ui'
 import { pageMetadata } from '@/lib/marketing/seo'
+import { TRIAL } from '@/lib/marketing/site'
 
 /**
  * THE HELP DOCS INDEX — `BRAND.md` Part 8 move 6, page 6 (the second half).
@@ -169,7 +170,7 @@ export default function DocsIndexPage() {
             . If the answer should have been in here, we write the doc too.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-            <PrimaryCta href="/signup">Start free — 7 days</PrimaryCta>
+            <PrimaryCta href="/signup">{TRIAL.cta}</PrimaryCta>
             <GhostCta href="/product">See what DreamCRM does</GhostCta>
           </div>
         </div>

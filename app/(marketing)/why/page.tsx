@@ -8,7 +8,7 @@ import {
   MONO_LABEL,
   DAY_WIRE,
 } from '@/components/marketing/ui'
-import { usd } from '@/lib/marketing/site'
+import { usd, TRIAL } from '@/lib/marketing/site'
 import { getQuotedPlan } from '@/lib/stripe-config'
 import { pageMetadata } from '@/lib/marketing/seo'
 
@@ -259,7 +259,7 @@ export default function WhyPage() {
             The proof is a login away
           </h2>
           <p className="mt-4 text-[1rem] leading-relaxed text-gray-600">
-            Seven days of everything, no card, no call. Or walk through a fully
+            {TRIAL.daysWord} days of everything, free, with no sales call. Or walk through a fully
             populated practice first and see how a Tuesday actually feels.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
@@ -274,7 +274,7 @@ export default function WhyPage() {
           <div
             className={`mt-8 flex flex-wrap items-center gap-x-3 gap-y-2 text-gray-600 ${MONO_LABEL}`}
           >
-            {[`${usd(PLAN.price)}/mo, flat`, '7 days free', 'No card to start', 'Month-to-month'].map(
+            {[`${usd(PLAN.price)}/mo, flat`, TRIAL.chip, TRIAL.cardChip, 'Month-to-month'].map(
               (t, i) => (
                 <span key={t} className="flex items-center gap-3">
                   {i > 0 && <span className="h-1 w-1 rounded-full bg-teal-600" aria-hidden="true" />}

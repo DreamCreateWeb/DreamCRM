@@ -13,6 +13,9 @@ const h = vi.hoisted(() => ({
   clear: vi.fn(async () => undefined),
   // Typed with rest args so the dedupe-key assertions below can read call[1].
   notify: vi.fn(async (..._args: unknown[]) => undefined),
+  trialStarted: vi.fn(async (..._args: unknown[]) => 'sent' as string),
+  /** The order the two billing calls ran in, across mocks. */
+  order: [] as string[],
 }))
 
 vi.mock('@/lib/stripe', () => ({
@@ -38,6 +41,7 @@ vi.mock('@/lib/services/notifications', () => ({ notifyOrgMembers: h.notify }))
 vi.mock('@/lib/services/referrals', () => ({ accrueCommissionForInvoice: vi.fn(async () => undefined) }))
 vi.mock('@/lib/services/billing-notifications', () => ({
   sendPaymentFailedEmailForCustomer: vi.fn(async () => undefined),
+  sendTrialStartedEmailOnce: (...a: unknown[]) => h.trialStarted(...a),
 }))
 
 import { POST } from '@/app/api/webhooks/stripe/route'
@@ -58,6 +62,15 @@ beforeEach(() => {
   h.sync.mockReset().mockResolvedValue(undefined)
   h.clear.mockReset().mockResolvedValue(undefined)
   h.notify.mockReset().mockResolvedValue(undefined)
+  h.order.length = 0
+  h.sync.mockImplementation(async () => {
+    h.order.push('sync')
+    return undefined
+  })
+  h.trialStarted.mockReset().mockImplementation(async () => {
+    h.order.push('welcome')
+    return 'sent'
+  })
 })
 
 describe('stripe webhook idempotency', () => {
@@ -172,5 +185,45 @@ describe('stripe webhook idempotency', () => {
     const res = await POST(req())
     expect(res.status).toBe(200)
     expect(h.sync).toHaveBeenCalledWith('sub_2')
+  })
+})
+
+/**
+ * THE WELCOME GOES OUT WHEN THE CARD GOES ON FILE (owner ruling 2026-11-23).
+ * Signup no longer sends it — until Checkout completes there is no trial to
+ * welcome anybody to — so this webhook is its only sender.
+ */
+describe('checkout.session.completed — the trial-started welcome', () => {
+  const completed = (object: Record<string, unknown>) => ({
+    id: 'evt_co',
+    type: 'checkout.session.completed',
+    data: { object },
+  })
+
+  it('is asked for AFTER the subscription sync, for the org named in the session’s own metadata', async () => {
+    h.constructEvent.mockReturnValue(
+      completed({ subscription: 'sub_1', metadata: { organizationId: 'org_new' }, customer_details: { email: 'o@x.com' } }),
+    )
+    expect((await POST(req())).status).toBe(200)
+    // The welcome quotes the trial end the sync writes; the other order
+    // would send "your trial ends when your trial ends".
+    expect(h.order).toEqual(['sync', 'welcome'])
+    expect(h.trialStarted).toHaveBeenCalledWith('org_new')
+  })
+
+  it('a session with no org in its metadata asks for nothing (a Checkout that is not ours to welcome)', async () => {
+    h.constructEvent.mockReturnValue(completed({ subscription: 'sub_1', customer_details: { email: 'o@x.com' } }))
+    expect((await POST(req())).status).toBe(200)
+    expect(h.trialStarted).not.toHaveBeenCalled()
+  })
+
+  it('mail failing does NOT fail the webhook — Stripe would retry a delivery that already synced', async () => {
+    h.trialStarted.mockRejectedValueOnce(new Error('Resend down'))
+    h.constructEvent.mockReturnValue(completed({ subscription: 'sub_1', metadata: { organizationId: 'org_new' } }))
+    const res = await POST(req())
+    expect(res.status).toBe(200)
+    expect(h.release).not.toHaveBeenCalled()
+    // The platform is still told a clinic completed checkout.
+    expect(h.notify).toHaveBeenCalledOnce()
   })
 })

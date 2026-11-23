@@ -13,7 +13,7 @@ import { RESERVED_SLUGS, SLUG_PATTERN } from '@/lib/onboarding/slug'
 import { slugify } from '@/lib/utils'
 import { isPmsAnswer, isVendorAnswer } from '@/lib/onboarding/pms-answer'
 import { validatePmsConnectRequest } from '@/lib/pms-connect'
-import { trialEndDate } from '@/lib/trial'
+import { AWAITING_CARD_STATUS } from '@/lib/trial'
 import { ATTRIBUTION_COOKIE, parseAttributionCookie, type SignupAttribution } from '@/lib/marketing-attribution'
 
 /** Postgres unique-violation SQLSTATE — a slug claimed between check + insert. */
@@ -111,9 +111,9 @@ const SubmitInput = z.object({
   /** The signer-upper's browser IANA timezone — the clinic's wall-clock
    *  default (validated server-side; falls back to the app default if bogus). */
   timeZone: z.string().trim().max(64).optional(),
-  // Plan choice moved OUT of onboarding — every clinic starts a full-Premium,
-  // no-card 7-day trial and picks a plan when they set up billing. Kept optional
-  // for back-compat with any in-flight client; ignored by the trial start.
+  // Plan choice is not made in THIS form — the card step that follows it is
+  // where the plan and billing period are picked. Kept optional for back-compat
+  // with any in-flight client; ignored here.
   planId: z.enum(['basic', 'pro', 'premium']).optional(),
   interval: z.enum(['monthly', 'annual']).optional(),
 })
@@ -121,15 +121,17 @@ const SubmitInput = z.object({
 /**
  * Final onboarding submit. Creates the clinic organization (or reuses the
  * caller's existing one) + the owner membership TRANSACTIONALLY, seeds
- * clinic_profile from the wizard draft, and STARTS A NO-CARD 7-DAY TRIAL —
- * full Premium access, no Stripe, no card. The clinic sets up billing within
- * the 7 days (the trial banner → /billing/setup); on expiry without a paid
- * subscription they're locked to the billing wall.
+ * clinic_profile from the wizard draft, and leaves the clinic AWAITING ITS
+ * CARD (owner ruling 2026-11-23: a 14-day free trial, card required to sign
+ * up). Nothing has started yet: `subscription_status = 'awaiting_card'` with
+ * no end date, which every gate reads as closed (lib/trial.ts). The next
+ * screen is the card step; Stripe Checkout there opens the trial, and the
+ * first subscription sync replaces the status with Stripe's own.
  *
- * No Stripe call happens here — that removed three signup failure zones at once
- * (abandoned-checkout limbo, a missing price env silently leaving them on basic,
- * and the webhook-latency tier race). The Stripe customer + subscription are
- * created later, only when they convert.
+ * STILL no Stripe call here. The clinic exists before Checkout does, so an
+ * abandoned Checkout leaves a real, resumable signup (the card step is where
+ * they land next time) rather than a half-made account — and a missing price
+ * env or a slow webhook cannot break the form that creates the practice.
  */
 export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Promise<{ ok: true }> {
   const data = SubmitInput.parse(input)
@@ -277,15 +279,14 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
       brandColor: data.brandColor || null,
       timezone: timeZone,
       pmsAnswer,
-      // Start the no-card 7-day trial: full Premium access, no Stripe. The paid
-      // tier + subscription are set later by the webhook on conversion, and a
-      // real paid sub then overrides these (see lib/trial.ts). On CONFLICT we
-      // DON'T touch any billing/trial field, so re-running onboarding never
-      // re-arms the trial clock or downgrades a clinic that already paid.
+      // AWAITING ITS CARD: no trial clock and no Stripe yet. The card step
+      // opens the trial, and the subscription sync then owns the status and
+      // the end date (see lib/trial.ts). On CONFLICT we DON'T touch any
+      // billing/trial field, so re-running onboarding never sends a clinic
+      // that already added its card (or already pays) back to the card step.
       planTier: 'premium',
       billingMode: 'self_serve',
-      subscriptionStatus: 'trialing',
-      trialEndsAt: trialEndDate(),
+      subscriptionStatus: AWAITING_CARD_STATUS,
       // Set once at profile creation, NEVER on conflict — first-touch
       // attribution would be corrupted by a later re-submit re-stamping it.
       signupAttribution,
@@ -404,32 +405,13 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
     console.warn('[onboarding] prospect win-loop check failed', err)
   }
 
-  // Welcome email — the trial is live. Best-effort (a mail hiccup must never
-  // block onboarding); also our earliest deliverability check on the owner's
-  // address (before this, their first-ever email was the day-3 trial reminder).
-  // Once per clinic: only on the submit that actually created the org.
-  if (isNewOrg) try {
-    const { sendTrialWelcomeEmail } = await import('@/lib/email')
-    const base =
-      process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, '') ||
-      'https://www.dreamcreatestudio.com'
-    const [org] = await db
-      .select({ slug: schema.organization.slug })
-      .from(schema.organization)
-      .where(eq(schema.organization.id, orgId))
-      .limit(1)
-    const siteDomain = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.com'
-    await sendTrialWelcomeEmail(session.user.email, {
-      firstName: (session.user.name || '').split(' ')[0] || null,
-      clinicName: displayName,
-      websiteHubUrl: `${base}/website`,
-      siteUrl: org?.slug ? `https://${org.slug}.${siteDomain}` : null,
-    })
-  } catch (err) {
-    console.warn('[onboarding] could not send welcome email', err)
-  }
+  // NO welcome email here. Until the card is added there is no trial to
+  // welcome anybody to; the welcome goes out when Stripe opens the trial
+  // (`sendTrialStartedEmailOnce`, from the Stripe webhook), and it carries the
+  // date the card is charged — which does not exist yet at this point.
 
-  // No Stripe here — the trial is live the moment the profile is written. The
-  // client routes to the onboarding success screen → the AI website interview.
+  // No Stripe here. The client routes to /onboarding-complete, which is the
+  // card step for a clinic awaiting its card and the "site is ready" screen
+  // once the trial has started.
   return { ok: true }
 }

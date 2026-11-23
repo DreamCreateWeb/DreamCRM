@@ -12,7 +12,14 @@ import {
   updateAccount,
   upsertNotificationPrefs,
 } from '@/lib/services/settings'
-import { createCheckoutSession, createPortalSession, setSubscriptionCancelation, updateSubscriptionPlan } from '@/lib/services/billing'
+import {
+  checkoutReturnOf,
+  createCheckoutSession,
+  createPortalSession,
+  setSubscriptionCancelation,
+  updateSubscriptionPlan,
+  type CheckoutReturn,
+} from '@/lib/services/billing'
 import { billingActionFailure } from '@/lib/services/billing-action-error'
 import { PLAN_CHANGE_UNCONFIRMED_MESSAGE, type BillingActionState } from '@/lib/types/billing-action'
 import { PURCHASABLE_PLANS } from '@/lib/stripe-config'
@@ -62,6 +69,9 @@ export async function saveAccount(input: unknown) {
 export async function startStripeCheckout(
   planId: PlanId,
   interval: BillingInterval,
+  /** Where Checkout returns to — narrowed to the closed set below, since a
+   *  server action's arguments are client input. */
+  returnTo?: CheckoutReturn,
 ): Promise<BillingActionState> {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') {
@@ -105,6 +115,7 @@ export async function startStripeCheckout(
       name: ctx.organizationName,
       planId,
       interval,
+      returnTo: checkoutReturnOf(returnTo),
     })
     if (!session.url) {
       return { error: 'We couldn’t start checkout just now — please try again in a moment.' }
@@ -129,6 +140,22 @@ export async function startStripeCheckoutFormAction(
   _formData: FormData,
 ): Promise<BillingActionState> {
   return startStripeCheckout(planId, interval)
+}
+
+/**
+ * The same adapter for the LAST SIGNUP STEP: Checkout returns to onboarding,
+ * so a practice that just added its card lands on "build my website", not on
+ * a billing page. Whether the Checkout carries the free trial is NOT decided
+ * here or by anything the browser sends — `createCheckoutSession` reads the
+ * clinic's own row.
+ */
+export async function startSignupCheckoutFormAction(
+  planId: PlanId,
+  interval: BillingInterval,
+  _prevState: BillingActionState,
+  _formData: FormData,
+): Promise<BillingActionState> {
+  return startStripeCheckout(planId, interval, 'onboarding')
 }
 
 /** Open the Stripe Customer Portal. Returns its refusal for the same reason

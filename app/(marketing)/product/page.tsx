@@ -19,7 +19,7 @@ import {
   GoogleSocialMock,
 } from '@/components/marketing/ui'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
-import { DEMO_URL } from '@/lib/marketing/site'
+import { DEMO_URL, TRIAL } from '@/lib/marketing/site'
 import Link from 'next/link'
 import ChapterRail from './chapter-rail'
 import { liveDesigns } from '@/components/marketing/design-gallery-data'
@@ -581,8 +581,8 @@ export default function ProductPage() {
           <div className={`mt-8 flex flex-wrap items-center gap-x-3 gap-y-2 text-gray-600 ${MONO_LABEL}`}>
             {[
               `${SECTIONS.length} modules, one product`,
-              '7 days free',
-              'No card to start',
+              TRIAL.chip,
+              TRIAL.cardChip,
               'Month-to-month',
             ].map((t, i) => (
               <span key={t} className="flex items-center gap-3">

@@ -88,7 +88,7 @@ export interface ClinicStripeRow {
  * Settings → Connected accounts, the clinic's Stripe row, READ from the
  * billing columns rather than asserted. It used to print "Connected ·
  * Subscription managed by Stripe" for every clinic — a no-card trial has no
- * subscription for seven days and a managed/comped clinic never will, and
+ * subscription until it chooses a plan and a managed/comped clinic never will, and
  * both read a green pill about a subscription that did not exist (a status
  * that cannot be false is a dishonest status).
  */

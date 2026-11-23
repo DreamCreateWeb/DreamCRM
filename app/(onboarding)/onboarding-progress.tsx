@@ -1,14 +1,19 @@
 import Link from 'next/link'
 
 /**
- * "N of 3" — account (the sign-up page) → practice → software + web address.
- * Three screens; a finished step links back so a correction never costs the
- * draft (sessionStorage holds it).
+ * "N of 4" — account (the sign-up page) → practice → software + web address
+ * → the card that starts the free trial. A finished step links back so a
+ * correction never costs the draft (sessionStorage holds it).
+ *
+ * The card is a counted step on purpose. It is where a signup is most likely
+ * to stop, and a strip that said "3 of 3" on the screen before it would make
+ * the card a surprise after the finish line.
  */
 export const ONBOARDING_STEPS = [
   { label: 'Account', href: null },
   { label: 'Practice', href: '/onboarding-01' },
   { label: 'Software & site', href: '/onboarding-02' },
+  { label: 'Start trial', href: null },
 ] as const
 
 export default function OnboardingProgress({ step = 2 }: { step?: number }) {
@@ -18,7 +23,7 @@ export default function OnboardingProgress({ step = 2 }: { step?: number }) {
         <p className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-teal-700 dark:text-teal-400">
           {step} of {ONBOARDING_STEPS.length}
         </p>
-        <ol className="grid grid-cols-3 gap-2" aria-label="Setup progress">
+        <ol className="grid grid-cols-4 gap-2" aria-label="Setup progress">
           {ONBOARDING_STEPS.map((s, i) => {
             const n = i + 1
             const reached = step >= n

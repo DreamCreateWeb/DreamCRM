@@ -24,7 +24,8 @@
 //    a vendor only while its registry entry carries a dated `pricingChecked`.
 //    Let the check lapse and the ad group disappears from the brief.
 //  - No claim the product cannot back today: no texting, no HIPAA word, no
-//    former price, no results promise.
+//    former price, no results promise — and, since the 2026-11-23 ruling
+//    (a card is required to sign up), no "no card" in any spelling.
 
 import { COMPARISONS, type VendorComparison } from './comparisons'
 import { usd } from './site'
@@ -168,7 +169,7 @@ export function googleCompetitorCampaign(comparisons: readonly VendorComparison[
     adGroups: adGroupsFrom(comparisons),
     headlines: [
       `Dental Front Office, ${price}`,
-      `${trial}, No Card`,
+      trial,
       'Month-to-Month. No Contract.',
       'Website, Booking & Portal',
       'Keep the PMS You Already Run',
@@ -185,7 +186,7 @@ export function googleCompetitorCampaign(comparisons: readonly VendorComparison[
     ],
     descriptions: [
       `Website, online booking, patient portal, reviews & recall in one system. ${price} flat.`,
-      `Try everything free for ${TRIAL_DAYS} days. No card, no contract, no sales call. Keep your PMS.`,
+      `Try everything free for ${TRIAL_DAYS} days. No contract, no setup fee, no sales call. Keep your PMS.`,
       'See a side-by-side comparison: pricing, features, and what each one does better.',
       'Built only for dental practices. Month-to-month, and you cancel from Settings.',
     ],

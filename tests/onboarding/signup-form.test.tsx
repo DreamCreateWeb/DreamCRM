@@ -35,8 +35,10 @@ describe('SignUpForm (dental, not Mosaic template)', () => {
     mockSearchParams.value = new URLSearchParams('plan=pro')
     render(<SignUpForm />)
     expect(screen.getByText(/interested in pro/i)).toBeInTheDocument()
-    expect(screen.getByText(/pick your plan when you set up billing/i)).toBeInTheDocument()
-    // No price / no "checkout" at signup — it's a no-card trial now.
+    // The plan interest is answered with the trial's real terms: the card
+    // comes on the last step and is not charged until the trial ends.
+    expect(screen.getByText(/start with a 14-day free trial\. You add a card on the last step/i)).toBeInTheDocument()
+    // No price at signup — nothing is charged here.
     expect(screen.queryByText(/\$149\/mo/)).toBeNull()
     expect(screen.queryByText(/checkout comes after/i)).toBeNull()
   })
@@ -53,8 +55,12 @@ describe('SignUpForm (dental, not Mosaic template)', () => {
     expect(screen.queryByText(/interested in/i)).toBeNull()
   })
 
-  it('makes the no-card free-trial promise (no checkout at signup)', () => {
-    render(<SignUpForm />)
-    expect(screen.getByText(/no credit card required/i)).toBeInTheDocument()
+  it('states the trial as it is: 14 days, a card on the last step, not charged until it ends — never "no card"', () => {
+    // Owner ruling 2026-11-23. This line used to promise "no credit card
+    // required", which a signup would now disprove three screens later.
+    const { container } = render(<SignUpForm />)
+    expect(container).toHaveTextContent(/14-day free trial\. You add a card on the last step/i)
+    expect(container).toHaveTextContent(/not charged until the trial ends, and you\s+can cancel before then in Settings/i)
+    expect(container).not.toHaveTextContent(/no (credit )?card/i)
   })
 })

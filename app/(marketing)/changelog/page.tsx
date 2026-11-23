@@ -15,6 +15,7 @@ import {
   DAY_WIRE,
 } from '@/components/marketing/ui'
 import { JsonLd, SITE_URL, pageMetadata } from '@/lib/marketing/seo'
+import { TRIAL } from '@/lib/marketing/site'
 
 /**
  * THE CHANGELOG — `BRAND.md` Part 8 move 6, page 6 (the second half).
@@ -299,7 +300,7 @@ export default function ChangelogPage() {
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             <PrimaryCta href="/product">See what DreamCRM does</PrimaryCta>
-            <GhostCta href="/signup">Start free — 7 days</GhostCta>
+            <GhostCta href="/signup">{TRIAL.cta}</GhostCta>
           </div>
         </div>
       </section>

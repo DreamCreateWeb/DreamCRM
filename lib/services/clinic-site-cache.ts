@@ -217,7 +217,7 @@ const locationTimestamps = () => timestampKeysFor('clinic_location', clinicLocat
  * string, not a wrong answer — and `app/site/[slug]/robots.txt/route.ts` and
  * `sitemap.xml/route.ts` both call it on this payload. Worse, the two early
  * returns in `resolveTrialState` (paid subscription, or no trial) mean the
- * crash lands on exactly one cohort: clinics INSIDE their 7-day trial. A brand
+ * crash lands on exactly one cohort: clinics INSIDE their free trial. A brand
  * new customer's site would start 500ing its robots.txt and sitemap on the
  * second request, and no test or type would have caught it.
  *
@@ -497,7 +497,7 @@ function settleSite(site: PublishedSite | null): PublishedSite | null {
  * That is the SAME landmine `reviveTimestamps` was written for, arriving by a
  * second route. `unstable_cache` persists through JSON, so on a HIT that
  * `Date` is a string while TypeScript still swears it is a `Date` — and the
- * crash would land on exactly one cohort (clinics inside their 7-day trial),
+ * crash would land on exactly one cohort (clinics inside their free trial),
  * on every public page of their site, from the second request onward. The
  * theme read had no timestamps at all before this change and therefore needed
  * no revival; it does now.

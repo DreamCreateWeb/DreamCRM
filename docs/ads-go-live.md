@@ -12,20 +12,33 @@ SETTING is what matters, not its label.
 
 ## The target, and what it takes
 
-**Two new paying practices a month from web marketing.** The arithmetic:
+**Two new paying practices a month from web marketing.**
 
-| If this share of trials pays | Trials needed a month | At ~$120 a trial |
-|---|---|---|
-| 5% | 40 | $4,800 |
-| 8% (the 2026 survey median) | 25 | $3,000 |
-| 12% | 17 | $2,000 |
+The arithmetic changed on 2026-11-23, when the owner ruled the trial to be 14
+days with a card required to sign up. A "trial" on this page now means a
+practice that **added its card**; a signup that stops at the card step is not
+one, and the platform's Acquisition panel counts those separately ("No card
+yet").
 
-So the target needs three things together, not ad spend alone: a budget near
-$3,000 a month, a trial-to-paid rate at or above the median, and trials from
-sources that cost nothing per click (review-site listings, comparison pages,
-the grader). Neither the search demand for these terms nor our own
-trial-to-paid rate is known yet; the first weeks of the campaign exist to
-measure both.
+| If this share of card-on-file trials pays | Trials needed a month |
+|---|---|
+| 25% (the low end of the survey's "good" band) | 8 |
+| 31% (the survey's illustrative funnel) | 7 |
+| 50% (its "great" band) | 4 |
+
+The source is ChartMogul's March 2026 survey of 200 software products: 25–35%
+is "good" and 50–60% "great" for a card-required trial, against 4–6% and
+10–15% for a no-card one. Its illustrative funnel has about 35 card-required
+signups per 1,000 visitors against 45 for a no-card trial (those two figures
+were read off a graphic, so treat them as an estimate). Fewer people start,
+and far more of them pay.
+
+**What that does to cost is not known.** If a no-card signup would have cost
+about $120, the same ratio puts a card-on-file trial near $155 and seven of
+them near $1,100 a month — an estimate on an estimate. Neither the search
+demand for these terms nor our own trial-to-paid rate has been measured; the
+first weeks of the campaign exist to measure both, and the card step is now
+the place most likely to lose people.
 
 ## 1. Open the account (about 20 minutes, then a wait)
 
@@ -69,7 +82,8 @@ exactly as on the registration or tax documents, and a business card.
 | Needed | Why | State on 2026-11-23 |
 |---|---|---|
 | The working branch merged | The ads land on comparison pages that were corrected on it, and the click-ID tracking ships with it | Not merged |
-| A Privacy Policy and Terms page on www | Google requires a policy for lead and audience features; a careful buyer looks for both | Do not exist |
+| A Privacy Policy and Terms page on www | Google requires a policy for lead and audience features; a careful buyer looks for both — and a trial that bills a card when it ends needs its terms written down somewhere a customer can point to | Do not exist |
+| Stripe's trial messaging settings | Stripe shows a cancellation-policy link on receipts and can send its own reminder before a trial ends; both are off until switched on (Settings → Billing → Subscriptions and emails → Manage free trial messaging). The app sends its own notice a week before and the day before the charge | Not set |
 | A decision on "regularly $500" | It is on the pages the ads land on, and no practice has paid it | Open |
 | Advertiser verification passed | Google can pause an unverified account | Not started |
 
@@ -202,7 +216,7 @@ Headlines:
 
 ```
 Dental Front Office, $200/mo
-7-Day Free Trial, No Card
+14-Day Free Trial
 Month-to-Month. No Contract.
 Website, Booking & Portal
 Keep the PMS You Already Run
@@ -222,7 +236,7 @@ Descriptions:
 
 ```
 Website, online booking, patient portal, reviews & recall in one system. $200/mo flat.
-Try everything free for 7 days. No card, no contract, no sales call. Keep your PMS.
+Try everything free for 14 days. No contract, no setup fee, no sales call. Keep your PMS.
 See a side-by-side comparison: pricing, features, and what each one does better.
 Built only for dental practices. Month-to-month, and you cancel from Settings.
 ```
@@ -236,7 +250,7 @@ Sitelinks:
 - Grade Your Practice Free → `https://www.dreamcreatestudio.com/grade`
 - All Comparisons → `https://www.dreamcreatestudio.com/compare`
 
-Callouts: No Contract · No Setup Fee · 7-Day Free Trial · Published Pricing · Dental-Only
+Callouts: No Contract · No Setup Fee · 14-Day Free Trial · Published Pricing · Dental-Only
 
 <!-- campaign:end -->
 
@@ -261,7 +275,13 @@ Callouts: No Contract · No Setup Fee · 7-Day Free Trial · Published Pricing �
 
 - **Cost per trial under $150** after two weeks → raise the budget to $100 a
   day. **Over $150** → fix the search terms and the landing page before
-  spending more.
+  spending more. That bar was set when a trial needed no card. A trial with a
+  card on file is worth roughly three times as much, so $150 is now a cautious
+  bar rather than a fair one; whether to raise it is the owner's decision, and
+  the same goes for the $120 bar the platform's Marketing page grades against.
+- **Watch the card step first.** Signups that stop there appear as "No card
+  yet" on the Acquisition panel, per channel. If most paid signups end there,
+  the ad is working and the card step is not.
 - **Trial-to-paid is not judged on this campaign alone.** At these volumes a
   month produces zero, one or two customers; read it on trials pooled from
   every source.

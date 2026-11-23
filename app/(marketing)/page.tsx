@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { getTenantContext } from '@/lib/auth/context'
 import { homePathFor } from '@/lib/tenant-chrome'
 import { getServerSession } from '@/lib/session'
-import { DEMO_URL, usd } from '@/lib/marketing/site'
+import { DEMO_URL, usd, TRIAL } from '@/lib/marketing/site'
 import { getQuotedPlan } from '@/lib/stripe-config'
 import { COMPARISONS } from '@/lib/marketing/comparisons'
 import { JsonLd, pageMetadata, softwareApplicationLd } from '@/lib/marketing/seo'
@@ -62,7 +62,7 @@ export const metadata = pageMetadata({
   description:
     'Dental practice software in one system: website, booking, portal, messages, reviews, recall. ' +
     `${usd(PRICE.rateMonthly)}/mo founding practice rate` +
-    `${PRICE.listMonthly ? ` (regularly ${usd(PRICE.listMonthly)})` : ''}. 7-day free trial.`,
+    `${PRICE.listMonthly ? ` (regularly ${usd(PRICE.listMonthly)})` : ''}. ${TRIAL.days}-day free trial.`,
   path: '/',
   social: {
     description:
@@ -258,7 +258,7 @@ export default async function MarketingHome() {
                 gray-600, not gray-500: 6.91 on white against 5.30, and this
                 row sits closest to the fuchsia lobe's tail. */}
             <div className={`mkt-enter mkt-d4 mt-8 flex flex-wrap items-center gap-x-3 gap-y-2 text-gray-600 ${MONO_LABEL}`}>
-              {['7 days free', 'No card to start', `${usd(PRICE.rateMonthly)}/mo after, flat`, 'Month-to-month'].map((t, i) => (
+              {[TRIAL.chip, TRIAL.cardChip, `${usd(PRICE.rateMonthly)}/mo after, flat`, 'Month-to-month'].map((t, i) => (
                 <span key={t} className="flex items-center gap-3">
                   {i > 0 && <span className="h-1 w-1 rounded-full bg-teal-600" aria-hidden="true" />}
                   {t}
@@ -413,7 +413,7 @@ export default async function MarketingHome() {
               {
                 step: '1',
                 title: 'Create your account',
-                body: 'Name, practice, address, web address, brand color. Four screens, no card.',
+                body: `Name, practice, address, web address, brand color — then a card to start the trial. Nothing is charged for ${TRIAL.days} days.`,
               },
               {
                 step: '2',
@@ -422,8 +422,8 @@ export default async function MarketingHome() {
               },
               {
                 step: '3',
-                title: 'Your site is drafted + your trial starts',
-                body: 'A finished practice site on your address — private until you publish it — and 7 days of the whole platform to run for real.',
+                title: 'Your site is drafted',
+                body: `A finished practice site on your address — private until you publish it — and ${TRIAL.days} days of the whole platform to run for real.`,
               },
               {
                 step: '4',
@@ -528,7 +528,8 @@ export default async function MarketingHome() {
               </h2>
               <p className="mx-auto mt-3 max-w-xl text-[0.95rem] leading-relaxed text-gray-400">
                 Dream Dental is a fully-populated demo practice — browse its public website. When
-                you&apos;re convinced, every practice starts with 7 days of Premium, free, no card.
+                you&apos;re convinced, every practice starts with {TRIAL.days} days of Premium, free.{' '}
+                {TRIAL.cardTerms}
               </p>
               <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
                 <Link

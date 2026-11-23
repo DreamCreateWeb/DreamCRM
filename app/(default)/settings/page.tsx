@@ -30,7 +30,9 @@ export default async function SettingsIndex() {
       Math.ceil((ctx.trialEndsAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000)),
     )
     badges['/settings/billing'] = {
-      tone: 'warn',
+      // A trial with the card on file needs nothing from them (info); a
+      // no-card trial is a plan still to choose (warn).
+      tone: ctx.trialCardOnFile ? 'info' : 'warn',
       label: `Trial — ${daysLeft} day${daysLeft === 1 ? '' : 's'} left`,
     }
   }

@@ -99,8 +99,10 @@ app/
                      branch on getTenantContext().tenantType
   (double-sidebar)/  /inbox + /messages (two-pane surfaces)
   (auth)/            signin / signup / reset-password / accept-invite
-  (onboarding)/      4-step onboarding → clinic org + no-card trial (NO Stripe
-                     call at signup); /welcome AI interview
+  (onboarding)/      4-step onboarding → clinic org awaiting its card → the
+                     card step (Stripe Checkout opens the 14-day trial; NO
+                     Stripe call in the form that creates the practice);
+                     /welcome AI interview
   (marketing)/       Public B2B site at the root of www
   (portal)/          Patient portal /patient/* — clinic-branded chrome
   (partner)/ (partner-accept)/ (preview)/
@@ -237,9 +239,14 @@ booking, intake, shop, the token landings. Brand-derived palette
 
 ## Key subsystem reference (short)
 
-- **Trial**: no-card 7-day full trial (`lib/trial.ts`); **expiry kills
-  everything** (owner ruling): `lib/services/billing-state.ts` — crons skip,
-  the site shows coming-soon, the portal goes phone-first; paying revives.
+- **Trial**: 14 days, **CARD REQUIRED TO SIGN UP** (owner ruling 2026-11-23;
+  `lib/trial.ts`). A signup is `awaiting_card` — closed, no clock — until the
+  card step's Checkout opens a Stripe trial; **Stripe owns that clock** (a
+  card-on-file trial is never walled locally; `reconcileOverdueTrials` in the
+  trial-reminders cron is the lost-webhook backstop). Hand-provisioned clinics
+  keep the no-card trial. **Expiry kills everything** (owner ruling):
+  `lib/services/billing-state.ts` — crons skip, the site shows coming-soon,
+  the portal goes phone-first; paying revives.
 - **The voice**: `lib/services/proposals.ts` (file / approve-claim / execute /
   narrate ONCE under the capability) + `proposal-generators.ts` (hourly; AI
   types skip when AI is off) + `standup.ts` + the Approval Inbox. Executors
@@ -289,6 +296,12 @@ booking, intake, shop, the token landings. Brand-derived palette
   words in copy or the chrome. Still legal: add-on entitlements, billing
   STATE walls, `requiresBundle`, the `planTier` column.
   `tests/settings/no-plan-gating.test.ts` fails CI if a gate creeps back.
+- **The trial's terms are resolved, never typed.** Its length is `TRIAL_DAYS`
+  (the number Stripe is given); public copy reads `TRIAL` in
+  `lib/marketing/site.ts`. `tests/marketing/trial-copy.test.ts` holds "no
+  card" about our own trial, and any typed trial length, at zero across the
+  public trees. Who is charged at Checkout is `trialDaysAtCheckout` and
+  nothing the browser sends.
 - **The PMS link has ONE read** — `lib/pms-link.ts` / `getPmsLink` (connected
   / pending / none). Any number that comes from the PMS says where it would
   come from; a practice with no PMS is never shown a PMS promise.

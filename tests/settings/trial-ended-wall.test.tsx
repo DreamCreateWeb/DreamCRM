@@ -19,17 +19,20 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
  */
 
 const startStripeCheckoutFormAction = vi.fn()
+const startSignupCheckoutFormAction = vi.fn()
 const startActivationCheckoutFormAction = vi.fn()
 
 vi.mock('@/app/(default)/settings/actions', () => ({
   startStripeCheckoutFormAction: (...a: unknown[]) => startStripeCheckoutFormAction(...a),
+  startSignupCheckoutFormAction: (...a: unknown[]) => startSignupCheckoutFormAction(...a),
 }))
 vi.mock('@/app/(default)/billing/activate/actions', () => ({
   startActivationCheckoutFormAction: (...a: unknown[]) => startActivationCheckoutFormAction(...a),
 }))
 
-import TrialEndedWall from '@/components/ui/trial-ended-wall'
+import TrialEndedWall, { PlanPicker } from '@/components/ui/trial-ended-wall'
 import { PURCHASABLE_PLANS } from '@/lib/stripe-config'
+import { TRIAL_DAYS } from '@/lib/trial'
 
 function props(overrides: Record<string, unknown> = {}) {
   return {
@@ -45,6 +48,8 @@ beforeEach(() => {
   startActivationCheckoutFormAction.mockReset()
   startStripeCheckoutFormAction.mockResolvedValue({ error: null })
   startActivationCheckoutFormAction.mockResolvedValue({ error: null })
+  startSignupCheckoutFormAction.mockReset()
+  startSignupCheckoutFormAction.mockResolvedValue({ error: null })
 })
 
 describe('self-serve arm — a refused purchase says why', () => {
@@ -115,5 +120,82 @@ describe('what did not change', () => {
   it('a canceled clinic is not told it was on a trial', () => {
     render(<TrialEndedWall {...props({ canceled: true })} />)
     expect(screen.getByRole('heading', { name: /your subscription has ended/i })).toBeInTheDocument()
+  })
+})
+
+/**
+ * THE WALL AS THE LAST SIGNUP STEP (owner ruling 2026-11-23: a 14-day free
+ * trial, card required to sign up). A practice that signed up and has not
+ * added its card meets this same component — and it must not be told its
+ * trial "has ended". Nothing has started.
+ */
+describe('needs a card — the trial has not started', () => {
+  const plan = PURCHASABLE_PLANS[0]
+  const startButton = () => screen.getByRole('button', { name: new RegExp(`start my ${TRIAL_DAYS}-day free trial`, 'i') })
+
+  it('says "start your free trial", never "your free trial has ended"', () => {
+    render(<TrialEndedWall {...props({ needsCard: true })} />)
+    expect(
+      screen.getByRole('heading', { name: new RegExp(`one step left: start your ${TRIAL_DAYS}-day free trial`, 'i') }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/has ended/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/nothing is charged today/i)).toBeInTheDocument()
+  })
+
+  it('states the terms beside the button: the days, the price after, when the card is charged, how to stop', () => {
+    render(<TrialEndedWall {...props({ needsCard: true })} />)
+    const terms = startButton().closest('form')!
+    // The price is the plan's own — resolved, never typed here.
+    expect(terms).toHaveTextContent(`free for ${TRIAL_DAYS} days, then $${plan.price.toLocaleString('en-US')}/mo`)
+    expect(terms).toHaveTextContent(/not charged until the trial ends/i)
+    expect(terms).toHaveTextContent(/cancel before then from settings → plan & billing and you pay nothing/i)
+  })
+
+  it('the annual toggle changes the price the terms quote', () => {
+    render(<TrialEndedWall {...props({ needsCard: true })} />)
+    fireEvent.click(screen.getByRole('button', { name: /Annual/i }))
+    expect(startButton().closest('form')!).toHaveTextContent(`then $${plan.annualPrice.toLocaleString('en-US')}/yr`)
+  })
+
+  it('pressing it reaches checkout with the plan and interval, and a refusal lands under it', async () => {
+    startStripeCheckoutFormAction.mockResolvedValue({ error: 'We couldn’t start that just now, and nothing has been charged.' })
+    render(<TrialEndedWall {...props({ needsCard: true })} />)
+    fireEvent.click(startButton())
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/nothing has been charged/i))
+    const [planId, interval] = startStripeCheckoutFormAction.mock.calls[0]
+    expect(planId).toBe(plan.id)
+    expect(interval).toBe('monthly')
+  })
+
+  it('a non-billing staffer is told who can start it', () => {
+    render(<TrialEndedWall {...props({ needsCard: true, canManageBilling: false })} />)
+    expect(screen.getByText(/ask your clinic’s owner or an admin to add a card and start the trial/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /free trial/i })).not.toBeInTheDocument()
+  })
+
+  it('NO OTHER WALL OFFERS THE TRIAL: an ended trial and a canceled subscription are charged at checkout, so their buttons promise no free days', () => {
+    for (const p of [props(), props({ canceled: true })]) {
+      const { unmount } = render(<TrialEndedWall {...p} />)
+      expect(screen.queryByRole('button', { name: /free trial/i })).not.toBeInTheDocument()
+      expect(screen.queryByText(/not charged until/i)).not.toBeInTheDocument()
+      unmount()
+    }
+  })
+})
+
+describe('PlanPicker — where checkout returns to', () => {
+  it('from the last signup step it runs the SIGNUP action, so Stripe sends the practice back to onboarding', async () => {
+    render(<PlanPicker startsTrial returnTo="onboarding" />)
+    fireEvent.click(screen.getByRole('button', { name: /free trial/i }))
+    await waitFor(() => expect(startSignupCheckoutFormAction).toHaveBeenCalled())
+    expect(startStripeCheckoutFormAction).not.toHaveBeenCalled()
+    expect(startSignupCheckoutFormAction.mock.calls[0].slice(0, 2)).toEqual([PURCHASABLE_PLANS[0].id, 'monthly'])
+  })
+
+  it('from the wall it runs the ordinary action', async () => {
+    render(<PlanPicker startsTrial />)
+    fireEvent.click(screen.getByRole('button', { name: /free trial/i }))
+    await waitFor(() => expect(startStripeCheckoutFormAction).toHaveBeenCalled())
+    expect(startSignupCheckoutFormAction).not.toHaveBeenCalled()
   })
 })

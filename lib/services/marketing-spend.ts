@@ -16,7 +16,7 @@ import {
   type DialsAssessment,
   type MonthCohortInput,
 } from '@/lib/marketing-dials'
-import { hasPaidSubscription } from '@/lib/trial'
+import { AWAITING_CARD_STATUS, hasPaidSubscription } from '@/lib/trial'
 
 /**
  * The dials cockpit's server side (docs/marketing-engine.md, slice 3):
@@ -152,6 +152,11 @@ export async function getDialsReport(now: Date = new Date()): Promise<DialsRepor
   for (const s of signupRows) {
     const c = cohorts.get(monthKeyOf(s.createdAt))
     if (!c) continue
+    // THE DIALS GRADE COST PER TRIAL, and a signup that has not added its
+    // card has not started one (owner ruling 2026-11-23). Counting it would
+    // make a channel that fills the card step with people who then leave
+    // look cheap. It joins the cohort the day its card goes on file.
+    if (s.subscriptionStatus === AWAITING_CARD_STATUS) continue
     const paid = hasPaidSubscription(s)
     c.totalSignups++
     if (paid) c.totalPaying++

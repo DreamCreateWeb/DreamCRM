@@ -1,5 +1,5 @@
 import 'server-only'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNotNull, lt } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { stripe } from '@/lib/stripe'
 import type Stripe from 'stripe'
@@ -10,6 +10,7 @@ import {
   type BillingInterval,
   type PlanId,
 } from '@/lib/stripe-config'
+import { trialDaysAtCheckout } from '@/lib/trial'
 // The RENDER-TOLERANT invalidator, because this module is reachable from a
 // Server Component body: `app/(default)/settings/billing/page.tsx` calls
 // `syncCheckoutSuccess` during render on the `?checkout=success` landing. The
@@ -58,8 +59,48 @@ async function ensureOrgStripeCustomer(args: {
 }
 
 /**
- * Start a Stripe Checkout session for a clinic upgrading/changing plans.
+ * Where Stripe sends the clinic back after Checkout. A CLOSED SET of our own
+ * paths, chosen by name — never a caller-supplied URL, because the value
+ * arrives from a server action's arguments, which are client input.
+ *
+ *  - `billing`: Settings → Billing, which syncs the subscription on landing.
+ *  - `onboarding`: the last signup step, which does the same and then sends
+ *    the new clinic on to build its site. A signup that just added its card
+ *    should land in the product, not on a billing page.
+ */
+export type CheckoutReturn = 'billing' | 'onboarding'
+
+const CHECKOUT_RETURN: Record<CheckoutReturn, { success: string; cancel: string }> = {
+  billing: {
+    success: '/settings/billing?checkout=success&session_id={CHECKOUT_SESSION_ID}',
+    cancel: '/settings/billing?checkout=cancelled',
+  },
+  onboarding: {
+    success: '/onboarding-complete?checkout=success&session_id={CHECKOUT_SESSION_ID}',
+    cancel: '/onboarding-complete?checkout=cancelled',
+  },
+}
+
+/** Narrow an untrusted value to a `CheckoutReturn` (anything else → billing). */
+export function checkoutReturnOf(value: unknown): CheckoutReturn {
+  return value === 'onboarding' ? 'onboarding' : 'billing'
+}
+
+/**
+ * Start a Stripe Checkout session for a clinic's FIRST subscription.
  * Returns the session — caller should redirect to `session.url`.
+ *
+ * THE TRIAL STARTS HERE (owner ruling 2026-11-23: 14 days, card required to
+ * sign up). A signup that has not added its card gets
+ * `subscription_data.trial_period_days`, so Stripe collects the card, charges
+ * nothing today, and bills the plan by itself when the trial ends. Who gets
+ * those days is `trialDaysAtCheckout` and nobody else — see it for why every
+ * other clinic reaching this function is charged on completion.
+ *
+ * THE STATUS READ FAILS CLOSED. The page that sent the clinic here told it
+ * "free for 14 days". If we cannot read the row that says whether that is
+ * true, the one thing we must not do is open a Checkout that charges today —
+ * so a missing profile throws, and an unreadable database throws on its own.
  */
 export async function createCheckoutSession(args: {
   organizationId: string
@@ -67,11 +108,20 @@ export async function createCheckoutSession(args: {
   name: string
   planId: PlanId
   interval: BillingInterval
+  returnTo?: CheckoutReturn
 }) {
   const plan = PLANS.find((p) => p.id === args.planId)
   if (!plan) throw new Error(`Unknown plan: ${args.planId}`)
   const priceId = plan.priceIds[args.interval]
   if (!priceId) throw new Error(`Stripe price for ${plan.name} (${args.interval}) is not configured`)
+
+  const [profile] = await db
+    .select({ subscriptionStatus: schema.clinicProfile.subscriptionStatus })
+    .from(schema.clinicProfile)
+    .where(eq(schema.clinicProfile.organizationId, args.organizationId))
+    .limit(1)
+  if (!profile) throw new Error('No clinic profile for this organization — cannot start checkout')
+  const trialDays = trialDaysAtCheckout(profile.subscriptionStatus)
 
   const customerId = await ensureOrgStripeCustomer({
     organizationId: args.organizationId,
@@ -79,15 +129,17 @@ export async function createCheckoutSession(args: {
     name: args.name,
   })
 
+  const back = CHECKOUT_RETURN[checkoutReturnOf(args.returnTo)]
+
   return stripe.checkout.sessions.create({
     mode: 'subscription',
     customer: customerId,
     line_items: [{ price: priceId, quantity: 1 }],
-    // Land back on billing with the session id so the page can SYNC the
-    // subscription synchronously (activation must not hinge on webhook
-    // timing) + show a success confirmation.
-    success_url: publicUrl('/settings/billing?checkout=success&session_id={CHECKOUT_SESSION_ID}'),
-    cancel_url: publicUrl('/settings/billing?checkout=cancelled'),
+    // Land back with the session id so the page can SYNC the subscription
+    // synchronously (activation must not hinge on webhook timing) + show a
+    // success confirmation.
+    success_url: publicUrl(back.success),
+    cancel_url: publicUrl(back.cancel),
     allow_promotion_codes: true,
     // Stripe Tax: collect the billing address and let Stripe decide, state by
     // state, whether SaaS is taxable there (we only collect where the platform
@@ -97,12 +149,18 @@ export async function createCheckoutSession(args: {
     billing_address_collection: 'required',
     customer_update: { address: 'auto', name: 'auto' },
     tax_id_collection: { enabled: true },
+    // A trial with nothing due today STILL takes the card. 'always' is
+    // Stripe's default for a subscription; it is spelled out because the
+    // whole ruling is "a card to sign up", and a default is one dashboard
+    // setting or SDK bump away from 'if_required'.
+    ...(trialDays ? { payment_method_collection: 'always' as const } : {}),
     metadata: {
       organizationId: args.organizationId,
       planId: plan.id,
       interval: args.interval,
     },
     subscription_data: {
+      ...(trialDays ? { trial_period_days: trialDays } : {}),
       metadata: {
         organizationId: args.organizationId,
         planId: plan.id,
@@ -126,11 +184,16 @@ export async function updateSubscriptionPlan(args: {
   planId: PlanId
   interval: BillingInterval
 }): Promise<boolean> {
-  const plan = PLANS.find((p) => p.id === args.planId)
-  if (!plan) throw new Error(`Unknown plan: ${args.planId}`)
-  const priceId = plan.priceIds[args.interval]
-  if (!priceId) throw new Error(`Stripe price for ${plan.name} (${args.interval}) is not configured`)
-
+  // FIRST: is there a subscription to change at all? A clinic with none is a
+  // FIRST PURCHASE, and everything that can go wrong with it — an unknown
+  // plan, a price id missing from this deployment — is Checkout's failure to
+  // report, in Checkout's words ("nothing has been charged", which is true).
+  // This used to validate the plan and price before looking, so a signup at
+  // the card step on a deployment missing a price id was told "we couldn't
+  // confirm that plan change — open Settings to see which plan you're on":
+  // no plan had changed, and Settings is behind the very wall it was
+  // standing at. Found by e2e/stranger.spec.ts on the day the card step
+  // became the last step of signup.
   const [profile] = await db
     .select({
       stripeSubscriptionId: schema.clinicProfile.stripeSubscriptionId,
@@ -141,6 +204,11 @@ export async function updateSubscriptionPlan(args: {
     .limit(1)
   const subId = profile?.stripeSubscriptionId
   if (!subId) return false
+
+  const plan = PLANS.find((p) => p.id === args.planId)
+  if (!plan) throw new Error(`Unknown plan: ${args.planId}`)
+  const priceId = plan.priceIds[args.interval]
+  if (!priceId) throw new Error(`Stripe price for ${plan.name} (${args.interval}) is not configured`)
 
   const sub = await stripe.subscriptions.retrieve(subId, { expand: ['items.data.price'] })
   // Only update a subscription that's actually alive. Canceled/incomplete →
@@ -507,6 +575,15 @@ export async function syncSubscriptionFromStripe(subscriptionId: string) {
       planTier,
       socialAddon: socialAddonActive ? 1 : 0,
       ...sinceSet,
+      // A Stripe trial (card on file): mirror ITS end date, so the countdown,
+      // the reminder emails and Settings → Billing all quote the day the card
+      // is actually charged. Display only — `resolveTrialState` never walls a
+      // card-on-file trial on this clock (lib/trial.ts). Written ONLY while
+      // Stripe says 'trialing': a no-card trial that pays must keep its own
+      // history, and an active subscription has no trial end to mirror.
+      ...(sub.status === 'trialing' && typeof sub.trial_end === 'number'
+        ? { trialEndsAt: new Date(sub.trial_end * 1000) }
+        : {}),
       // Managed-clinic provisioning: once the reserved subscription is live,
       // the "finish billing setup" state is over.
       ...(sub.status === 'active' || sub.status === 'trialing'
@@ -549,6 +626,67 @@ export async function syncSubscriptionFromStripe(subscriptionId: string) {
   // impossible, and the render tolerance below makes the throw not happen;
   // both, because either alone is one edit away from the same bug.
   await invalidateClinicSiteForOrgUnlessRendering(organizationId)
+}
+
+/** How long past its end date a card-on-file trial may sit before we stop
+ *  waiting for the webhook and ask Stripe ourselves. Stripe charges the first
+ *  invoice about an hour after the trial ends. */
+const OVERDUE_TRIAL_GRACE_MS = 2 * 60 * 60 * 1000
+/** One Stripe read per row, so the sweep is bounded. */
+const OVERDUE_TRIAL_BATCH = 50
+
+/**
+ * THE WEBHOOK'S BACKSTOP FOR A CARD-ON-FILE TRIAL.
+ *
+ * `resolveTrialState` never walls a trial that has a Stripe subscription —
+ * Stripe owns that clock, and a late webhook must not dark a paying
+ * practice's website (lib/trial.ts). The other half of that bargain lives
+ * here: if the webhook that ends the trial NEVER arrives, the row would say
+ * "on trial" forever, with full access and nobody billing it. So anything
+ * still recorded as a Stripe trial more than two hours past its end date is
+ * re-read from Stripe and written back — to `active` if it converted,
+ * `past_due` if the card failed, `canceled` if it ended. We ask; we never
+ * guess. A healthy system finds nothing here: every converted trial has
+ * already left the 'trialing' status.
+ *
+ * Best-effort per row — one subscription Stripe cannot find must not stop
+ * the rest — and bounded. Called from the trial-reminders cron, before the
+ * emails, so a reminder is never composed from a row Stripe has moved on.
+ */
+export async function reconcileOverdueTrials(
+  now: Date = new Date(),
+): Promise<{ checked: number; failed: number }> {
+  const cutoff = new Date(now.getTime() - OVERDUE_TRIAL_GRACE_MS)
+  const rows = await db
+    .select({
+      organizationId: schema.clinicProfile.organizationId,
+      stripeSubscriptionId: schema.clinicProfile.stripeSubscriptionId,
+    })
+    .from(schema.clinicProfile)
+    .where(
+      and(
+        eq(schema.clinicProfile.subscriptionStatus, 'trialing'),
+        isNotNull(schema.clinicProfile.stripeSubscriptionId),
+        lt(schema.clinicProfile.trialEndsAt, cutoff),
+      ),
+    )
+    .limit(OVERDUE_TRIAL_BATCH)
+
+  let failed = 0
+  for (const row of rows) {
+    if (!row.stripeSubscriptionId) continue
+    try {
+      await syncSubscriptionFromStripe(row.stripeSubscriptionId)
+    } catch (err) {
+      failed++
+      console.error(
+        '[billing] could not reconcile an overdue card-on-file trial — it still reads as on trial',
+        row.organizationId,
+        err,
+      )
+    }
+  }
+  return { checked: rows.length, failed }
 }
 
 /**

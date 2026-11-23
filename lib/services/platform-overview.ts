@@ -53,7 +53,7 @@ export async function getNeedsAHand(now: Date = new Date()): Promise<NeedsAHand>
   const clinics = (await listClinics()).filter((c) => !c.isDemo)
   const standings = clinics.map((c) => ({ c, standing: clinicStanding(c) }))
   // Only the clinics the predicate can say anything about need a sign-in read.
-  const candidates = standings.filter((s) => ['walled', 'past_due', 'trial'].includes(s.standing.kind))
+  const candidates = standings.filter((s) => ['walled', 'past_due', 'trial', 'awaiting_card'].includes(s.standing.kind))
   let seen = new Map<string, Date>()
   let unreadable = false
   try {
@@ -77,7 +77,7 @@ export async function getNeedsAHand(now: Date = new Date()): Promise<NeedsAHand>
     if (!clinicIsStuck(standing, lastSeenAt, now, opts)) continue
     rows.push({ orgId: c.orgId, name: c.displayName ?? c.name, standing, lastSeenAt, reason: stuckReason(standing, lastSeenAt, now, opts) ?? '' })
   }
-  const rank = { past_due: 0, walled: 1, trial: 2, live: 3, churned: 4, invite_pending: 5 } as const
+  const rank = { past_due: 0, walled: 1, trial: 2, awaiting_card: 3, live: 4, churned: 5, invite_pending: 6 } as const
   rows.sort((a, b) => rank[a.standing.kind] - rank[b.standing.kind] || a.name.localeCompare(b.name))
   return { rows, unreadable }
 }

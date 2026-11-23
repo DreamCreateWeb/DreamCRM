@@ -76,8 +76,14 @@ interface Props {
   nextChargeCurrency: string | null
   /** A real Stripe subscription exists (not comped/managed-no-sub) → can cancel/resume. */
   hasSubscription: boolean
-  /** No-card free trial — full access, no PAID plan yet, so every plan is choosable. */
+  /** NO-CARD free trial — full access, no PAID plan yet, so every plan is choosable.
+   *  False for a trial with a card on file: that clinic HAS a subscription. */
   onTrial: boolean
+  /** A Stripe trial with the card on file (lib/trial.ts). The panel renders
+   *  it as the subscription it is — plan, card, next charge, cancel — and
+   *  says the one thing that is different: nothing is charged until the
+   *  trial ends. */
+  trialCardOnFile: boolean
   /** The trial's real end instant (ISO) from clinic_profile via the tenant ctx — drives the countdown. */
   trialEndsAt: string | null
   /** When arriving via requirePlan's redirect, the gated module's label. */
@@ -97,6 +103,7 @@ export default function SubscriptionPanel({
   nextChargeCurrency,
   hasSubscription,
   onTrial,
+  trialCardOnFile,
   trialEndsAt,
   upgradeModuleLabel,
   invoices,
@@ -202,19 +209,33 @@ export default function SubscriptionPanel({
   function handleCancel() {
     setSubFeedback(null)
     void (async () => {
-      const ok = await askConfirm({
-        title: 'Cancel your subscription?',
-        message:
-          "You'll keep full access until the end of your current billing period, then your plan ends. You can resume anytime before then.",
-        confirmLabel: 'Cancel subscription',
-        danger: true,
-      })
+      const ok = await askConfirm(
+        trialCardOnFile
+          ? {
+              title: 'Cancel your free trial?',
+              message:
+                "You'll keep full access until the trial ends, and your card will not be charged. You can resume anytime before then.",
+              confirmLabel: 'Cancel trial',
+              danger: true,
+            }
+          : {
+              title: 'Cancel your subscription?',
+              message:
+                "You'll keep full access until the end of your current billing period, then your plan ends. You can resume anytime before then.",
+              confirmLabel: 'Cancel subscription',
+              danger: true,
+            },
+      )
       if (!ok) return
       setActiveAction('cancel')
       startTransition(async () => {
         const r = await runAction(() => cancelSubscriptionAction())
         if (r.ok) {
-          setSubFeedback({ ok: 'Your plan will end at the end of this billing period. You can resume anytime before then.' })
+          setSubFeedback({
+            ok: trialCardOnFile
+              ? 'Your trial will end without a charge. You can resume anytime before then.'
+              : 'Your plan will end at the end of this billing period. You can resume anytime before then.',
+          })
           router.refresh()
         } else {
           setSubFeedback({ error: r.error })
@@ -303,8 +324,20 @@ export default function SubscriptionPanel({
             )}
             {!onTrial && renewsAt && (
               <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                {cancelAtPeriodEnd ? 'Access ends' : 'Renews'} on{' '}
-                <strong className="font-medium text-gray-700 dark:text-gray-200">{formatShortDate(renewsAt)}</strong>.
+                {trialCardOnFile
+                  ? cancelAtPeriodEnd
+                    ? 'Your free trial ends'
+                    : 'Your free trial ends and your first charge is'
+                  : cancelAtPeriodEnd
+                    ? 'Access ends'
+                    : 'Renews'}{' '}
+                on{' '}
+                <strong className="font-medium text-gray-700 dark:text-gray-200">{formatShortDate(renewsAt)}</strong>
+                {trialCardOnFile
+                  ? cancelAtPeriodEnd
+                    ? ' — you will not be charged.'
+                    : ' — nothing is charged before then.'
+                  : '.'}
               </div>
             )}
             {!onTrial && (cardLabel || nextChargeLabel) && (
@@ -368,7 +401,7 @@ export default function SubscriptionPanel({
                 disabled={pending}
                 className="shrink-0 text-xs font-medium text-gray-500 hover:text-rose-600 dark:text-gray-400 dark:hover:text-rose-400 disabled:opacity-50"
               >
-                Cancel subscription
+                {trialCardOnFile ? 'Cancel trial' : 'Cancel subscription'}
               </button>
             ) : null)}
         </div>

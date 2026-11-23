@@ -211,15 +211,45 @@ describe('getPlatformMrr', () => {
     const day = 86_400_000
     state.clinics = [
       clinic({ orgId: 'live', stripeSubscriptionId: null, subscriptionStatus: 'trialing', trialEndsAt: new Date(Date.now() + 3 * day) }),
-      clinic({ orgId: 'walled', stripeSubscriptionId: 'sub_walled', subscriptionStatus: 'trialing', trialEndsAt: new Date(Date.now() - 30 * day) }),
+      // A NO-card trial has no Stripe subscription — that is what makes its
+      // clock ours. (This fixture used to carry a subscription id; since the
+      // 2026-11-23 ruling a 'trialing' row WITH one is a card-on-file trial,
+      // whose clock is Stripe's — the next test.)
+      clinic({ orgId: 'walled', stripeSubscriptionId: null, subscriptionStatus: 'trialing', trialEndsAt: new Date(Date.now() - 30 * day) }),
     ]
-    state.subs = [sub({ id: 'sub_walled', unitAmountCents: 20_000, status: 'trialing' })]
+    state.subs = []
     const mrr = await getPlatformMrr()
     expect(mrr.withTrialing).toMatchObject({ clinics: 1, monthlyCents: 0, byTier: { basic: 0, pro: 0, premium: 1 } })
     expect(mrr.recognized.clinics).toBe(0)
     // Nothing to bill behind the wall: the per-org map carries no amount for it.
     expect(mrr.monthlyCentsByOrg.has('walled')).toBe(false)
     expect(mrr.monthlyCentsByOrg.get('live')).toBe(0)
+  })
+
+  it('a trial WITH A CARD ON FILE is pipeline, not revenue: in with-trialing at its plan amount, not recognized', async () => {
+    const day = 86_400_000
+    state.clinics = [
+      clinic({ orgId: 'cof', stripeSubscriptionId: 'sub_cof', subscriptionStatus: 'trialing', trialEndsAt: new Date(Date.now() + 9 * day) }),
+      // Past its end date with the webhook still behind: Stripe owns that
+      // clock (lib/trial.ts), so it is NOT dropped as "expired".
+      clinic({ orgId: 'converting', stripeSubscriptionId: 'sub_conv', subscriptionStatus: 'trialing', trialEndsAt: new Date(Date.now() - day / 24) }),
+    ]
+    state.subs = [
+      sub({ id: 'sub_cof', unitAmountCents: 20_000, status: 'trialing' }),
+      sub({ id: 'sub_conv', unitAmountCents: 20_000, status: 'trialing' }),
+    ]
+    const mrr = await getPlatformMrr()
+    expect(mrr.withTrialing.clinics).toBe(2)
+    expect(mrr.recognized.clinics).toBe(0)
+    expect(mrr.recognized.monthlyCents).toBe(0)
+  })
+
+  it('a signup that never added its card is in NEITHER figure', async () => {
+    state.clinics = [clinic({ orgId: 'nocard', stripeSubscriptionId: null, subscriptionStatus: 'awaiting_card', trialEndsAt: null })]
+    state.subs = []
+    const mrr = await getPlatformMrr()
+    expect(mrr.withTrialing.clinics).toBe(0)
+    expect(mrr.recognized.clinics).toBe(0)
   })
 
   it('a PAID clinic with a stale trial_ends_at is never "expired" — recognized is untouched', async () => {

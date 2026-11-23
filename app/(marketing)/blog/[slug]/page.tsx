@@ -14,7 +14,7 @@ import {
   MONO_LABEL,
   DAY_WIRE,
 } from '@/components/marketing/ui'
-import { usd } from '@/lib/marketing/site'
+import { usd, TRIAL } from '@/lib/marketing/site'
 import { getQuotedPlan } from '@/lib/stripe-config'
 import JsonLdScript from '@/components/json-ld'
 
@@ -325,7 +325,7 @@ export default async function MarketingBlogPostPage({ params }: Props) {
             practice rate, month-to-month.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-            <PrimaryCta href="/signup">Start free — 7 days</PrimaryCta>
+            <PrimaryCta href="/signup">{TRIAL.cta}</PrimaryCta>
             <GhostCta href="/product">See what DreamCRM does</GhostCta>
           </div>
         </div>

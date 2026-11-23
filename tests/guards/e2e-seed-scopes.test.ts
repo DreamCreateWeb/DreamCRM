@@ -112,6 +112,9 @@ const FN_FOR_SCOPE: Record<string, string> = {
   webhook: 'seedWebhook',
   'token-pages': 'seedTokenPages',
   partner: 'seedPartner',
+  // Seeds no row (its SCOPE_ROWS entry is empty): it stands in for Stripe on
+  // the clinic the stranger journey creates through the real signup form.
+  stranger: 'seedStranger',
 }
 
 /** `SCOPE_ROWS` is a literal, so reading it by a runtime scope name needs a widened view. */

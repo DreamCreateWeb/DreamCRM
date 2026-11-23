@@ -11,6 +11,7 @@ import {
   MONO_LABEL,
   DAY_WIRE,
 } from '@/components/marketing/ui'
+import { TRIAL } from '@/lib/marketing/site'
 
 /**
  * A HELP ARTICLE — `BRAND.md` Part 8 move 6, page 6 (the second half).
@@ -278,7 +279,7 @@ export default async function DocArticlePage({ params }: Props) {
             reaches a human — and the doc gets fixed too.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-            <PrimaryCta href="/signup">Start free — 7 days</PrimaryCta>
+            <PrimaryCta href="/signup">{TRIAL.cta}</PrimaryCta>
             <GhostCta href="/docs">All help docs</GhostCta>
           </div>
         </div>

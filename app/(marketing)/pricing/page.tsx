@@ -11,7 +11,7 @@ import {
   type ToneTileGlyph,
 } from '@/components/marketing/ui'
 import { JsonLd, faqPageLd, pageMetadata, softwareApplicationLd } from '@/lib/marketing/seo'
-import { usd } from '@/lib/marketing/site'
+import { usd, TRIAL } from '@/lib/marketing/site'
 import { getQuotedPlan } from '@/lib/stripe-config'
 import { PriceCard } from './price-card'
 import { INCLUDED_MONTHLY_INSURANCE_CHECKS } from '@/lib/insurance-eligibility'
@@ -156,7 +156,7 @@ const INCLUDED: Array<{ group: string; glyph: ToneTileGlyph; rows: string[] }> =
 const PRICING_FAQS: Array<{ q: string; a: string }> = [
   {
     q: 'Do I have to pay to try it?',
-    a: 'No. Every practice starts with a 7-day free trial of everything — website, booking, portal, messaging, reviews, marketing, all of it — with no credit card required. You add billing only when you decide to stay.',
+    a: `No. Every practice starts with a ${TRIAL.name} of everything — website, booking, portal, messaging, reviews, marketing, all of it. You add a card to start it; the card is not charged until the trial ends, and if you cancel before then from Settings → Plan & billing you pay nothing.`,
   },
   {
     q: 'Is there a contract or setup fee?',
@@ -332,11 +332,11 @@ export default function PricingPage() {
             Start today
           </div>
           <h2 className="text-[1.9rem] font-extrabold leading-[1.05] tracking-[-0.03em] text-gray-950 sm:text-[2.4rem]">
-            Run it for a week before you decide.
+            Run it for {TRIAL.span} before you decide.
           </h2>
           <p className="mt-4 text-[1rem] leading-relaxed text-gray-600">
-            Seven days of the whole platform on your own practice — your website, your
-            booking page, your patients. No card, and nothing to cancel if you walk away.
+            {TRIAL.daysWord} days of the whole platform on your own practice — your website, your
+            booking page, your patients. {TRIAL.cardTerms}
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             <PrimaryCta href="/signup">Start your free trial</PrimaryCta>
@@ -346,7 +346,7 @@ export default function PricingPage() {
               no mark at all. Part 3 — "every mark says something", and four
               tiles here would be four statements the price has already made. */}
           <div className={`mt-8 flex flex-wrap items-center gap-x-3 gap-y-2 text-gray-600 ${MONO_LABEL}`}>
-            {['7 days free', 'No card to start', `${usd(PRICE.rateMonthly)}/mo after, flat`, 'Month-to-month'].map(
+            {[TRIAL.chip, TRIAL.cardChip, `${usd(PRICE.rateMonthly)}/mo after, flat`, 'Month-to-month'].map(
               (t, i) => (
                 <span key={t} className="flex items-center gap-3">
                   {i > 0 && <span className="h-1 w-1 rounded-full bg-teal-600" aria-hidden="true" />}

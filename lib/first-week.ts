@@ -51,12 +51,15 @@ export interface FirstWeekRowInput {
   /** The morning email switch (S7): off means day two arrives silent. null = the row could not be read (unknown, never a flag). */
   digestOn: boolean | null
   /**
-   * The trial IS the first week (lib/trial.ts TRIAL_DAYS = 7, and expiry
-   * shuts the clinic down — owner ruling 2026-08-10). Part 5 asks for it
-   * beside Day N (audit round 2 gap): `expired` = behind the wall, where the
-   * next move is billing, not the PMS.
+   * The trial beside Day N (Part 5, audit round 2 gap). It used to BE the
+   * first week; since the 2026-11-23 ruling it is 14 days and starts when the
+   * card is added (lib/trial.ts), so the first week now sits inside it.
+   * `expired` = behind the wall, where the next move is billing, not the PMS
+   * — and `needsCard` says which wall: a signup that has not added its card
+   * has not had a trial to end. `cardOnFile` = a trial that converts by
+   * itself. Both optional: absent reads as the plain no-card trial.
    */
-  trial: { onTrial: boolean; expired: boolean; daysLeft: number | null }
+  trial: { onTrial: boolean; expired: boolean; daysLeft: number | null; needsCard?: boolean; cardOnFile?: boolean }
   /**
    * The reads that FAILED for this row (verification round): a value the
    * cockpit could not read is unknown, never a stuck flag — a failed
@@ -97,6 +100,10 @@ export function stuckFlags(row: FirstWeekRowInput, now: Date): string[] {
   const hasData = row.activation.a1 != null
   // Behind the wall: nothing below this line can happen until billing does,
   // so it comes first and the PMS flag stands down.
+  if (row.trial.needsCard) {
+    out.push('Signed up but has not added a card — the trial has not started. The next move is the card step, not the PMS.')
+    return out
+  }
   if (row.trial.expired) {
     out.push('Trial ended and no card — they are behind the wall. The next move is billing, not the PMS.')
     return out

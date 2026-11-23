@@ -1177,6 +1177,12 @@ only source).
    path … not a database scraper" beside Open Dental's published statement
    about the bridge we ride. Both are in `site-audit.md`; neither was changed.
 
+**Ruled on 2026-11-23 (the owner, in the session that produced this part):**
+the trial is **14 days with a card required to sign up**, replacing the
+7-day no-card trial — built as "Part 11 slice 3" in the build log below. The
+same message supplied the operator details item 2 was waiting on. Items 1 and
+3–7 are still open.
+
 
 ## Build log
 
@@ -1824,3 +1830,57 @@ the second is `docs/ads-go-live.md`.
 - **Not built:** the conversion upload itself (trial started / became paying,
   through Google's Data Manager); a keyword readout on the Acquisition panel;
   the Privacy Policy and Terms the campaign must not launch without.
+
+**Part 11 slice 3 — the trial: 14 days, and a card to sign up (2026-11-23, owner ruling, no migration).**
+
+The ruling replaced the 2026-06-16 trial (seven days, no card) and is the
+largest change to who gets charged since the single-plan collapse. No schema
+change: `subscription_status` is free text, and the new state is a value.
+
+- **Three kinds of clinic, one resolver (`lib/trial.ts`).** A signup that has
+  not added its card is `awaiting_card`: no end date, `expired` + `needsCard`,
+  so every existing gate (the wall, the public site, the engines) closes it
+  without learning a new rule. A trial with the card on file is a Stripe
+  subscription in `trialing`: **Stripe owns that clock**, so the clinic is
+  never walled on ours (at the end date Stripe is converting it and the
+  webhook is behind). The no-card trial is unchanged, and is what a
+  hand-provisioned clinic still starts on.
+- **Who is charged today is one pure function.** `trialDaysAtCheckout`
+  grants the days only to `awaiting_card`; `createCheckoutSession` passes them
+  as `subscription_data.trial_period_days` with `payment_method_collection:
+  'always'`, and FAILS CLOSED when it cannot read the row (the card step said
+  "nothing is charged today"). One trial per clinic: a cancel writes Stripe's
+  `canceled` over the status that grants them.
+- **The backstop the Stripe-owned clock needs.** `reconcileOverdueTrials`
+  re-reads from Stripe any trial still recorded as running two hours past its
+  end, from the `trial-reminders` cron — otherwise a webhook that never
+  arrives is free access forever. That cron is a money path on the review
+  gate now.
+- **The card is a counted signup step.** `/onboarding-complete` is the card
+  step for a practice without one (what it costs today, what happens at the
+  end, that reminders come first) and the "site is ready" screen after;
+  Stripe returns there and the subscription is synced before anything
+  renders. `/welcome` waits behind it, so no AI is spent on a signup that
+  never finished.
+- **The emails say the opposite things to the two trials.** A no-card trial
+  is still asked for a card. A card-on-file trial is told the DAY its card is
+  charged, in the clinic's own calendar, a week out and the day before — and
+  never an amount, which depends on the period, a promo code and tax. The
+  welcome moved from signup to the moment the card goes on file (the Stripe
+  webhook), claimed once.
+- **The platform reads it truthfully.** "No card yet" is its own standing,
+  pill and Acquisition column — not "walled" and not "trial ended". The dials
+  grade cost per trial STARTED, so a channel that fills the card step with
+  people who leave does not look cheap.
+- **The copy has one home.** `TRIAL` in `lib/marketing/site.ts` supplies the
+  length and the card terms to every public surface; the ad brief, the
+  comparison FAQ's JSON-LD, the help docs, the signup form and the outreach
+  knowledge file read it. `tests/marketing/trial-copy.test.ts` holds "no
+  card" about our own trial, and any typed trial length, at zero across the
+  public trees — 52 lines said otherwise on the day of the ruling.
+- **Not built, and each needs the owner:** an email to a signup that stops at
+  the card step (a new message to customers); a higher cost-per-trial bar now
+  that a trial is worth more; the Stripe dashboard's own trial-reminder and
+  cancellation-policy-link settings. **Not verifiable from here:** the
+  Checkout request against Stripe itself — the first real signup after the
+  deploy is the test.

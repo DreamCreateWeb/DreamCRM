@@ -52,11 +52,15 @@ function ClinicCard({ row }: { row: FirstWeekRow }) {
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           {stuck ? <StatusPill tone="warn" label={`Stuck · ${row.stuck.length}`} /> : <StatusPill tone="ok" label="On track" />}
-          {row.trial.expired ? (
+          {row.trial.needsCard ? (
+            <StatusPill tone="info" label="No card yet · trial not started" />
+          ) : row.trial.expired ? (
             <StatusPill tone="urgent" label="Trial ended · behind the wall" />
           ) : row.trial.onTrial ? (
             <StatusPill
-              tone={row.trial.daysLeft != null && row.trial.daysLeft <= 2 ? 'warn' : 'info'}
+              // Only a NO-card trial is running out of anything; one with the
+              // card on file becomes a subscription by itself.
+              tone={!row.trial.cardOnFile && row.trial.daysLeft != null && row.trial.daysLeft <= 2 ? 'warn' : 'info'}
               label={`Trial · ${row.trial.daysLeft ?? 0} ${row.trial.daysLeft === 1 ? 'day' : 'days'} left`}
             />
           ) : (

@@ -55,8 +55,12 @@ describe('the comparison page’s first door', () => {
       expect(precedes(h1, doors[0]!)).toBe(true)
 
       // The reassurance line resolves both numbers.
-      const line = within(doors[0]!.parentElement as HTMLElement).getByText(/days free, no card/)
-      expect(line.textContent).toContain(`${TRIAL_DAYS} days free, no card.`)
+      const line = within(doors[0]!.parentElement as HTMLElement).getByText(/days free\./)
+      expect(line.textContent).toContain(`${TRIAL_DAYS} days free.`)
+      // The card is said beside the button, with what it costs today —
+      // never "no card" (owner ruling 2026-11-23: card required to sign up).
+      expect(line.textContent).toContain('Card to start, not charged until the trial ends.')
+      expect(line.textContent).not.toMatch(/no card/i)
       expect(line.textContent).toContain(`${usd(getQuotedPlan().price)}/mo after, month-to-month.`)
       unmount()
     })

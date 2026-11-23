@@ -49,6 +49,7 @@ function baseProps(overrides: Partial<PanelProps> = {}): PanelProps {
     nextChargeCurrency: null,
     hasSubscription: true,
     onTrial: false,
+    trialCardOnFile: false,
     trialEndsAt: null,
     upgradeModuleLabel: null,
     invoices: [],
@@ -135,5 +136,55 @@ describe('SubscriptionPanel — Stripe entry points intact', () => {
     // The plan grid renders a switch/current control per plan.
     const grid = screen.getByRole('heading', { name: /Your plan/i }).closest('section')
     expect(grid && within(grid).getAllByText(/Switch to|Current plan/i).length).toBeTruthy()
+  })
+})
+
+/**
+ * A TRIAL WITH THE CARD ON FILE (owner ruling 2026-11-23). It IS a
+ * subscription — plan, card, next charge, cancel — so it gets that layout,
+ * not the no-card "choose a plan, no card on file yet" one. The one thing
+ * that differs is said plainly: nothing is charged until the trial ends.
+ */
+describe('SubscriptionPanel — a trial with the card on file', () => {
+  const onFile = (overrides: Partial<PanelProps> = {}) =>
+    baseProps({
+      planTier: 'premium',
+      subscriptionStatus: 'trialing',
+      trialCardOnFile: true,
+      renewsAt: '2026-12-07T18:00:00.000Z',
+      card: { brand: 'visa', last4: '4242', expMonth: 4, expYear: 2030 },
+      ...overrides,
+    })
+
+  it('says when the trial ends and the first charge lands — and that nothing is charged before then', () => {
+    const { container } = render(<SubscriptionPanel {...onFile()} />)
+    expect(container).toHaveTextContent(/Your free trial ends and your first charge is on .*2026.* — nothing is charged before then\./)
+    expect(container).toHaveTextContent(/4242/)
+    // It is not the no-card trial: no ask for a card it already has.
+    expect(screen.queryByText(/No card on file yet/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/in your trial/i)).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Your plan/i })).toBeInTheDocument()
+  })
+
+  it('offers "Cancel trial" — the way out the card step promised', () => {
+    render(<SubscriptionPanel {...onFile()} />)
+    expect(screen.getByRole('button', { name: 'Cancel trial' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Cancel subscription' })).not.toBeInTheDocument()
+  })
+
+  it('once cancelled it says the trial ends WITHOUT a charge, and offers to resume', () => {
+    const { container } = render(<SubscriptionPanel {...onFile({ cancelAtPeriodEnd: true })} />)
+    expect(container).toHaveTextContent(/Your free trial ends on .*2026.* — you will not be charged\./)
+    expect(container).not.toHaveTextContent(/first charge is/)
+    expect(screen.getByRole('button', { name: /Resume subscription/i })).toBeInTheDocument()
+  })
+
+  it('a paying subscription still reads "Renews on" and "Cancel subscription"', () => {
+    const { container } = render(
+      <SubscriptionPanel {...onFile({ subscriptionStatus: 'active', trialCardOnFile: false })} />,
+    )
+    expect(container).toHaveTextContent(/Renews on/)
+    expect(container).not.toHaveTextContent(/free trial ends/i)
+    expect(screen.getByRole('button', { name: 'Cancel subscription' })).toBeInTheDocument()
   })
 })

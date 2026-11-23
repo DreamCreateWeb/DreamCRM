@@ -94,7 +94,7 @@ describe('clinicStatusPill', () => {
     expect(clinicStatusPill({ subscriptionStatus: 'trialing', trial: trial({ trialEndsAt: inDays(3) }) })).toMatchObject({ tone: 'info', label: 'trial · 3 days left' })
     expect(clinicStatusPill({ subscriptionStatus: 'trialing', trial: trial({ trialEndsAt: inDays(2) }) })).toMatchObject({ tone: 'warn', label: 'trial · 2 days left' })
     expect(clinicStatusPill({ subscriptionStatus: 'trialing', trial: trial({ trialEndsAt: inDays(0.5) }) })).toMatchObject({ tone: 'warn', label: 'trial · 1 day left' })
-    expect(clinicStatusPill({ subscriptionStatus: 'trialing', trial: { onTrial: true, expired: false, trialEndsAt: NOW, daysLeft: 0 } })).toMatchObject({ tone: 'warn', label: 'trial · ends today' })
+    expect(clinicStatusPill({ subscriptionStatus: 'trialing', trial: { onTrial: true, expired: false, trialEndsAt: NOW, daysLeft: 0, needsCard: false, cardOnFile: false } })).toMatchObject({ tone: 'warn', label: 'trial · ends today' })
   })
 
   it('an expired trial is URGENT "trial ended" — never the column\'s "trialing"', () => {
@@ -113,5 +113,56 @@ describe('clinicStatusPill', () => {
     expect(clinicStatusPill({ subscriptionStatus: 'past_due', trial: never })).toEqual({ tone: 'urgent', label: 'past due' })
     expect(clinicStatusPill({ subscriptionStatus: 'active', trial: { ...never } })).toEqual({ tone: 'ok', label: 'active' })
     expect(clinicStatusPill({ subscriptionStatus: null, trial: { ...never } })).toEqual({ tone: 'neutral', label: 'inactive' })
+  })
+})
+
+/**
+ * THE 2026-11-23 RULING ON THE PLATFORM'S SIDE (14 days, card to sign up).
+ * Two states the column alone cannot tell apart from what was there before:
+ * a signup that has not added its card (the column says 'awaiting_card', the
+ * wall says closed — and it is NOT a trial that ended), and a trial with the
+ * card on file (the column says 'trialing', exactly as a no-card trial does).
+ */
+describe('a signup that has not added its card', () => {
+  const awaiting = trial({ trialEndsAt: null, subscriptionStatus: 'awaiting_card' })
+
+  it('is not an active clinic — nothing of ours runs for it', () => {
+    expect(clinicCountsAsActive({ subscriptionStatus: 'awaiting_card', trial: awaiting })).toBe(false)
+  })
+
+  it('reads "no card yet", calmly — never "trial ended" for somebody who has not had one', () => {
+    const pill = clinicStatusPill({ subscriptionStatus: 'awaiting_card', trial: awaiting, billingMode: 'self_serve' })
+    expect(pill).toMatchObject({ tone: 'info', label: 'no card yet' })
+    expect(pill.title).toMatch(/has not started/i)
+    expect(pill.label).not.toMatch(/ended/)
+  })
+
+  it('an unaccepted invite still comes first', () => {
+    expect(clinicStatusPill({ subscriptionStatus: 'awaiting_card', trial: awaiting, ownerInvitePending: true }).label).toBe('invite pending')
+  })
+})
+
+describe('a trial with the card on file', () => {
+  const onFile = (days: number | null) =>
+    trial({ trialEndsAt: days == null ? null : inDays(days), subscriptionStatus: 'trialing', stripeSubscriptionId: 'sub_1' })
+
+  it('counts as active, like any trial', () => {
+    expect(clinicCountsAsActive({ subscriptionStatus: 'trialing', trial: onFile(9) })).toBe(true)
+  })
+
+  it('never WARNS as it nears its end — it becomes a subscription by itself', () => {
+    for (const d of [9, 2, 0.5]) {
+      expect(clinicStatusPill({ subscriptionStatus: 'trialing', trial: onFile(d) }).tone, `${d} days out`).toBe('info')
+    }
+    expect(clinicStatusPill({ subscriptionStatus: 'trialing', trial: onFile(2) }).title).toMatch(/card on file/i)
+  })
+
+  it('past its end with the webhook behind it is still a trial, not "trial ended"', () => {
+    const pill = clinicStatusPill({ subscriptionStatus: 'trialing', trial: onFile(-0.1) })
+    expect(pill).toMatchObject({ tone: 'info', label: 'trial · ends today' })
+  })
+
+  it('with no end date synced it says what it knows', () => {
+    expect(clinicStatusPill({ subscriptionStatus: 'trialing', trial: onFile(null) }).label).toBe('trial · card on file')
   })
 })

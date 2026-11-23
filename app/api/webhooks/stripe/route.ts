@@ -120,9 +120,23 @@ export async function POST(request: Request) {
         const session = event.data.object as {
           subscription?: string | null
           customer_details?: { email?: string; name?: string }
+          metadata?: { organizationId?: string } | null
         }
         if (session.subscription && typeof session.subscription === 'string') {
           await syncSubscriptionFromStripe(session.subscription)
+        }
+        // A signup that just added its card: the trial has started, so send
+        // the welcome that says when it ends and how to cancel. AFTER the
+        // sync (it reads the trial end the sync wrote), once per clinic by
+        // its own claim, and it never throws — mail must not fail this
+        // webhook. It sends nothing for a checkout that was charged today.
+        if (session.metadata?.organizationId) {
+          try {
+            const { sendTrialStartedEmailOnce } = await import('@/lib/services/billing-notifications')
+            await sendTrialStartedEmailOnce(session.metadata.organizationId)
+          } catch (err) {
+            console.warn('[stripe webhook] trial-started email failed (non-fatal)', err)
+          }
         }
         const orgId = await platformOrgId()
         if (orgId) {

@@ -11,7 +11,7 @@ import {
   DAY_WIRE,
 } from '@/components/marketing/ui'
 import { JsonLd, articleLd, breadcrumbLd } from '@/lib/marketing/seo'
-import { usd } from '@/lib/marketing/site'
+import { usd, TRIAL } from '@/lib/marketing/site'
 import { getQuotedPlan } from '@/lib/stripe-config'
 import type { ResourceGuide } from '@/lib/marketing/resources'
 
@@ -163,10 +163,10 @@ export function GuideShell({ guide, children }: { guide: ResourceGuide; children
           </h2>
           <p className="mt-4 text-[1rem] leading-relaxed text-gray-600">
             Recall asks that send themselves, a website that books 24/7, reviews that grow
-            on their own. {usd(PLAN.price)}/mo, flat. No card to try it.
+            on their own. {usd(PLAN.price)}/mo, flat, after {TRIAL.days} days free.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-            <PrimaryCta href="/signup">Start free — 7 days</PrimaryCta>
+            <PrimaryCta href="/signup">{TRIAL.cta}</PrimaryCta>
             <GhostCta href="/grade">Grade your practice free</GhostCta>
           </div>
           <p className="mt-8">

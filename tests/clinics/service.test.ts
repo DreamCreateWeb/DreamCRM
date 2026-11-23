@@ -173,7 +173,7 @@ describe('listClinics', () => {
     expect(b.hasWebsiteContent).toBe(false)
     expect(b.ownerInvitePending).toBe(true)
     // Neither was ever put on a trial (no trial_ends_at) — never trial-gated.
-    expect(a.trial).toEqual({ onTrial: false, expired: false, trialEndsAt: null, daysLeft: null })
+    expect(a.trial).toEqual({ onTrial: false, expired: false, trialEndsAt: null, daysLeft: null, needsCard: false, cardOnFile: false })
 
     // The invite read asks for OWNER invites still PENDING — a team invite
     // (admin/member) is not the owner's acceptance, and an accepted row is

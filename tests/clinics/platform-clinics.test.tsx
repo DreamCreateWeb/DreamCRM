@@ -24,7 +24,7 @@ vi.mock('@/app/(default)/ecommerce/customers/add-clinic-modal', () => ({ default
 
 import PlatformClinics from '@/app/(default)/ecommerce/customers/platform-clinics'
 
-const NO_TRIAL = { onTrial: false, expired: false, trialEndsAt: null, daysLeft: null }
+const NO_TRIAL = { onTrial: false, expired: false, trialEndsAt: null, daysLeft: null, needsCard: false, cardOnFile: false }
 
 function row(overrides: Partial<ClinicListRow> = {}): ClinicListRow {
   return {
@@ -71,8 +71,8 @@ describe('PlatformClinics KPI row', () => {
     const ended = new Date(Date.now() - 30 * 86_400_000)
     stubRows = [
       row({ orgId: 'a', name: 'Paying', subscriptionStatus: 'active', stripeSubscriptionId: 'sub_a' }),
-      row({ orgId: 'b', name: 'On trial', subscriptionStatus: 'trialing', trial: { onTrial: true, expired: false, trialEndsAt: new Date(Date.now() + 3 * 86_400_000), daysLeft: 3 } }),
-      row({ orgId: 'c', name: 'Walled', subscriptionStatus: 'trialing', trial: { onTrial: false, expired: true, trialEndsAt: ended, daysLeft: 0 } }),
+      row({ orgId: 'b', name: 'On trial', subscriptionStatus: 'trialing', trial: { onTrial: true, expired: false, trialEndsAt: new Date(Date.now() + 3 * 86_400_000), daysLeft: 3, needsCard: false, cardOnFile: false } }),
+      row({ orgId: 'c', name: 'Walled', subscriptionStatus: 'trialing', trial: { onTrial: false, expired: true, trialEndsAt: ended, daysLeft: 0, needsCard: false, cardOnFile: false } }),
     ]
     render(await PlatformClinics())
     expect(within(tile('Active Subscribers')).getByText('2')).toBeInTheDocument()

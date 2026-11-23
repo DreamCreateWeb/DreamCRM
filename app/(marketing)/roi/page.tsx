@@ -10,6 +10,7 @@ import {
 import { JsonLd, breadcrumbLd, pageMetadata } from '@/lib/marketing/seo'
 import { PLAN_PRICE_MONTHLY, VISITS_PER_PATIENT_PER_YEAR } from '@/lib/recall-roi'
 import RoiCalculator from './roi-calculator'
+import { TRIAL } from '@/lib/marketing/site'
 
 export const metadata = pageMetadata({
   title: 'Dental recall ROI calculator — what missed hygiene visits cost',
@@ -173,7 +174,7 @@ export default function RoiPage() {
             upside you just calculated.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-            <PrimaryCta href="/signup">Start free — 7 days, no card</PrimaryCta>
+            <PrimaryCta href="/signup">{TRIAL.cta}</PrimaryCta>
             <GhostCta href="/grade">Grade your practice free</GhostCta>
           </div>
         </div>

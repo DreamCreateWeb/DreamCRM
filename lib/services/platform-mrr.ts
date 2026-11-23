@@ -43,7 +43,7 @@ export interface PlatformMrr {
   /**
    * Recognized plus clinics still INSIDE a trial — the pipeline view. A
    * trial that has run out is not in it: `subscription_status` keeps saying
-   * 'trialing' after the 7 days (nothing writes the column — the wall and
+   * 'trialing' after a no-card trial ends (nothing writes the column — the wall and
    * the engine kill are derived from `trial_ends_at`), so the column alone
    * would count a clinic locked behind the billing wall as an active one.
    */

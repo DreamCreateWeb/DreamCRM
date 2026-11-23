@@ -1,14 +1,19 @@
 /**
  * THE PLATFORM'S READ OF A CLINIC'S STANDING — pure + client-safe.
  *
- * `clinic_profile.subscription_status` is written at signup / provisioning
- * ('trialing') and afterwards only by Stripe's webhooks and the cancel path.
- * Nothing flips it when the 7-day no-card trial runs out: the billing wall
- * and the engine kill are DERIVED from `trial_ends_at` through
+ * `clinic_profile.subscription_status` is written at signup ('awaiting_card')
+ * or provisioning ('trialing') and afterwards only by Stripe's webhooks and
+ * the cancel path. Nothing flips it when a no-card trial runs out: the
+ * billing wall and the engine kill are DERIVED from `trial_ends_at` through
  * `resolveTrialState` (lib/trial.ts, lib/services/billing-state.ts). So a
  * clinic that has been locked behind the wall for a month still carries
  * 'trialing' in that column, and every platform surface that read the column
  * alone painted it healthy, counted it active, and added it to MRR.
+ *
+ * Since the 2026-11-23 ruling (14 days, card required to sign up) there are
+ * two more things the column alone cannot say: a signup that has NOT ADDED
+ * ITS CARD (closed, and not a trial that ended), and a trial WITH the card on
+ * file (which converts by itself, so it is never "about to lapse").
  *
  * This module is the one home for the platform-facing answer. The Clinics
  * list, its KPI row, the clinic detail page and the MRR derivation all ask
@@ -33,7 +38,8 @@ export function isPastDueStatus(status: string | null): boolean {
  * Counts as a live clinic: recorded active or trialing AND not behind the
  * trial wall. An expired no-card trial keeps 'trialing' in the column, but
  * the practice can't sign in, its site is dark and its engines are stopped —
- * that is not an active subscriber.
+ * that is not an active subscriber. A signup still awaiting its card is
+ * behind the same wall (`trial.expired`), so it never counts either.
  */
 export function clinicCountsAsActive(c: ClinicStandingInput): boolean {
   if (c.trial.expired) return false
@@ -71,11 +77,14 @@ function daysLeftWords(daysLeft: number | null): string {
 
 /**
  * The one status pill for a clinic row. Precedence, most-blocking first:
- * the owner has not even accepted the invite → the trial has run out → the
- * trial is running (warn inside two days, like the first-week board) → the
- * plain Stripe status. 'setup pending' used to key on the RESERVED plan,
- * which stays reserved for the whole trial, so an accepted, in-use managed
- * clinic read as "waiting on them to accept" for its first week.
+ * the owner has not even accepted the invite → signed up but no card yet →
+ * the trial has run out → the trial is running → the plain Stripe status.
+ * A NO-card trial warns inside two days (like the first-week board): it
+ * lapses unless somebody acts. A trial with the card on file never warns —
+ * it becomes a subscription by itself. 'setup pending' used to key on the
+ * RESERVED plan, which stays reserved for the whole trial, so an accepted,
+ * in-use managed clinic read as "waiting on them to accept" for its first
+ * week.
  */
 export function clinicStatusPill(c: ClinicStatusPillInput): ClinicStatusPill {
   if (c.ownerInvitePending) {
@@ -85,11 +94,25 @@ export function clinicStatusPill(c: ClinicStatusPillInput): ClinicStatusPill {
       title: 'Owner invited — waiting on them to accept',
     }
   }
+  if (c.trial.needsCard) {
+    return {
+      tone: 'info',
+      label: 'no card yet',
+      title: 'Signed up but has not added a card — the free trial has not started',
+    }
+  }
   if (c.trial.expired) {
     return {
       tone: 'urgent',
       label: 'trial ended',
       title: 'The free trial ran out with no plan chosen — behind the billing wall',
+    }
+  }
+  if (c.trial.onTrial && c.trial.cardOnFile) {
+    return {
+      tone: 'info',
+      label: c.trial.daysLeft == null ? 'trial · card on file' : `trial · ${daysLeftWords(c.trial.daysLeft)}`,
+      title: 'On the free trial with a card on file — it becomes a paid subscription when the trial ends',
     }
   }
   if (c.trial.onTrial) {
@@ -108,7 +131,14 @@ export function clinicStatusPill(c: ClinicStatusPillInput): ClinicStatusPill {
 
 // ── STANDING (ML-40) — the one word the platform sorts and filters clinics by ──
 
-export type ClinicStandingKind = 'invite_pending' | 'trial' | 'live' | 'past_due' | 'walled' | 'churned'
+export type ClinicStandingKind =
+  | 'invite_pending'
+  | 'awaiting_card'
+  | 'trial'
+  | 'live'
+  | 'past_due'
+  | 'walled'
+  | 'churned'
 
 export interface ClinicStanding {
   kind: ClinicStandingKind
@@ -122,6 +152,7 @@ export interface ClinicStanding {
 /** The filter chips, in the order the owner reads them. */
 export const STANDING_ORDER: ReadonlyArray<{ kind: ClinicStandingKind; label: string; meaning: string }> = [
   { kind: 'trial', label: 'Trial', meaning: 'On the free trial — full access until it ends' },
+  { kind: 'awaiting_card', label: 'No card yet', meaning: 'Signed up but has not added a card — the trial has not started' },
   { kind: 'live', label: 'Live', meaning: 'Paying (or comped) and not behind the wall' },
   { kind: 'past_due', label: 'Past due', meaning: 'A payment failed — needs a human' },
   { kind: 'walled', label: 'Walled', meaning: 'The trial ran out with no plan — behind the billing wall, site dark, engines stopped' },
@@ -135,16 +166,21 @@ function standingLabel(k: ClinicStandingKind): string {
 
 /**
  * A clinic's STANDING, derived from THE read (the trial wall over the Stripe
- * column). Precedence, most-blocking first: invite not accepted → behind the
- * wall → on the trial → past due → no live subscription → live. Reading
- * `subscriptionStatus` alone would call a walled clinic 'trialing'.
+ * column). Precedence, most-blocking first: invite not accepted → no card
+ * yet → behind the wall → on the trial → past due → no live subscription →
+ * live. Reading `subscriptionStatus` alone would call a walled clinic
+ * 'trialing'. A signup awaiting its card is its OWN standing, not 'walled':
+ * that word means a trial ran out, and this practice has not had one.
  */
 export function clinicStanding(c: ClinicStandingInput & { ownerInvitePending?: boolean }): ClinicStanding {
   if (c.ownerInvitePending) return { kind: 'invite_pending', label: standingLabel('invite_pending'), tone: 'info', daysLeft: null }
+  if (c.trial.needsCard) return { kind: 'awaiting_card', label: standingLabel('awaiting_card'), tone: 'info', daysLeft: null }
   if (c.trial.expired) return { kind: 'walled', label: standingLabel('walled'), tone: 'urgent', daysLeft: null }
   if (c.trial.onTrial) {
     const d = c.trial.daysLeft
-    return { kind: 'trial', label: standingLabel('trial'), tone: d != null && d <= 2 ? 'warn' : 'info', daysLeft: d }
+    // Only a NO-card trial is running out of anything.
+    const closing = !c.trial.cardOnFile && d != null && d <= 2
+    return { kind: 'trial', label: standingLabel('trial'), tone: closing ? 'warn' : 'info', daysLeft: d }
   }
   if (isPastDueStatus(c.subscriptionStatus)) return { kind: 'past_due', label: standingLabel('past_due'), tone: 'urgent', daysLeft: null }
   if (c.subscriptionStatus === 'active' || c.subscriptionStatus === 'trialing') {
@@ -157,6 +193,9 @@ export function clinicStanding(c: ClinicStandingInput & { ownerInvitePending?: b
 export const STUCK_TRIAL_DAYS_LEFT = 2
 /** A trialing clinic nobody has signed into for this long is drifting. */
 export const STUCK_NO_LOGIN_DAYS = 7
+/** A signup still without a card after this long has walked away from the
+ *  card step — a person to write to, not a signup still in progress. */
+export const STUCK_NO_CARD_DAYS = 1
 
 export interface StuckOpts {
   /** Has the clinic reached its first activation (A1, data connected)? Unknown → treated as activated (never accuse on a failed read). */
@@ -168,16 +207,21 @@ export interface StuckOpts {
 /**
  * THE "stuck" rule the Overview's "Needs a hand" band asks (and nothing
  * else). Pure. Stuck when the clinic is walled, past due, a trial inside two
- * days of its end with no activation, or a trialing clinic with no staff
- * sign-in in 7 days (a clinic that never signed in counts from creation).
- * Churned and live clinics are never stuck; an unaccepted invite is the
- * list's job, not this band's.
+ * days of its end with no activation, a trialing clinic with no staff
+ * sign-in in 7 days (a clinic that never signed in counts from creation), or
+ * a signup that still has no card a day after it was created (an unknown
+ * creation time never accuses). Churned and live clinics are never stuck; an
+ * unaccepted invite is the list's job, not this band's.
  */
 export function clinicIsStuck(standing: ClinicStanding, lastSeenAt: Date | null, now: Date, opts: StuckOpts = {}): boolean {
   switch (standing.kind) {
     case 'walled':
     case 'past_due':
       return true
+    case 'awaiting_card': {
+      if (!opts.createdAt) return false
+      return now.getTime() - opts.createdAt.getTime() >= STUCK_NO_CARD_DAYS * 86_400_000
+    }
     case 'trial': {
       if (standing.daysLeft != null && standing.daysLeft <= STUCK_TRIAL_DAYS_LEFT && opts.activated === false) return true
       const since = lastSeenAt ?? opts.createdAt ?? null
@@ -192,6 +236,7 @@ export function clinicIsStuck(standing: ClinicStanding, lastSeenAt: Date | null,
 /** Why a clinic is on the band, in the owner's words (the same cases, same order as the predicate). */
 export function stuckReason(standing: ClinicStanding, lastSeenAt: Date | null, now: Date, opts: StuckOpts = {}): string | null {
   if (!clinicIsStuck(standing, lastSeenAt, now, opts)) return null
+  if (standing.kind === 'awaiting_card') return 'Signed up but never added a card — the trial has not started'
   if (standing.kind === 'walled') return 'The trial ran out with no plan — behind the wall'
   if (standing.kind === 'past_due') return 'A payment failed'
   const d = standing.daysLeft

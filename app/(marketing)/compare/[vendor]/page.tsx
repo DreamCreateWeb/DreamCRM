@@ -1,7 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { COMPARISONS, COMPARISON_DISCLAIMER, buildComparisonFaq, formatCheckedOn, getComparison } from '@/lib/marketing/comparisons'
-import { TRIAL_DAYS } from '@/lib/trial'
 import {
   PageHero,
   PrimaryCta,
@@ -13,7 +12,7 @@ import {
   MONO_LABEL,
   DAY_WIRE,
 } from '@/components/marketing/ui'
-import { DEMO_URL, usd } from '@/lib/marketing/site'
+import { DEMO_URL, usd, TRIAL } from '@/lib/marketing/site'
 import { getQuotedPlan } from '@/lib/stripe-config'
 import { JsonLd, breadcrumbLd, faqPageLd, pageMetadata } from '@/lib/marketing/seo'
 
@@ -201,7 +200,8 @@ export default async function ComparePage({ params }: Props) {
         <div className="mb-8 flex max-w-2xl flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
           <PrimaryCta href="/signup">Start your free trial</PrimaryCta>
           <p className="text-[0.85rem] leading-relaxed text-gray-600">
-            {TRIAL_DAYS} days free, no card. {usd(PLAN.price)}/mo after, month-to-month.
+            {TRIAL.chip}. Card to start, not charged until the trial ends. {usd(PLAN.price)}/mo after,
+            month-to-month.
           </p>
         </div>
         {/* ── THE PRICE PANEL, BREAKING THE SEAM ──────────────────────────
@@ -510,11 +510,11 @@ export default async function ComparePage({ params }: Props) {
             Start today
           </div>
           <h2 className="text-[1.9rem] font-extrabold leading-[1.05] tracking-[-0.03em] text-gray-950 sm:text-[2.4rem]">
-            Run it for a week before you decide.
+            Run it for {TRIAL.span} before you decide.
           </h2>
           <p className="mt-4 text-[1rem] leading-relaxed text-gray-600">
-            Seven days of the whole platform on your own practice — your website, your
-            booking page, your patients. No card, and nothing to cancel if you walk away.
+            {TRIAL.daysWord} days of the whole platform on your own practice — your website, your
+            booking page, your patients. {TRIAL.cardTerms}
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             <PrimaryCta href="/signup">Start your free trial</PrimaryCta>

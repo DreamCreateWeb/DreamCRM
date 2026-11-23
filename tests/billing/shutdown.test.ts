@@ -45,6 +45,7 @@ vi.mock('@/lib/db', () => {
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn(() => ({})),
   isNotNull: vi.fn(() => ({})),
+  or: vi.fn(() => ({})),
 }))
 
 import { listShutDownOrgIds, isClinicShutDown } from '@/lib/services/billing-state'
@@ -84,6 +85,23 @@ describe('listShutDownOrgIds', () => {
     expect(await listShutDownOrgIds(NOW)).toEqual(new Set(['org_x']))
   })
 
+  it('a SIGNUP THAT NEVER ADDED ITS CARD is dead — its trial has not started, so nothing of ours runs for it', async () => {
+    // Owner ruling 2026-11-23 (card required to sign up). No end date at all:
+    // the one row an `is not null` prefilter would wave straight past every
+    // engine guard (the predicate itself is rendered in shutdown-sql.test.ts).
+    state.rows = [
+      { organizationId: 'org_nocard', trialEndsAt: null, subscriptionStatus: 'awaiting_card', stripeSubscriptionId: null },
+    ]
+    expect(await listShutDownOrgIds(NOW)).toEqual(new Set(['org_nocard']))
+  })
+
+  it('a trial WITH the card on file stays ALIVE past its end date — Stripe is converting it, the webhook is behind', async () => {
+    state.rows = [
+      { organizationId: 'org_converting', trialEndsAt: PAST, subscriptionStatus: 'trialing', stripeSubscriptionId: 'sub_9' },
+    ]
+    expect((await listShutDownOrgIds(NOW)).size).toBe(0)
+  })
+
   it('FAILS OPEN: an unreadable database shuts down nobody', async () => {
     state.fail = true
     expect((await listShutDownOrgIds(NOW)).size).toBe(0)
@@ -103,5 +121,12 @@ describe('isClinicShutDown', () => {
   it('never-on-a-trial clinics (comped, legacy, demo) are never shut down', async () => {
     state.rows = [{ trialEndsAt: null, subscriptionStatus: null, stripeSubscriptionId: null }]
     expect(await isClinicShutDown('org_comped', NOW)).toBe(false)
+  })
+
+  it('a signup awaiting its card is shut down; the same clinic with its card on file is not', async () => {
+    state.rows = [{ trialEndsAt: null, subscriptionStatus: 'awaiting_card', stripeSubscriptionId: null }]
+    expect(await isClinicShutDown('org_nocard', NOW)).toBe(true)
+    state.rows = [{ trialEndsAt: FUTURE, subscriptionStatus: 'trialing', stripeSubscriptionId: 'sub_1' }]
+    expect(await isClinicShutDown('org_nocard', NOW)).toBe(false)
   })
 })

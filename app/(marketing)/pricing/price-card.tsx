@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { MONO_LABEL, DAY_WIRE, PrimaryCta, ToneTile, type ToneTileGlyph } from '@/components/marketing/ui'
 import { TILE_TONE_CLASSES } from '@/lib/marketing/tone-tiles'
-import { usd } from '@/lib/marketing/site'
+import { usd, TRIAL } from '@/lib/marketing/site'
 
 /**
  * THE PRICE PANEL — `BRAND.md` Part 8 move 6, page 1, and the honest test of
@@ -198,8 +198,8 @@ export function PriceCard({ rateMonthly, rateAnnual, listMonthly, listAnnual }: 
           </p>
 
           <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-            <PrimaryCta href="/signup">Start your 7-day free trial</PrimaryCta>
-            <p className={`text-gray-600 ${MONO_LABEL}`}>No card required</p>
+            <PrimaryCta href="/signup">{TRIAL.ctaLong}</PrimaryCta>
+            <p className={`text-gray-600 ${MONO_LABEL}`}>Card to start · not charged until the trial ends</p>
           </div>
         </div>
 

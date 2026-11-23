@@ -200,6 +200,9 @@ function ChannelTable({ report }: { report: AcquisitionReport }) {
             <th className="py-2 pr-4 text-right font-semibold">Sessions</th>
             <th className="py-2 pr-4 text-right font-semibold">Signups</th>
             <th className="py-2 pr-4 text-right font-semibold">Conv.</th>
+            <th className="py-2 pr-4 text-right font-semibold" title="Signed up but has not added a card — the trial has not started">
+              No card yet
+            </th>
             <th className="py-2 pr-4 text-right font-semibold">On trial</th>
             <th className="py-2 text-right font-semibold">Paying</th>
           </tr>
@@ -223,6 +226,9 @@ function ChannelTable({ report }: { report: AcquisitionReport }) {
                 {pct(r.signups, r.sessions)}
               </td>
               <td className="py-2 pr-4 text-right tabular-nums text-gray-700 dark:text-gray-200">
+                {formatNumberShort(r.awaitingCard)}
+              </td>
+              <td className="py-2 pr-4 text-right tabular-nums text-gray-700 dark:text-gray-200">
                 {formatNumberShort(r.trialing)}
               </td>
               <td className="py-2 text-right tabular-nums text-gray-700 dark:text-gray-200">
@@ -241,6 +247,7 @@ function ChannelTable({ report }: { report: AcquisitionReport }) {
               <td className="py-2 pr-4 text-right tabular-nums text-gray-700 dark:text-gray-200">
                 {formatNumberShort(report.untrackedSignups)}
               </td>
+              <td className="py-2 pr-4 text-right tabular-nums text-gray-500 dark:text-gray-400">—</td>
               <td className="py-2 pr-4 text-right tabular-nums text-gray-500 dark:text-gray-400">—</td>
               <td className="py-2 pr-4 text-right tabular-nums text-gray-500 dark:text-gray-400">—</td>
               <td className="py-2 text-right tabular-nums text-gray-700 dark:text-gray-200">

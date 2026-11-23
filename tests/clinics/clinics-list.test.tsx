@@ -15,16 +15,18 @@ import type { ClinicListRow } from '@/lib/services/clinics'
 import ClinicsList from '@/app/(default)/ecommerce/customers/clinics-list'
 
 /** Never on a trial (comped / legacy / paid). */
-const NO_TRIAL = { onTrial: false, expired: false, trialEndsAt: null, daysLeft: null }
+const NO_TRIAL = { onTrial: false, expired: false, trialEndsAt: null, daysLeft: null, needsCard: false, cardOnFile: false }
 /** Inside the no-card trial with `days` left. */
 const onTrial = (days: number) => ({
   onTrial: true,
   expired: false,
   trialEndsAt: new Date(Date.now() + days * 86_400_000),
   daysLeft: days,
+  needsCard: false,
+  cardOnFile: false,
 })
 /** The trial ran out with no plan chosen — behind the billing wall. */
-const EXPIRED_TRIAL = { onTrial: false, expired: true, trialEndsAt: new Date('2026-01-08'), daysLeft: 0 }
+const EXPIRED_TRIAL = { onTrial: false, expired: true, trialEndsAt: new Date('2026-01-08'), daysLeft: 0, needsCard: false, cardOnFile: false }
 
 function row(overrides: Partial<ClinicListRow> = {}): ClinicListRow {
   return {

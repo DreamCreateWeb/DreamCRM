@@ -1096,10 +1096,25 @@ sitemap/robots/OG.
   `clinic_profile` plan/subscription state + accrues partner commissions.
   Managed provisioning: platform adds a clinic w/ reserved plan + custom coupon
   or comped; owner accepts invite → `/billing/activate`.
-- **Trial**: every new clinic starts a no-card 7-day full-Premium trial
-  (`lib/trial.ts`; `TrialBanner`/`TrialEndedWall` in dashboard-shell; escalating
-  reminder emails via the `trial-reminders` cron, recorded on
-  `clinic_profile.trialRemindersSent`). **TRIAL EXPIRY KILLS EVERYTHING
+- **Trial (rewritten 2026-11-23 — owner ruling: 14 days, card required to
+  sign up).** `lib/trial.ts` resolves three kinds of clinic. (1) A signup that
+  has NOT added its card: `subscription_status = 'awaiting_card'`, no end
+  date, `expired` + `needsCard` — the wall becomes the last signup step and
+  every engine treats the clinic as closed. (2) A trial WITH the card on file:
+  Stripe Checkout was given `trial_period_days` (only for an awaiting-card
+  clinic — `trialDaysAtCheckout`), so we hold a subscription id and Stripe
+  says `trialing`; **Stripe owns that clock** and the clinic is never walled
+  on ours, `trial_ends_at` mirroring Stripe's `trial_end` for display. The
+  backstop for a webhook that never arrives is `reconcileOverdueTrials`
+  (re-reads overdue trials from Stripe, in the `trial-reminders` cron). (3)
+  The NO-card trial every clinic used to start on and a hand-provisioned one
+  still does (our clock; locks on expiry). `TrialBanner`/`TrialEndedWall` in
+  dashboard-shell branch on the kind; reminder emails via the
+  `trial-reminders` cron, recorded on `clinic_profile.trialRemindersSent`
+  (a no-card trial is asked for a card at 3 days / 1 day / ended; a
+  card-on-file trial is told its charge date a week out and the day before;
+  the welcome goes out once, from the Stripe webhook, when the card goes on
+  file). **TRIAL EXPIRY KILLS EVERYTHING
   (owner ruling, 2026-08-10)**: `lib/services/billing-state.ts`
   (`listShutDownOrgIds`/`isClinicShutDown`, fail-open) — an expired
   unconverted clinic's crons all skip it (reminders, review auto-send,

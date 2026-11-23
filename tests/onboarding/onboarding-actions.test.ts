@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resolveTrialState } from '@/lib/trial'
 
 const { mockGetSession, mockSelect, mockInsert, mockUpdate, mockTransaction, mockSeedIntake, mockSeedDay0, mockStarterFloor } =
   vi.hoisted(() => {
@@ -131,13 +132,12 @@ describe('submitOnboarding — starts a no-card trial (no Stripe)', () => {
     await expect(submitOnboarding({})).rejects.toThrow(/platform admins/i)
   })
 
-  it('creates the org + grants a full-Premium 7-day trial, no checkout', async () => {
+  it('creates the org and leaves it AWAITING ITS CARD — no trial clock, no checkout yet', async () => {
     // selects: member lookup (none) → slug free
     selectReturning([[], []])
     const inserts: Record<string, unknown>[] = []
     captureInserts(inserts)
 
-    const before = Date.now()
     const result = await submitOnboarding({
       practiceName: 'Bright Smile Dental',
       phone: '(555) 123-4567',
@@ -157,20 +157,23 @@ describe('submitOnboarding — starts a no-card trial (no Stripe)', () => {
     expect(org.slug).toBe('bright-smile')
     expect(org.name).toBe('Bright Smile Dental')
 
-    // clinic_profile starts the trial: full Premium, trialing, trial_ends_at ~7d out.
+    // Owner ruling 2026-11-23: the 14-day trial starts when the card is
+    // added, not here. The profile is written AWAITING ITS CARD with NO end
+    // date — which every gate reads as closed (lib/trial.ts) — and the card
+    // step's Checkout is what opens the trial. A 'trialing' status or an end
+    // date written here would be a card-free trial by another name.
     const profile = inserts.find((v) => v.planTier !== undefined) as {
       planTier: string
       subscriptionStatus: string
       billingMode: string
-      trialEndsAt: Date
+      trialEndsAt?: Date | null
     }
     expect(profile.planTier).toBe('premium')
-    expect(profile.subscriptionStatus).toBe('trialing')
+    expect(profile.subscriptionStatus).toBe('awaiting_card')
     expect(profile.billingMode).toBe('self_serve')
-    expect(profile.trialEndsAt).toBeInstanceOf(Date)
-    const days = (profile.trialEndsAt.getTime() - before) / (24 * 60 * 60 * 1000)
-    expect(days).toBeGreaterThan(6.9)
-    expect(days).toBeLessThan(7.1)
+    expect(profile.trialEndsAt ?? null).toBeNull()
+    expect(resolveTrialState({ trialEndsAt: null, subscriptionStatus: profile.subscriptionStatus, stripeSubscriptionId: null }))
+      .toMatchObject({ expired: true, needsCard: true, onTrial: false })
 
     // Day-0 seeding still runs.
     expect(mockSeedIntake).toHaveBeenCalledTimes(1)

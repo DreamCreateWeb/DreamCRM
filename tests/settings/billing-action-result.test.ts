@@ -60,6 +60,8 @@ const createCheckoutSession = vi.fn()
 const createPortalSession = vi.fn()
 const updateSubscriptionPlan = vi.fn()
 vi.mock('@/lib/services/billing', () => ({
+  // The real narrowing: a closed set of names, anything else is 'billing'.
+  checkoutReturnOf: (v: unknown) => (v === 'onboarding' ? 'onboarding' : 'billing'),
   createCheckoutSession: (a: unknown) => createCheckoutSession(a),
   createPortalSession: (a: unknown) => createPortalSession(a),
   updateSubscriptionPlan: (a: unknown) => updateSubscriptionPlan(a),

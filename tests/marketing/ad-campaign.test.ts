@@ -92,6 +92,16 @@ describe('what the copy may say', () => {
       expect(text, text).not.toMatch(/hipaa|compliant|texting|\bsms\b|guarantee|#1|\bbest\b|regularly|fills? (your )?chairs/i)
     }
   })
+
+  it('never says "no card" — a card is required to sign up (owner ruling 2026-11-23)', () => {
+    // The ad is the one piece of copy typed into somebody else's system and
+    // then forgotten. The first version of this campaign carried a
+    // "…Free Trial, No Card" headline and a "No card, no contract" description;
+    // both would have kept running, and kept being false, after the ruling.
+    for (const text of allCopy) {
+      expect(text, text).not.toMatch(/no[- ]?(credit[- ])?card|card[- ]?free|without a card|cardless/i)
+    }
+  })
 })
 
 describe('where the clicks go', () => {

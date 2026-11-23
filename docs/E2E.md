@@ -395,6 +395,23 @@ Since DREAMCRM-19 that ownership is **named in the seed itself**, as a scope
 - Every other scope is one spec file's **consumable** rows, and the scopes are
   row-disjoint by construction.
 
+**One scope seeds nothing: `stranger` stands in for Stripe** (added 2026-11-23,
+with the owner ruling that a card is required to sign up). The stranger
+journey creates its clinic through the real signup form, so there is no row to
+seed before it starts. Its fourth step is a card, added on Stripe's hosted
+Checkout — which the harness cannot reach. The spec therefore walks our side of
+that boundary for real (the card step, the wall behind it, the refusal when
+Stripe is unreachable) and then calls `applySeedScope('stranger')` from
+`e2e/reseed.ts` **mid-journey**. That scope updates the clinic the spec just
+created — found by its slug, and only while it still awaits a card — with what
+Stripe's webhook would have written: a subscription id, `trialing`, and a trial
+end fourteen days out. It is idempotent, its `SCOPE_ROWS` entry is empty, and
+restoring it before the test is a no-op. The spec still claims it with
+`restoresSeedScope('stranger')`, because that declaration is what keeps every
+scope owned by exactly one file. A green run does **not** prove the Checkout
+request or the webhook; those are `tests/billing/checkout-trial.test.ts` and
+`tests/billing/sync.test.ts`.
+
 **One row is written by a scope and owned by nobody, and the guard is blind to
 it.** `token-pages` upserts `prospecting_config` — a platform-global SINGLETON
 at the literal id `'default'` — to turn demo booking on for `/d`, replacing the

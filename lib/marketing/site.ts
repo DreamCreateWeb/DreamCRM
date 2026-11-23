@@ -4,6 +4,8 @@
 // patient-facing language the clinic sites use. Ink + brand teal (the Dream
 // Create accent), Inter, dense and concrete.
 
+import { TRIAL_DAYS } from '@/lib/trial'
+
 export const MARKETING = {
   productName: 'DreamCRM',
   companyName: 'Dream Create',
@@ -25,6 +27,50 @@ export const MARKETING = {
  * one page that exists to have a single answer about price.
  */
 export const usd = (n: number) => `$${n.toLocaleString('en-US')}`
+
+/**
+ * THE TRIAL, AS EVERY PUBLIC SURFACE STATES IT.
+ *
+ * Owner ruling 2026-11-23: a 14-day free trial, and a card is required to
+ * sign up. Until then the site said "7 days free, no card" in some forty
+ * places, each typed by hand — so the ruling was forty edits, and the next
+ * one would have been forty more. The length comes from `TRIAL_DAYS` (the
+ * number Stripe is actually given at checkout), and the card terms are
+ * written ONCE here, so a page cannot promise a trial the checkout does not
+ * give.
+ *
+ * THE CARD IS SAID OUT LOUD. A chip that only said "14 days free" would be
+ * true and would still leave a practice to find the card field on the fourth
+ * screen. `cardChip` sits beside the length wherever the length is a chip,
+ * and `cardTerms` is the full sentence: what is taken, when it is charged,
+ * and the way out.
+ *
+ * `tests/marketing/trial-copy.test.ts` holds the rule this replaced at zero:
+ * no public surface says "no card" about our own trial.
+ */
+const TRIAL_DAYS_SPELLED: Record<number, string> = { 7: 'Seven', 14: 'Fourteen', 30: 'Thirty' }
+const TRIAL_SPAN: Record<number, string> = { 7: 'a week', 14: 'two weeks', 30: 'a month' }
+
+export const TRIAL = {
+  days: TRIAL_DAYS,
+  /** "14-day free trial" */
+  name: `${TRIAL_DAYS}-day free trial`,
+  /** The trust-row chip. */
+  chip: `${TRIAL_DAYS} days free`,
+  /** The chip beside it. */
+  cardChip: 'Card required to start',
+  /** The short button. */
+  cta: `Start free — ${TRIAL_DAYS} days`,
+  /** The long button. */
+  ctaLong: `Start your ${TRIAL_DAYS}-day free trial`,
+  /** The length at the head of a sentence: "Fourteen days of…". */
+  daysWord: TRIAL_DAYS_SPELLED[TRIAL_DAYS] ?? String(TRIAL_DAYS),
+  /** The length as a span: "run it for two weeks". */
+  span: TRIAL_SPAN[TRIAL_DAYS] ?? `${TRIAL_DAYS} days`,
+  /** What the card means, in one sentence. */
+  cardTerms:
+    'A card starts the trial. It is not charged until the trial ends, and if you cancel before then you pay nothing.',
+} as const
 
 const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.com'
 

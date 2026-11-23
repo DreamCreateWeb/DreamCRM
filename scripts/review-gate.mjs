@@ -295,6 +295,7 @@ export const GATE_RULES = [
       'app/api/connect/shop/**', // Stripe Connect onboarding: the account every shop payment is paid INTO
       'app/api/cron/domain-renewals/**', // renews domains against the clinic's card, unattended
       'app/api/cron/retention-automations/**', // runDuePlanCharges — this cron CHARGES payment plans
+      'app/api/cron/trial-reminders/**', // reconcileOverdueTrials — re-reads overdue card-on-file trials from Stripe and writes the status that opens or closes a clinic
       'app/api/integrations/zernio/connect/**', // canConnectSocialPlatform — the paid social add-on's entitlement check
       // A THIRTEENTH, found by Sentinel reviewing #681 rather than by the
       // predicate: this file WAS already gated, under `auth`, for minting the
@@ -962,6 +963,31 @@ export const INTAKE_RULES = [
       // sentence that makes its number not-a-plan-price.
       'tests/marketing/plan-price-literals.ts',
       'tests/marketing/pricing-price-source.test.tsx',
+      // THE TRIAL'S TERMS, HELD ACROSS EVERY PUBLIC TREE (owner ruling
+      // 2026-11-23: a 14-day free trial, card required to sign up).
+      //
+      // A NEW CLASS, and the plan-price rule's sibling: that one says a
+      // plan's price is resolved, never typed; this one says the same of the
+      // TRIAL. It walks `app/(marketing)`, `app/(auth)`, `app/(onboarding)`,
+      // `app/g`, `components/marketing` and `lib/marketing` (plus the
+      // outreach knowledge file) and holds two things at ZERO over
+      // comment-stripped source:
+      //
+      //   1. "no card", in any spelling, about our own trial — a promise a
+      //      visitor checks for themselves four screens later, and one an ad
+      //      cannot make while its landing page contradicts it;
+      //   2. a TYPED trial length — a digit or a spelled number beside "free"
+      //      or "trial". The length is `TRIAL_DAYS`, the number Stripe is
+      //      given at checkout, reached through `TRIAL` in
+      //      `lib/marketing/site.ts`.
+      //
+      // On the day of the ruling the site said "7 days free, no card" on 52
+      // lines of those trees, each typed by hand. Its pardons are STRUCTURAL
+      // (the insurance module's "no card on hand" door, a cancelled checkout,
+      // the knowledge file's own instruction not to say it), each matched by
+      // the line's vocabulary rather than its path, each exercised on a
+      // planted string, and each required to still have something to pardon.
+      'tests/marketing/trial-copy.test.ts',
       // ── THE TEN THE FIXED TREE-WALK DERIVATION FOUND (DREAMCRM-81) ──────
       //
       // None of these is new. Every one has been walking a product tree for
