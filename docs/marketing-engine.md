@@ -1184,6 +1184,64 @@ same message supplied the operator details item 2 was waiting on, and the two
 pages are published as "Part 11 slice 4"; the legal read item 2 asks for has
 NOT happened. Items 1 and 3–7 are still open.
 
+**Ruled on 2026-11-24 (the owner, same session): organic first.** Paid ads
+wait until every organic tactic has been exhausted — Part 12. That DEFERS item
+6 (no ad account, no card, no spend until the gate in
+`docs/organic-go-live.md` Part 7 is met). **Item 5 was decided in the session,
+not ruled:** the demo practice is `noindex` now. It was listed here as an
+owner ruling in error — it is not pricing, a message to customers, spend or
+anything destructive, and it is one line to reverse (`withDemoNoindex` in
+`middleware.ts`). Items 1, 3, 4 and 7 are still open.
+
+
+## Part 12 — Organic first (owner ruling, 2026-11-24)
+
+> "I don't even want to do paid ads — I mean I do, but only after we've
+> exhausted every single perfected marketing tactic, then we can start paying
+> money to add fuel to that fire. If there's an SEO hack, if there's a search
+> ranking tip, if there's a method of getting ChatGPT to recommend us, I want
+> to exhaust those and then start pouring the cash into it."
+
+**What it changes.** Part 6's ranking and Part 11's plan both opened a
+$1,000-a-month Google test in December. That test is on the shelf. The
+campaign stays in the tree as data (`lib/marketing/ad-campaigns.ts`,
+`docs/ads-go-live.md`) and keeps itself current; nothing is spent.
+
+**What the evidence says about "a hack" — there isn't one.** Part 11.0 already
+corrected the September plan on this, and the ruling makes it the whole
+program: schema, `llms.txt` and FAQ markup show no measurable effect on being
+cited by an assistant; a self-ranked "best" list is cited and then passed
+over; what correlates is other sites naming the product (0.664 against 0.218
+for backlinks), review-marketplace profiles, and being in the indexes the
+assistants read. The measured baseline on 2026-11-24: **no page of ours in
+Bing's index, and no appearance for any of ten buyer queries.**
+
+**So the program is three things, in this order.**
+
+1. *Make the site impossible to misread or miss* — code, done in slice 1
+   below: one list of public pages, honest dates, a notice to Bing's family of
+   engines whenever a page changes, every competitor quoted from its own site
+   with the day it was read, the demo practice out of the index.
+2. *Get into the indexes and get measured* — the owner's steps: Search
+   Console (the platform's shared Domain property), Bing Webmaster Tools by
+   import, the sitemap in both.
+3. *Be named by other sites* — a free G2 profile (which now feeds Capterra,
+   Software Advice and GetApp), reviews from real practices, the other
+   profiles, and a small number of earned mentions where dentists read. This
+   is the lever with the strongest evidence and the one no code can pull.
+
+`docs/organic-go-live.md` is the runbook: the evidence table with sources, the
+owner's steps in order with the wording of Google's and Bing's own pages, the
+paste-ready listing copy (generated, so it cannot quote an old price), the
+monthly check, the content order, and a PROPOSED definition of "exhausted" so
+the ruling has an end. That definition is the owner's to change.
+
+**What this part does not claim.** Nobody can state when organic produces the
+first signup, or whether it reaches two a month by itself. Google's own
+documentation puts a crawl at "a few days to a few weeks", and the lever that
+matters most — reviews — cannot start until practices are live. The honest
+commitment is the monthly log.
+
 
 ## Build log
 
@@ -1766,6 +1824,7 @@ it.
   `tests/marketing/comparison-pricing-check.test.tsx`. **The other five
   entries have not been re-read and carry no date** — the refresh law in 10.4
   ("monthly, dated") now has the field it needs; it still needs the reading.
+  *(Update: all five were re-read on 2026-11-24 — "Part 12 slice 1" below.)*
 - **Titles that say what the page is.** `/pricing`, `/product`, `/compare`
   and `/blog` carried "Pricing — DreamCRM"-shaped titles; they now name the
   subject and, on pricing, the resolved price.
@@ -1912,3 +1971,86 @@ change: `subscription_status` is free text, and the new state is a value.
   refund policy is stated; no data-processing addendum and no business
   associate agreement is offered, because those decisions are still open
   (11.5 item 3).
+
+**Part 12 slice 1 — the organic foundation (2026-11-24, owner ruling, no migration).**
+
+- **One list of what the marketing site publishes**
+  (`lib/marketing/public-pages.ts`). The sitemap renders it and the search
+  notice reads it, so a page cannot be in one and missing from the other.
+  Each page carries a real `lastModified` or none, and a CONTENT KEY that
+  moves exactly when the page's content does: a registry page is keyed on its
+  own entry, pricing on the resolved price and trial, the legal pages on
+  their date, an article on its own last change, the blog index on what its
+  cards show. A hand-written page carries a constant — announced once, then
+  left to ordinary crawling. That limit is stated, not papered over.
+- **Search notices (IndexNow)** — `lib/indexnow.ts` (the protocol, pure and
+  edge-safe), `lib/services/indexnow.ts` (the pass), `/api/cron/search-notify`
+  (hourly, a `JOBS` entry). A RECONCILE, not an event: it sends the difference
+  between what is public and what the engines were last told, so the
+  protocol's "do not resubmit unchanged URLs" holds by construction — no
+  deploy, restart, retry or autosave can re-send a page. The record lives
+  under its own key of `platform_config` (the seventh), passed whole.
+  **Three refusals to guess:** both reads are strict and a failure sends
+  nothing (a failed posts read must not announce every article as deleted; a
+  failed record read must not re-send the site); a page is marked announced
+  only on 200 or 202; and the pass fetches its own key file first, because an
+  engine that cannot read it discards the notice silently. The first notice
+  ever waits until the process has been up ten minutes — the protocol fetches
+  the key AFTER accepting the first request, and during a rolling deploy that
+  fetch can land on the old version. Inert wherever the app URL is not a
+  public https host: no laptop, test or browser harness makes a request.
+- **The key file** is answered by the middleware at the root of every host,
+  before any host logic. The key is public by design and committed for that
+  reason. Not on `SERVICE_PROVIDERS`: what is sent is the address of our own
+  public pages, no information about any person.
+- **The owner can see it ran.** The platform's Search Console page gained a
+  card, "Bing and the other search engines": when the last notice landed, how
+  many pages, and a warning mark (never colour alone) with the reason when
+  one was refused. Dated in the owner's timezone. A clinic never sees it.
+- **The demo practice is `noindex`** — an `X-Robots-Tag` header on every
+  response under its path, by subdomain and by `/site/<slug>`. A seeded
+  practice with an invented address and `Dentist` structured data was
+  indexable on the platform's own domain. A real clinic never gets the header,
+  including one whose slug merely starts like the demo's.
+- **A fallback font is no longer preloaded on every page.** Geist Sans sits
+  behind Nunito in the dashboard's stack and no public page reads it; it was
+  a 70 KB high-priority request on every page of the platform. Declared with
+  `next/font/local`, `preload: false`; the variable still resolves. Checked in
+  the built HTML and in a browser. NOT fixed: the mono face (71 KB) is still
+  preloaded on clinic sites, which do not use it.
+- **The last five comparison pages, re-read against the vendors' own sites.**
+  None of the five publishes a price; each page says so and attributes its
+  figure to third parties. Corrected in the COMPETITOR'S favour where the
+  read required it: RevenueWell's monthly contracts, free trials, shared
+  inbox and phone add-on; Adit's no-binding-contract answer; Dental
+  Intelligence's phones and insurance verification; Podium Phones. Claims the
+  read could not confirm are gone (a RevenueWell product name its site no
+  longer shows, "vendor-branded", postcards; "runs under its own brand" for
+  Dental Intelligence; every unhedged statement of Tebra's contract terms).
+  Tebra's home and pricing pages do not mention dentistry, and the page now
+  says that. **How read:** four first-hand, by fetching the page and
+  searching its text; Adit's through the fetch tool twice, because its site
+  answers a plain request with a challenge page. One RevenueWell claim rests
+  on its help centre, which refused both readers — kept on a search engine's
+  copy of the article, and reworded to say only what that copy says.
+- **"No check, no date" outlived its last example.** With all eight read, the
+  tests that picked an unread entry had nothing to pick. The rule is held on
+  a planted one now (`tests/marketing/unchecked-comparison.test.tsx`): no
+  date on its page, none in the sitemap, no ad pointed at it.
+- **The listing kit** (`lib/marketing/listing-kit.ts`) — the copy for G2 and
+  every other profile, generated from the resolved price, trial, insurance
+  allowance and comparison registry, and printed into
+  `docs/organic-go-live.md` between markers a test compares. "Dental" beside
+  the name in every field; no compliance word, no texting, no phones, no
+  superlative; the trial always with its card; the list price left out
+  (11.5 item 1); Open Dental left out (11.5 item 7).
+- **`docs/organic-go-live.md`** — the runbook.
+- **Verified live, 2026-11-24:** `/`, `/pricing` and `/sitemap.xml` answer 200
+  to the user agents of OpenAI's search crawler, ChatGPT's fetcher, GPTBot,
+  PerplexityBot, ClaudeBot, Bingbot and Googlebot.
+- **What a careful reader should know.** No notice has been sent to a real
+  engine: the pass is inert outside the public host, so its first run is the
+  first hour after deploy. The protocol's response codes are implemented from
+  its documentation, not observed. "Bing's index does not hold the site" is
+  two queries, not a Webmaster Tools report. And none of this is the lever
+  that matters most — Part 12 item 3 is the owner's, and it has not started.

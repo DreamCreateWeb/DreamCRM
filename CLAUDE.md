@@ -30,7 +30,7 @@ open those — do not guess.
 | [`docs/AUDITS.md`](./docs/AUDITS.md) | Phase-audit certificates, retrospectives, the standing self-sweep checklist. |
 | [`docs/STRUCTURE-AUDIT.md`](./docs/STRUCTURE-AUDIT.md) | The information-architecture reference. Read before moving/renaming any surface. |
 | [`docs/COMPETITIVE-GAPS.md`](./docs/COMPETITIVE-GAPS.md) | The module-deepening roadmap + owner rulings (e.g. insurance checks stay MANUAL, 2026-10-02). |
-| Deep dives | `docs/custom-domains.md` · `docs/inbound-email.md` · `docs/insurance-go-live.md` · `docs/financing-providers.md` · `docs/onboarding-overhaul.md` · `docs/sms-provider-evaluation.md` · `docs/marketing-engine.md` · `docs/intake-forms-overhaul.md` · `docs/zernio-google-integration.md` · `docs/outreach-go-live.md` · `docs/ads-go-live.md` · `docs/E2E.md` · `docs/CI.md` · `docs/PROD-READ-ACCESS.md` |
+| Deep dives | `docs/custom-domains.md` · `docs/inbound-email.md` · `docs/insurance-go-live.md` · `docs/financing-providers.md` · `docs/onboarding-overhaul.md` · `docs/sms-provider-evaluation.md` · `docs/marketing-engine.md` · `docs/intake-forms-overhaul.md` · `docs/zernio-google-integration.md` · `docs/outreach-go-live.md` · `docs/organic-go-live.md` · `docs/ads-go-live.md` · `docs/E2E.md` · `docs/CI.md` · `docs/PROD-READ-ACCESS.md` |
 
 ## Stack
 
@@ -113,7 +113,7 @@ app/
                      <link>, NOT next/font (build env can't reach Google)
   r/ w/ c/ b/ g/ e/ h/ n/ i/ d/   Token-IS-auth patient/prospect landings
   api/               auth · webhooks (stripe, stripe-connect, gmail, resend,
-                     sms) · 25 CRON_SECRET-gated /api/cron/* routes ·
+                     sms) · 26 CRON_SECRET-gated /api/cron/* routes ·
                      /api/admin/* (migrate, resync-demo, redrive, read-check)
                      · oauth/connect · token publics · /api/version
 
@@ -261,7 +261,7 @@ booking, intake, shop, the token landings. Brand-derived palette
   `lib/shared-brain.ts` learns the send hour under three floors, inert until
   the floors clear, with an exploration arm.
 - **Search**: ⌘K (`lib/services/global-search.ts`) searches and ACTS.
-- **Crons — 25 routes, `Authorization: Bearer $CRON_SECRET`**, every one a
+- **Crons — 26 routes, `Authorization: Bearer $CRON_SECRET`**, every one a
   `JOBS` entry in `scripts/setup-cron-schedules.sh` (the deploy re-runs it;
   `tests/cron-schedule-parity.test.ts` fails CI otherwise): pms-sync,
   send-reminders, send-scheduled-campaigns, auto-send-reviews,
@@ -273,7 +273,7 @@ booking, intake, shop, the token landings. Brand-derived palette
   sms-registration, grader-nurture, custom-domains (15m),
   notification-redrive (15m — failed staff-alert emails, 3 tries in 24h),
   gmail-sync (5m — the /inbox mailboxes, wanted first; the page never
-  awaits Gmail).
+  awaits Gmail), search-notify (hourly — the IndexNow pass, below).
 
 ## Conventions (the laws)
 
@@ -307,6 +307,18 @@ booking, intake, shop, the token landings. Brand-derived palette
   is sent to on ONE list (`SERVICE_PROVIDERS` — a new provider goes there in
   the same change), and no compliance word
   (`tests/marketing/legal-pages.test.tsx`). Not read by a lawyer.
+- **The public marketing pages have ONE list** —
+  `lib/marketing/public-pages.ts`. The sitemap renders it and the IndexNow
+  pass (`lib/services/indexnow.ts`, hourly) reads it; a new public page goes
+  THERE. Each page's `contentKey` must move exactly when its content does:
+  the pass sends only the DIFFERENCE against what the engines were last told
+  (`platform_config.indexNow`), because the protocol forbids re-sending an
+  unchanged page — so nothing fires on a deploy. Both of its reads are strict
+  and a failure sends nothing. Runbook: `docs/organic-go-live.md`.
+- **Outside profiles are pasted from the listing kit**
+  (`lib/marketing/listing-kit.ts`, printed into `docs/organic-go-live.md`
+  between markers a test compares). When the price or trial changes the test
+  names the doc: regenerate, then correct the profiles.
 - **The PMS link has ONE read** — `lib/pms-link.ts` / `getPmsLink` (connected
   / pending / none). Any number that comes from the PMS says where it would
   come from; a practice with no PMS is never shown a PMS promise.
@@ -421,6 +433,12 @@ booking, intake, shop, the token landings. Brand-derived palette
    calendar, the empty chair) shipped. The full phase narrative, the
    load-bearing decisions and the autonomy ladder's rules are in
    docs/SUBSYSTEMS.md — read them before touching the proposal spine.
+0b. **THE MARKETING PROGRAM — ORGANIC FIRST (owner ruling 2026-11-24).**
+   Paid ads are DEFERRED until the organic work is exhausted
+   (`docs/organic-go-live.md`; its Part 7 proposes the gate). The ad campaign
+   stays in the tree as data and unused (`docs/ads-go-live.md`). The levers
+   that matter most are the owner's: Search Console + Bing Webmaster Tools,
+   a G2 profile, real reviews. `docs/marketing-engine.md` Part 12.
 0c. **THE DEEP DEV CYCLE (2026-10-26 →)** — 75 small findings shipped in two
    PRs, four feature slices in a third; 59 planned slices remain (the plan is
    in docs/HISTORY.md's part-3 entry and the session record). Build them

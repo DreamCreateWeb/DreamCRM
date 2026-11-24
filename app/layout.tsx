@@ -1,10 +1,37 @@
 import './css/style.css'
 
-import { GeistSans } from 'geist/font/sans'
+import localFont from 'next/font/local'
 import { GeistMono } from 'geist/font/mono'
 import Theme from './theme-provider'
 import AppProvider from './app-provider'
 import ChunkReloadGuard from '@/components/chunk-reload-guard'
+
+/**
+ * GEIST SANS IS A FALLBACK, SO IT IS DECLARED AND NOT PRELOADED.
+ *
+ * The dashboard's face is Nunito; Geist Sans sits second in
+ * `--font-sans-dashboard` (DESIGN-SYSTEM.md: "stays in the stack as
+ * fallback") and no public surface reads it at all — marketing and the clinic
+ * sites are Inter, the labels and numerals are Geist MONO. It used to come
+ * from `geist/font/sans`, whose font object preloads by default, and because
+ * the import lives in the ROOT layout that put a 70 KB high-priority font
+ * request on every page of the platform: the marketing site, every clinic's
+ * public site, the patient portal. A font no visitor would ever see, ahead of
+ * the content they came for, on the connection where it costs most (site
+ * audit 2026-11-23: mobile LCP over the 2.5 s line on both pages measured).
+ *
+ * Same file, same variable, same weights as the package's own definition —
+ * so the stack is unchanged and `var(--font-geist-sans)` still resolves. The
+ * one difference is `preload: false`: the browser fetches it only if a glyph
+ * actually falls through to it. Geist Mono stays preloaded, because it is
+ * above the fold on the marketing pages (the eyebrow and the trust row).
+ */
+const GeistSans = localFont({
+  src: '../node_modules/geist/dist/fonts/geist-sans/Geist-Variable.woff2',
+  variable: '--font-geist-sans',
+  weight: '100 900',
+  preload: false,
+})
 
 export const metadata = {
   // Absolute base for OG/twitter image URLs (Next falls back to localhost

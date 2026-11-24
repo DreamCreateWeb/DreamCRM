@@ -70,10 +70,13 @@ describe('the marketing sitemap', () => {
 
   it('dates a comparison by its pricing check — and only a comparison that was checked', async () => {
     const byPath = new Map((await sitemap()).map((e) => [pathOf(e.url), e]))
-    // The premise: at least one entry has been re-read, and at least one has
-    // not, so both branches are exercised by the real registry.
+    // The premise: entries have been re-read. Since 2026-11-24 ALL of them
+    // have, so the real registry no longer exercises the other branch — an
+    // unchecked entry gets no date — and that half is held on a synthetic
+    // vendor in tests/marketing/unchecked-comparison.test.tsx instead. The
+    // `else` below stays, so a ninth, unread comparison is graded the moment
+    // it is added.
     expect(COMPARISONS.some((c) => c.pricingChecked)).toBe(true)
-    expect(COMPARISONS.some((c) => !c.pricingChecked)).toBe(true)
     for (const c of COMPARISONS) {
       const entry = byPath.get(`/compare/${c.slug}`)
       if (c.pricingChecked) {

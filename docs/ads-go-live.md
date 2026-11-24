@@ -1,9 +1,13 @@
 # Paid search go-live — the Google Ads runbook
 
-**Status (2026-11-23): not live.** No ad account existed when this was written.
-This is the runbook for opening one and launching the first campaign. The
-research behind every choice is `docs/marketing-engine.md` Part 11 and
-`docs/research/marketing-engine-2026-11/`.
+**Status (2026-11-24): DEFERRED by owner ruling — do not open the account
+yet.** Paid ads wait until the organic work in `docs/organic-go-live.md` has
+been exhausted; that file's Part 7 proposes what "exhausted" means. No ad
+account existed when this was written (2026-11-23), and none should be opened
+on the strength of this page alone. Everything below is kept current by the
+tree — the campaign block is generated — so it will be ready on the day the
+gate is met. The research behind every choice is `docs/marketing-engine.md`
+Part 11 and `docs/research/marketing-engine-2026-11/`.
 
 Google relabels its screens often. Where a label below was confirmed on a
 Google help page on 2026-11-23 it is marked **(confirmed)**; the rest are the

@@ -128,6 +128,24 @@ test.describe('the stranger journey', () => {
     await page.waitForURL(/\/(dashboard)?$/, { timeout: 60_000 })
     await expect(page.getByText('Stranger Dental').first()).toBeVisible({ timeout: 30_000 })
 
+    // THE DASHBOARD'S TYPE IS UNTOUCHED BY THE PRELOAD FIX. Geist Sans stopped
+    // being preloaded on every page (2026-11-24); it is still DECLARED, so the
+    // stack DESIGN-SYSTEM.md fixes — Nunito, then Geist Sans — must resolve
+    // exactly as before. An empty variable here would silently drop the
+    // fallback and nothing else in the suite would notice.
+    const type = await page.evaluate(() => {
+      const shell = document.querySelector('.v2-app')
+      return {
+        family: shell ? getComputedStyle(shell).fontFamily : '',
+        geist: getComputedStyle(document.documentElement).getPropertyValue('--font-geist-sans').trim(),
+      }
+    })
+    expect(type.family).toMatch(/^"?Nunito"?,/)
+    expect(type.geist, '--font-geist-sans no longer resolves on <html>').not.toBe('')
+    expect(type.family, 'the dashboard stack lost its Geist Sans fallback').toContain(
+      type.geist.split(',')[0].replace(/"/g, ''),
+    )
+
     // THE TENANT WALL: the other seeded clinic's patient must not exist here.
     await page.goto('/patients')
     await expect(page.locator('body')).not.toContainText('Casey Confirmable')

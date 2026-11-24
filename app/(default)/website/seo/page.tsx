@@ -16,6 +16,10 @@ import {
   type ClinicSeoResult,
 } from '@/lib/services/gsc'
 import { getGbpLocalMetrics, type GbpLocalMetrics } from '@/lib/services/gbp-metrics'
+import { getIndexNowState } from '@/lib/services/indexnow'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import { describeIndexNowState } from '@/lib/indexnow'
+import { formatClinicDayTime } from '@/lib/format-datetime'
 import { setGscSiteAction, disconnectGscAction } from './actions'
 import ModuleHint from '@/components/onboarding/module-hint'
 import { PageFrame } from '@/components/ui/page-frame'
@@ -66,7 +70,28 @@ export default async function SeoPage({ searchParams }: Props) {
   // loaded (the manage view doesn't render the GBP metrics card).
   let gbp: GbpLocalMetrics | null = null
 
+  // The search notices (IndexNow) — the platform's own marketing site only,
+  // so the card exists only in the manage view. The read floors to "nothing
+  // recorded" on a failure, which renders as the honest "no notice yet".
+  let notices: ReturnType<typeof describeIndexNowState> | null = null
+
   if (isManage) {
+    const [noticeState, timeZone] = await Promise.all([
+      getIndexNowState(),
+      getClinicTimeZone(ctx.organizationId).catch(() => 'America/New_York'),
+    ])
+    // The zone is NAMED beside the time. The platform org has no clinic
+    // profile, so `timeZone` is the platform default rather than wherever the
+    // owner is sitting; an unlabelled time would be an hour off for anyone
+    // outside it, and nothing on the card would say so.
+    const zoneOf = (d: Date) =>
+      new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'short' })
+        .formatToParts(d)
+        .find((part) => part.type === 'timeZoneName')?.value ?? ''
+    notices = describeIndexNowState(noticeState, (iso) => {
+      const d = new Date(iso)
+      return `${formatClinicDayTime(d, timeZone)} ${zoneOf(d)}`.trim()
+    })
     gsc = await getGscConnectionView(ctx.organizationId)
     if (gsc.connected && gsc.status === 'needs_site') {
       try {
@@ -330,6 +355,33 @@ export default async function SeoPage({ searchParams }: Props) {
           </p>
         )}
       </section>
+
+      {/* ── Bing and the other engines (the platform's own site) ───────── */}
+      {notices && (
+        <section className="v2-card mb-8 p-5">
+          <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-1">Bing and the other search engines</h2>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 max-w-xl">
+            Google finds changes by reading the sitemap. Bing, Yandex, Naver, Seznam, Yep and Amazon also take a notice
+            when a public page is added, changed or removed, and Bing&apos;s index is what Microsoft Copilot reads. The
+            marketing site sends that notice by itself, every hour there is something to say.
+          </p>
+          <p className="flex items-start gap-2.5">
+            {notices.tone === 'attention' && (
+              <span
+                className={`text-sm font-bold mt-0.5 ${STATUS_ICON.warn.cls}`}
+                title={STATUS_ICON.warn.label}
+                aria-label={STATUS_ICON.warn.label}
+              >
+                {STATUS_ICON.warn.mark}
+              </span>
+            )}
+            <span className="min-w-0">
+              <span className="block text-sm font-medium text-gray-800 dark:text-gray-100">{notices.headline}</span>
+              <span className="block text-xs text-gray-500 dark:text-gray-400 max-w-xl">{notices.detail}</span>
+            </span>
+          </p>
+        </section>
+      )}
 
       {!isManage && (
       <>

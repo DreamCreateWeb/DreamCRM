@@ -106,6 +106,88 @@ describe('the other entries re-read the same day', () => {
   })
 })
 
+/**
+ * THE REMAINING FIVE, RE-READ 2026-11-24 — and what the read found is that
+ * NONE of them publishes a price. So the rule these hold is NexHealth's: the
+ * page says the vendor shows no number, and any figure on the line is
+ * attributed to the third parties who reported it. A number sitting beside a
+ * "last checked against their own page" stamp, on a page that shows none,
+ * would be the stamp vouching for something the vendor never said.
+ *
+ * Four were read first-hand (the page text fetched and searched for each
+ * phrase); Adit's came through the fetch tool twice, because its site
+ * answers a plain request with a challenge page.
+ */
+describe('the five entries re-read on 2026-11-24', () => {
+  const FIVE: Array<[slug: string, host: string]> = [
+    ['revenuewell', 'revenuewell.com'],
+    ['adit', 'adit.com'],
+    ['dental-intelligence', 'dentalintel.com'],
+    ['podium', 'podium.com'],
+    ['patientpop', 'tebra.com'],
+  ]
+
+  it.each(FIVE)('%s: dated that day, against a page on %s', (slug, host) => {
+    const c = COMPARISONS.find((x) => x.slug === slug)!
+    expect(c.pricingChecked?.on).toBe('2026-11-24')
+    expect(new URL(c.pricingChecked!.url).hostname.endsWith(host)).toBe(true)
+  })
+
+  it.each(FIVE)('%s: says the vendor publishes no price, and attributes the only figure to third parties', (slug) => {
+    const c = COMPARISONS.find((x) => x.slug === slug)!
+    expect(c.reportedPricing).toMatch(/^No (subscription )?price published/)
+    // The figure survives — it is useful to a buyer — but never as theirs.
+    const [, afterTheSemicolon] = c.reportedPricing.split(';')
+    expect(afterTheSemicolon, `${slug}: the figure must follow the attribution`).toMatch(/third-party reviews report ~\$\d/)
+    expect(c.reportedPricing.split(';')[0], `${slug}: no dollar figure in the vendor's own half`).not.toMatch(/\$\d/)
+  })
+
+  it('every contract answer that changed is the vendor’s own, and says so', () => {
+    const contract = (slug: string) =>
+      COMPARISONS.find((c) => c.slug === slug)!.matrix.find((r) => r.feature.startsWith('Month-to-month'))!
+    // RevenueWell's site: "Monthly and annual contracts available".
+    expect(contract('revenuewell').vendor).toBe('yes')
+    expect(contract('revenuewell').vendorNote).toMatch(/Monthly and annual contracts, per its own site/)
+    // Adit's pricing FAQ: no binding contract on the software; the marketing
+    // program is a one-year commitment. Both halves stay on the line.
+    expect(contract('adit').vendor).toBe('yes')
+    expect(contract('adit').vendorNote).toMatch(/No binding contract/)
+    expect(contract('adit').vendorNote).toMatch(/one-year commitment/)
+    // The three whose pages state no terms are NOT upgraded to a flat "no":
+    // what reviewers report is said to be what reviewers report.
+    for (const slug of ['dental-intelligence', 'podium', 'patientpop']) {
+      expect(contract(slug).vendor, slug).toBe('partial')
+      expect(contract(slug).vendorNote, slug).toMatch(/not stated/i)
+    }
+  })
+
+  it('what the read found them AHEAD on is on the page too', () => {
+    const row = (slug: string, feature: string) =>
+      COMPARISONS.find((c) => c.slug === slug)!.matrix.find((r) => r.feature.includes(feature))!
+    // Dental Intelligence sells phones and eligibility checks now; the page
+    // used to say it had neither.
+    expect(row('dental-intelligence', 'VoIP phones').vendor).toBe('yes')
+    expect(row('dental-intelligence', 'Insurance eligibility').vendor).toBe('yes')
+    // RevenueWell's shared text-and-email inbox, and its phone add-on.
+    expect(row('revenuewell', 'Unified patient inbox').vendor).toBe('yes')
+    expect(row('revenuewell', 'VoIP phones').vendor).toBe('yes')
+    expect(row('podium', 'VoIP phones').vendor).toBe('yes')
+  })
+
+  it('the claims the read could NOT confirm are gone, not restated with more confidence', () => {
+    const text = (slug: string) => JSON.stringify(COMPARISONS.find((c) => c.slug === slug))
+    // A product name that is not on RevenueWell's site today, an adjective
+    // nobody re-verified, and a channel its pages no longer mention.
+    expect(text('revenuewell')).not.toMatch(/PatientConnect365|vendor-branded|postcard/i)
+    // "Runs under its own brand" was asserted of an app the vendor's home
+    // page no longer names.
+    expect(text('dental-intelligence')).not.toMatch(/runs under its own brand|not clinic-branded/i)
+    // Tebra's pages state no contract terms, so no sentence states them for it.
+    expect(text('patientpop')).not.toMatch(/on annual contracts|typically annual|don’t mind an annual contract/)
+    expect(text('patientpop')).toMatch(/do not mention dentistry/)
+  })
+})
+
 describe('the comparison page', () => {
   it('shows the day and links the source on a page whose pricing was re-read', async () => {
     const weave = COMPARISONS.find((c) => c.slug === 'weave')!
@@ -117,12 +199,23 @@ describe('the comparison page', () => {
     expect(source.getAttribute('rel') ?? '').toContain('nofollow')
   })
 
-  it('shows NO date on a page nobody re-read — an unchecked line gets no timestamp', async () => {
-    const unchecked = COMPARISONS.find((c) => !c.pricingChecked)
-    // The premise: the registry still has an entry that has not been re-read.
-    // When the last one is checked, delete this case rather than loosen it.
-    expect(unchecked, 'every comparison now carries a dated check').toBeTruthy()
-    render(await ComparePage({ params: Promise.resolve({ vendor: unchecked!.slug }) }))
-    expect(screen.queryByText(/pricing last checked/i)).not.toBeInTheDocument()
+  it('every page now carries a date, and each one links ITS OWN source', async () => {
+    // The last unchecked entry was re-read on 2026-11-24, so the case that
+    // used to stand here — "an unchecked page shows no date" — had no entry
+    // left to stand on. The rule itself did not go anywhere: it is held on a
+    // synthetic unchecked vendor in tests/marketing/unchecked-comparison.test.tsx.
+    expect(COMPARISONS.every((c) => c.pricingChecked)).toBe(true)
+    for (const c of COMPARISONS) {
+      const { unmount } = render(await ComparePage({ params: Promise.resolve({ vendor: c.slug }) }))
+      expect(
+        screen.getByText(new RegExp(`pricing last checked ${formatCheckedOn(c.pricingChecked!.on)} against`)),
+        c.slug,
+      ).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: c.pricingChecked!.source }), c.slug).toHaveAttribute(
+        'href',
+        c.pricingChecked!.url,
+      )
+      unmount()
+    }
   })
 })
