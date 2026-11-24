@@ -217,6 +217,16 @@ test.describe('the dashboard shell is usable at phone width', () => {
     await opener.click()
     const dialog = page.getByRole('dialog', { name: 'Add patient' })
     await expect(dialog).toBeVisible()
+    // THE SHEET SLIDES IN, AND ITS BOX IS ONLY A FACT ONCE IT HAS ARRIVED
+    // (2026-11-24). The panel wears `section-enter`: it starts 6px low
+    // (`@starting-style { transform: translateY(6px) }`) and transitions up.
+    // "Visible" is true from the first frame of that, so the box was being
+    // read mid-slide — a bottom edge of 845, 846 or 847 against a limit of
+    // 844, i.e. exactly the 1–3px a 6px ease-out has left to travel. It
+    // passed in a full suite, where the machine is busy enough for the slide
+    // to finish first, and failed 14 times in 25 when this spec ran alone.
+    // The measurement was never of the dialog's resting place; now it is.
+    await dialog.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished.catch(() => undefined))))
     const box = (await dialog.boundingBox())!
     expect(Math.round(box.x), 'the dialog starts inside the left edge').toBeGreaterThanOrEqual(0)
     // Far edges round DOWN: a sheet whose bottom lands at 844.8 ends inside pixel row 844
