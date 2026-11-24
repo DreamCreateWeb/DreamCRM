@@ -54,8 +54,19 @@ describe('the comparison page’s first door', () => {
       const h1 = screen.getByRole('heading', { level: 1 })
       expect(precedes(h1, doors[0]!)).toBe(true)
 
+      // THE BUTTON IS KEPT FROM SHRINKING. It sits in a row beside a
+      // sentence, and from 640px up that sentence squeezed it to its
+      // narrowest word and broke the label onto two lines, on every one of
+      // these pages (found in a screenshot, 2026-11-24). The wrapper is the
+      // fix and `data-cta` is the hook e2e/marketing-viewport.spec.ts measures
+      // — which is where "one line" is actually proven; this only holds the
+      // two things that proof depends on.
+      const wrapper = doors[0]!.parentElement as HTMLElement
+      expect(wrapper.className).toContain('sm:shrink-0')
+      expect(doors[0]).toHaveAttribute('data-cta', 'primary')
+
       // The reassurance line resolves both numbers.
-      const line = within(doors[0]!.parentElement as HTMLElement).getByText(/days free\./)
+      const line = within(wrapper.parentElement as HTMLElement).getByText(/days free\./)
       expect(line.textContent).toContain(`${TRIAL_DAYS} days free.`)
       // The card is said beside the button, with what it costs today —
       // never "no card" (owner ruling 2026-11-23: card required to sign up).

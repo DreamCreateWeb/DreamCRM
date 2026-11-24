@@ -2054,3 +2054,38 @@ change: `subscription_status` is free text, and the new state is a value.
   its documentation, not observed. "Bing's index does not hold the site" is
   two queries, not a Webmaster Tools report. And none of this is the lever
   that matters most — Part 12 item 3 is the owner's, and it has not started.
+
+**Part 12 slice 2 — `/about`: which DreamCRM this is (2026-11-24, no migration).**
+
+- **A facts page** (`lib/marketing/about.ts`, `app/(marketing)/about/`). The
+  site had no page whose job was to STATE what the product is; the home page
+  argues, the tour shows, pricing prices. This one is a definition list in the
+  server HTML — what it is, who makes it, who it is for, what it costs, the
+  trial with its card, what it works with — then what is included, what it
+  does not do, a note that other products share the name, and the eight
+  comparisons.
+- **It writes almost nothing of its own.** The summary, the definition, the
+  audience, the price, both lists and the comparison links are the listing
+  kit's and the registry's, compared by test. A product described identically
+  on its own site and on a marketplace gives each page a second witness.
+- **What it withholds, by test:** the operator's name and email (the Privacy
+  Policy carries them; a marketing page naming the owner is his ruling), the
+  street and ZIP (the town and state are derived from the operator record,
+  never typed), Open Dental (11.5 item 7), every compliance word, and the
+  name of any other product called DreamCRM.
+- **Registered once.** `/about` is on `MARKETING_PUBLIC_PATHS`, so the
+  middleware serves it signed-out, the sitemap lists it and the search notice
+  announces it — keyed on its own data, so a reprice or a trial ruling
+  re-announces it. In the footer of every marketing page, and in the browser
+  sweep at three widths.
+- **Found by looking, and fixed on nine pages.** The hero button the
+  comparison pages gained in slice 1 sits in a row beside its caption, and
+  the caption won: from 640px up the button was squeezed to its narrowest
+  word and "Start your free trial" broke onto two lines — on all eight
+  comparison pages, for a day, and on this page, which copied the pattern.
+  Every unit test was green, because none has a layout engine; it was seen
+  in a screenshot. The wrapper no longer lets the button shrink
+  (`sm:shrink-0`), and the browser sweep now asks the engine how many lines
+  every primary button's label occupies, on every marketing page at three
+  widths (`data-cta="primary"` is the hook). Watched failing first: eighteen
+  failures, exactly those nine pages at 834 and 1440, and none anywhere else.

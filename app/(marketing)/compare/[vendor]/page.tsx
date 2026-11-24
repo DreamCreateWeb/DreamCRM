@@ -196,9 +196,21 @@ export default async function ComparePage({ params }: Props) {
 
                The line beside it RESOLVES its two numbers — the trial length
                and the price — like every other copy of them on this page.
-               Held by `tests/marketing/compare-hero-cta.test.tsx`. ── */}
+               Held by `tests/marketing/compare-hero-cta.test.tsx`.
+
+               THE BUTTON DOES NOT SHRINK. In a row, a flex item gives way to
+               its neighbour, and the neighbour here is a sentence: from 640px
+               up the caption took the room and squeezed the button down to
+               its narrowest word, so its label broke onto two lines on every
+               comparison page — unseen for a day, because no unit test has a
+               layout engine. `sm:shrink-0` on the wrapper keeps the button at
+               its own width and lets the CAPTION wrap, which is the one of
+               the two that is prose. Held in a browser by
+               `e2e/marketing-viewport.spec.ts`. ── */}
         <div className="mb-8 flex max-w-2xl flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
-          <PrimaryCta href="/signup">Start your free trial</PrimaryCta>
+          <div className="sm:shrink-0">
+            <PrimaryCta href="/signup">Start your free trial</PrimaryCta>
+          </div>
           <p className="text-[0.85rem] leading-relaxed text-gray-600">
             {TRIAL.chip}. Card to start, not charged until the trial ends. {usd(PLAN.price)}/mo after,
             month-to-month.

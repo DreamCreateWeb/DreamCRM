@@ -1,3 +1,4 @@
+import { buildAbout } from '@/lib/marketing/about'
 import { COMPARISONS } from '@/lib/marketing/comparisons'
 import { CHANGELOG_ENTRIES } from '@/lib/marketing/changelog'
 import { DOCS } from '@/lib/marketing/docs'
@@ -85,6 +86,9 @@ function staticPageKey(path: string, posts: readonly PublicPost[]): string {
     case '/privacy':
     case '/terms':
       return `legal:${LEGAL_UPDATED}`
+    // The facts page is data end to end — the listing kit, arranged.
+    case '/about':
+      return contentKey(buildAbout())
     // An index page changes when its list does.
     case '/compare':
       return contentKey(COMPARISONS.map((c) => [c.slug, c.name, c.pricingChecked?.on ?? null]))

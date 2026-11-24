@@ -131,6 +131,15 @@ Search Console.
 Code: `lib/indexnow.ts` (the rules), `lib/services/indexnow.ts` (the hourly
 pass), `/api/cron/search-notify` (a `JOBS` entry the deploy schedules).
 
+**A page that says which DreamCRM this is** — `/about`. The site argued,
+showed and priced, but had no page whose job was to state the plain facts: what
+it is, who makes it, who it is for, what it costs, what it does not do, and that
+other products share the name. It is built from the listing kit (Part 5), so
+the site and every outside profile describe the product in the same sentences
+and each corroborates the other. It gives the town, not the street, and it does
+not name you — the Privacy Policy does, as it must; whether a marketing page
+should is yours to rule (Part 8).
+
 **The demo practice is out of the index.** "Dream Dental" is seeded: an
 invented address, phone and staff. Every page under it now answers with
 `X-Robots-Tag: noindex`. It is still there to browse. A real clinic's site
@@ -349,7 +358,8 @@ Mode. Record whether we are named, and who is.
 
 Question 10 is the one to watch first. If an assistant describes some other
 DreamCRM, the name-collision problem is biting, and the fix is more pages that
-say "DreamCRM" and "dental" together — which is what steps 3 to 6 produce.
+say "DreamCRM" and "dental" together — which is what steps 3 to 6 produce, and
+what `/about` is on our own site.
 
 ---
 
@@ -493,7 +503,7 @@ anything sent to customers, external communications).
 | 2 | **Open Dental in our copy** — the site says the sync is the "sanctioned path" | Open Dental publicly advises against NexHealth products that claim to integrate with it. The kit leaves Open Dental out |
 | 3 | **"Nobody else ships"** and similar | An unprovable claim about competitors. The comparison pages were just cleaned of several |
 | 4 | **Where a clinic's site really lives** (`NEXT_PUBLIC_SITE_USE_SUBDOMAIN`) | Clinic pages declare their address on the marketing domain. Until this is settled, clinic sites cannot be announced to the search engines and the Search Console baseline mixes them with ours |
-| 5 | **An About page that names you** | A named founder is the clearest answer to "which DreamCRM is this?". It also puts your name on the site |
+| 5 | **Your name on `/about`** | The page exists and says "Dream Create, in Ward, Arkansas". A named founder is a stronger answer to "which DreamCRM is this?", and the Privacy Policy already names you — but a marketing page is a different thing to put a name on. One line to add if you say yes |
 | 6 | **An email to a signup who stops at the card step** | Not built — it is a new message to customers |
 
 ---

@@ -540,6 +540,7 @@ export function HeroPrimaryCta({ href, children }: { href: string; children: Rea
   return (
     <Link
       href={href}
+      data-cta="primary"
       className="inline-flex w-full items-center justify-center rounded-[10px] bg-gradient-to-r from-teal-600 to-teal-700 px-6 py-3 text-[0.95rem] font-semibold text-white shadow-[0_8px_26px_-8px_rgb(58_103_217/0.65)] transition-all duration-150 ease-out hover:-translate-y-px hover:shadow-[0_10px_32px_-8px_rgb(58_103_217/0.78)] sm:w-auto"
     >
       {children}
@@ -1107,6 +1108,7 @@ export function PrimaryCta({ href, children }: { href: string; children: React.R
   return (
     <Link
       href={href}
+      data-cta="primary"
       className="inline-flex w-full items-center justify-center rounded-[10px] bg-gradient-to-r from-teal-600 to-teal-700 px-5 py-2.5 text-[0.92rem] font-semibold text-white shadow-[0_6px_20px_-8px_rgb(58_103_217/0.6)] transition-all duration-150 ease-out hover:-translate-y-px hover:shadow-[0_9px_26px_-8px_rgb(58_103_217/0.78)] sm:w-auto"
     >
       {children}

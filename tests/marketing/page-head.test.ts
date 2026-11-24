@@ -49,6 +49,7 @@ const HEADS: Record<TopLevelPath, () => Promise<PageModule>> = {
   '/': () => import('@/app/(marketing)/page'),
   '/product': () => import('@/app/(marketing)/product/page'),
   '/why': () => import('@/app/(marketing)/why/page'),
+  '/about': () => import('@/app/(marketing)/about/page'),
   '/pricing': () => import('@/app/(marketing)/pricing/page'),
   '/compare': () => import('@/app/(marketing)/compare/page'),
   '/docs': () => import('@/app/(marketing)/docs/page'),
