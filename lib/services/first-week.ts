@@ -250,7 +250,14 @@ async function buildRow(
     unreadable,
     pendingOnUs,
     digestOn: profile ? profile.digest === 1 : null,
-    trial: { onTrial: trial.onTrial, expired: trial.expired, daysLeft: trial.daysLeft },
+    trial: {
+      onTrial: trial.onTrial,
+      expired: trial.expired,
+      daysLeft: trial.daysLeft,
+      // Only when true, so a plain no-card trial keeps its three-field shape.
+      ...(trial.needsCard ? { needsCard: true } : {}),
+      ...(trial.cardOnFile ? { cardOnFile: true } : {}),
+    },
   }
   return {
     ...input,

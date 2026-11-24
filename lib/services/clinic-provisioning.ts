@@ -211,10 +211,12 @@ export async function createManagedClinic(input: CreateManagedClinicInput): Prom
       legalName: name,
       displayName: name,
       // Comped clinics get their tier immediately + NO trial (there's no webhook).
-      // Managed clinics start the no-card 7-day trial (full Premium) so the owner
-      // can use everything from the moment they accept the invite, then activate
-      // their RESERVED plan within the 7 days — the pending plan + coupon stay set
-      // for that activation checkout.
+      // Managed clinics start the NO-card trial (TRIAL_DAYS, full Premium) so the
+      // owner can use everything from the moment they accept the invite, then
+      // activate their RESERVED plan before it ends — the pending plan + coupon
+      // stay set for that activation checkout. (The card-required trial of the
+      // 2026-11-23 ruling is the SELF-SERVE signup's; a clinic the platform
+      // sets up by hand has already talked to us.)
       planTier: comped ? input.planId : 'premium',
       billingMode: comped ? 'comped' : 'managed',
       subscriptionStatus: comped ? null : 'trialing',

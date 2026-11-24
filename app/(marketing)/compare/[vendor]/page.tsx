@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { COMPARISONS, COMPARISON_DISCLAIMER, buildComparisonFaq, getComparison } from '@/lib/marketing/comparisons'
+import { COMPARISONS, COMPARISON_DISCLAIMER, buildComparisonFaq, formatCheckedOn, getComparison } from '@/lib/marketing/comparisons'
 import {
   PageHero,
   PrimaryCta,
@@ -12,9 +12,9 @@ import {
   MONO_LABEL,
   DAY_WIRE,
 } from '@/components/marketing/ui'
-import { DEMO_URL, usd } from '@/lib/marketing/site'
+import { DEMO_URL, usd, TRIAL } from '@/lib/marketing/site'
 import { getQuotedPlan } from '@/lib/stripe-config'
-import { JsonLd, breadcrumbLd, faqPageLd } from '@/lib/marketing/seo'
+import { JsonLd, breadcrumbLd, faqPageLd, pageMetadata } from '@/lib/marketing/seo'
 
 /**
  * THE VENDOR COMPARISON — `BRAND.md` Part 8 move 6, page 2.
@@ -154,11 +154,11 @@ export async function generateMetadata({ params }: Props) {
   // "{vendor} pricing" and "{vendor} alternative(s)" (marketing-engine
   // Part 5: BOFU comparison pages, the terms thin-domain challengers rank
   // for today).
-  return {
+  return pageMetadata({
     title: `DreamCRM vs ${c.name}: pricing, features & alternatives`,
     description: `${c.name} pricing as reported, what it genuinely does well, and an honest feature-by-feature comparison with DreamCRM — a ${usd(PLAN.price)}/mo published, dentistry-native alternative.`,
-    alternates: { canonical: `/compare/${c.slug}` },
-  }
+    path: `/compare/${c.slug}`,
+  })
 }
 
 export default async function ComparePage({ params }: Props) {
@@ -184,6 +184,38 @@ export default async function ComparePage({ params }: Props) {
       />
 
       <PageHero eyebrow="Comparison" title={`DreamCRM vs ${c.name}`} sub={c.summary}>
+        {/* ── THE DOOR, AT THE TOP ────────────────────────────────────────
+               This page's only way into a trial was the closing block, some
+               fourteen hundred words down. On a desktop the header's button
+               covers for that; below `lg` the header is a logo and a menu
+               icon, so a visitor on a phone had no door at all until the
+               bottom of the page. These are the pages paid search lands on
+               (`lib/marketing/ad-campaigns.ts`), where every arrival has been
+               paid for, so the door goes ahead of the evidence rather than
+               after it.
+
+               The line beside it RESOLVES its two numbers — the trial length
+               and the price — like every other copy of them on this page.
+               Held by `tests/marketing/compare-hero-cta.test.tsx`.
+
+               THE BUTTON DOES NOT SHRINK. In a row, a flex item gives way to
+               its neighbour, and the neighbour here is a sentence: from 640px
+               up the caption took the room and squeezed the button down to
+               its narrowest word, so its label broke onto two lines on every
+               comparison page — unseen for a day, because no unit test has a
+               layout engine. `sm:shrink-0` on the wrapper keeps the button at
+               its own width and lets the CAPTION wrap, which is the one of
+               the two that is prose. Held in a browser by
+               `e2e/marketing-viewport.spec.ts`. ── */}
+        <div className="mb-8 flex max-w-2xl flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
+          <div className="sm:shrink-0">
+            <PrimaryCta href="/signup">Start your free trial</PrimaryCta>
+          </div>
+          <p className="text-[0.85rem] leading-relaxed text-gray-600">
+            {TRIAL.chip}. Card to start, not charged until the trial ends. {usd(PLAN.price)}/mo after,
+            month-to-month.
+          </p>
+        </div>
         {/* ── THE PRICE PANEL, BREAKING THE SEAM ──────────────────────────
                Move 6 page 1's grid-break, in the form this page has one: the
                two prices side by side, in the hero's own light, rather than a
@@ -214,6 +246,25 @@ export default async function ComparePage({ params }: Props) {
               </dd>
             </div>
           </dl>
+          {/* THE DATE AND THE SOURCE, when somebody actually re-read the
+              vendor's page (`pricingChecked` in the registry — absent means
+              unchecked, and an unchecked line gets no date). A buyer, and an
+              assistant quoting this page back to one, can both see how old
+              the number is and where to confirm it. `nofollow`: the link is a
+              citation, not an endorsement. */}
+          {c.pricingChecked && (
+            <p className="mt-4 border-t pt-3 text-[0.8rem] leading-relaxed text-gray-600" style={{ borderColor: DAY_WIRE }}>
+              {c.name} pricing last checked {formatCheckedOn(c.pricingChecked.on)} against{' '}
+              <a
+                href={c.pricingChecked.url}
+                rel="nofollow noopener noreferrer"
+                className="font-medium text-teal-700 underline underline-offset-2 hover:text-teal-800"
+              >
+                {c.pricingChecked.source}
+              </a>
+              .
+            </p>
+          )}
         </div>
       </PageHero>
 
@@ -471,11 +522,11 @@ export default async function ComparePage({ params }: Props) {
             Start today
           </div>
           <h2 className="text-[1.9rem] font-extrabold leading-[1.05] tracking-[-0.03em] text-gray-950 sm:text-[2.4rem]">
-            Run it for a week before you decide.
+            Run it for {TRIAL.span} before you decide.
           </h2>
           <p className="mt-4 text-[1rem] leading-relaxed text-gray-600">
-            Seven days of the whole platform on your own practice — your website, your
-            booking page, your patients. No card, and nothing to cancel if you walk away.
+            {TRIAL.daysWord} days of the whole platform on your own practice — your website, your
+            booking page, your patients. {TRIAL.cardTerms}
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             <PrimaryCta href="/signup">Start your free trial</PrimaryCta>

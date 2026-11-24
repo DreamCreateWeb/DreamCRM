@@ -204,6 +204,32 @@ describe('getAcquisitionReport', () => {
     ])
   })
 
+  it('a signup that has NOT added its card is its own column — not a trial, and not a trial that expired', async () => {
+    // Owner ruling 2026-11-23: card required to sign up. The state resolves
+    // as `expired` (it is closed), so without its own bucket it would be
+    // reported as "trial ran out, did not convert" for someone who never
+    // started one — and a channel that fills the card step with people who
+    // then leave would look like a channel producing trials.
+    state.selectQueue.push([{ channel: 'google_ads', views: 200, sessions: 90 }])
+    state.selectQueue.push([])
+    state.selectQueue.push([])
+    state.selectQueue.push([
+      { attribution: stamp('google_ads'), trialEndsAt: null, subscriptionStatus: 'awaiting_card', stripeSubscriptionId: null },
+      { attribution: stamp('google_ads'), trialEndsAt: null, subscriptionStatus: 'awaiting_card', stripeSubscriptionId: null },
+      // Card on file: a live trial, counting down on Stripe's clock.
+      { attribution: stamp('google_ads'), trialEndsAt: FUTURE, subscriptionStatus: 'trialing', stripeSubscriptionId: 'sub_t' },
+      // …and one whose end date has passed with the webhook still behind.
+      { attribution: stamp('google_ads'), trialEndsAt: PAST, subscriptionStatus: 'trialing', stripeSubscriptionId: 'sub_u' },
+      // A NO-card trial that ran out — the only thing `expired` should count.
+      { attribution: stamp('google_ads'), trialEndsAt: PAST, subscriptionStatus: 'trialing', stripeSubscriptionId: null },
+    ])
+    const report = await getAcquisitionReport(30, NOW)
+    const google = report.channels.find((c) => c.channel === 'google_ads')!
+    expect(google).toMatchObject({ signups: 5, awaitingCard: 2, trialing: 2, expired: 1, paying: 0 })
+    // Every signup is in exactly one bucket.
+    expect(google.awaitingCard + google.trialing + google.expired + google.paying).toBe(google.signups)
+  })
+
   it('a malformed attribution stamp counts as untracked, never a guessed channel', async () => {
     state.selectQueue.push([])
     state.selectQueue.push([])
@@ -238,6 +264,7 @@ describe('getAcquisitionReport', () => {
       'powered_by',
       'grader',
       'google_ads',
+      'microsoft_ads',
       'meta_ads',
       'organic_search',
       'ai_assistant',

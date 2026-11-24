@@ -29,10 +29,11 @@ type SlugStatus =
   | { kind: 'result'; slug: string; result: SlugCheckResult }
 
 /**
- * Screen 3 of 3 — the software the practice runs, the web address + brand
- * color, and the no-card trial start. This is where the real writes happen
- * (submitOnboarding); no Stripe call, no card. The software question can be
- * skipped — the first-week cockpit asks again.
+ * Screen 3 of 4 — the software the practice runs, the web address + brand
+ * color. This is where the real writes happen (submitOnboarding creates the
+ * practice); no Stripe call here. The card step comes next, on
+ * /onboarding-complete, and that is where the free trial starts. The software
+ * question can be skipped — the first-week cockpit asks again.
  */
 export default function Onboarding02() {
   const [slug, setSlug] = useState('')
@@ -139,7 +140,7 @@ export default function Onboarding02() {
     <OnboardingFrame step={3}>
       <h1 className="text-3xl text-ink-900 font-bold mb-2">Your software and your web address</h1>
       <p className="text-sm text-ink-600 mb-6">
-        Last step. Your {TRIAL_DAYS}-day free trial starts when you finish — no card needed.
+        Almost there. After this you add a card and your {TRIAL_DAYS}-day free trial starts.
       </p>
       <form
         onSubmit={(e) => {
@@ -290,10 +291,11 @@ export default function Onboarding02() {
         )}
         <div className="space-y-3">
           <ActionButton type="submit" variant="primary" pending={pending} disabled={blocked || !slug} className="w-full">
-            Start my {TRIAL_DAYS}-day free trial →
+            Save and continue →
           </ActionButton>
           <p className="text-xs text-ink-500 text-center">
-            No card required. Set up billing whenever you&apos;re ready within the {TRIAL_DAYS} days.
+            One step left after this: a card to start your {TRIAL_DAYS}-day free trial. It is not charged until the
+            trial ends.
           </p>
           <div className="flex items-center justify-between">
             <Link className="text-sm underline hover:no-underline text-ink-600" href="/onboarding-01">

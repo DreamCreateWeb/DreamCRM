@@ -31,6 +31,10 @@ export default async function WelcomePage() {
   // Owner/admin gate — a clinic 'member' has no site to build (mirrors the
   // server-action gate, so the page can't be reached below the role bar).
   if (ctx.role !== 'owner' && ctx.role !== 'admin') redirect('/dashboard')
+  // A signup that has not added its card has not started its trial: the
+  // interview (which spends AI on a full site draft) waits behind the card
+  // step, like every other part of the product.
+  if (ctx.trialNeedsCard) redirect('/onboarding-complete')
 
   // Load the service library (for the checkbox step), the clinic's public URL
   // (for the reveal CTA), and any in-flight draft to resume — in parallel.

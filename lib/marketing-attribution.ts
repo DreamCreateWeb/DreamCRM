@@ -40,6 +40,7 @@ export const MARKETING_CHANNELS = [
   'powered_by',
   'grader',
   'google_ads',
+  'microsoft_ads',
   'meta_ads',
   'organic_search',
   'ai_assistant',
@@ -56,6 +57,7 @@ export const MARKETING_CHANNEL_LABELS: Record<MarketingChannel, string> = {
   powered_by: 'Powered-by links',
   grader: 'Practice grader',
   google_ads: 'Google Ads',
+  microsoft_ads: 'Microsoft Ads',
   meta_ads: 'Meta ads',
   organic_search: 'Search',
   ai_assistant: 'AI assistants',
@@ -65,6 +67,56 @@ export const MARKETING_CHANNEL_LABELS: Record<MarketingChannel, string> = {
   referral: 'Other sites',
   direct: 'Direct',
 }
+
+/**
+ * THE CLICK IDS WE KEEP THE VALUE OF, in the order a URL is searched for them.
+ *
+ * The sensor used to record only THAT a click id was present (`gclid: true`),
+ * which is enough to name the channel and useless for everything after it:
+ * reporting a trial or a paying practice back to the ad platform — the only
+ * way it can tell which searches produce customers — takes the id itself.
+ * Google moved those uploads to its Data Manager on 2026-06-15 and its help
+ * page says the click id is "required if you're not using a tag to collect
+ * user-provided data"; we deliberately run no ad-platform tag on a domain that
+ * also serves patient-facing clinic sites, so the id is the whole mechanism.
+ *
+ * `gbraid` / `wbraid` are what Google sends INSTEAD of `gclid` on iOS traffic.
+ * The old sensor did not look for them at all, so those ad clicks were filed
+ * under organic search or direct.
+ *
+ * Meta's `fbclid` is deliberately absent: it still CLASSIFIES a touch (below),
+ * but nothing uploads to Meta, and a 200-character value riding every request
+ * in a cookie for no reader is weight without a job.
+ */
+export const AD_CLICK_ID_KINDS = ['gclid', 'gbraid', 'wbraid', 'msclkid'] as const
+export type AdClickIdKind = (typeof AD_CLICK_ID_KINDS)[number]
+export interface AdClickId {
+  kind: AdClickIdKind
+  value: string
+}
+
+/** Longest click id we store. A real one runs ~30–110 characters. */
+export const AD_CLICK_ID_MAX_LEN = 256
+
+/** RFC 3986 "unreserved" characters only — a click id is an opaque token, and
+ *  nothing outside this set has any business in a cookie or a jsonb column. */
+const AD_CLICK_ID_SHAPE = /^[A-Za-z0-9._~-]+$/
+
+/**
+ * Validate one click id. CASE IS PRESERVED — the ids are case-sensitive, which
+ * is why this does not go through `cleanParam` (it lowercases). An over-long
+ * value is REJECTED, never truncated: a clipped id matches no click, so
+ * keeping it would be storing a lie that looks like data.
+ */
+export function readAdClickId(kind: unknown, value: unknown): AdClickId | null {
+  if (typeof kind !== 'string' || !(AD_CLICK_ID_KINDS as readonly string[]).includes(kind)) return null
+  if (typeof value !== 'string') return null
+  const v = value.trim()
+  if (!v || v.length > AD_CLICK_ID_MAX_LEN || !AD_CLICK_ID_SHAPE.test(v)) return null
+  return { kind: kind as AdClickIdKind, value: v }
+}
+
+const GOOGLE_CLICK_ID_KINDS: readonly AdClickIdKind[] = ['gclid', 'gbraid', 'wbraid']
 
 /** What the sensor captures about a first touch. All fields already capped. */
 export interface AttributionTouch {
@@ -77,6 +129,12 @@ export interface AttributionTouch {
   utmSource: string | null
   utmMedium: string | null
   utmCampaign: string | null
+  /** The search keyword the ad click carried (`utm_term`, filled by the ad
+   *  platform from the campaign's URL suffix). Null on anything else. */
+  utmTerm: string | null
+  /** The ad platform's click id WITH its value — what a conversion upload
+   *  needs. Null when the touch carried none, or one we could not validate. */
+  clickId: AdClickId | null
   /** ISO instant of the first touch. */
   firstSeenAt: string
 }
@@ -202,8 +260,10 @@ export function referrerHostOf(referrer: string | null | undefined): string | nu
 export interface ClassifyInput {
   utmSource?: string | null
   utmMedium?: string | null
-  /** Google Ads click id present in the landing URL. */
+  /** A Google Ads click id (`gclid`, or iOS's `gbraid` / `wbraid`) present in the landing URL. */
   gclid?: boolean
+  /** Microsoft Advertising's click id present in the landing URL. */
+  msclkid?: boolean
   /** Meta click id present in the landing URL. */
   fbclid?: boolean
   /** Referrer HOST (already extracted). */
@@ -230,8 +290,15 @@ export function classifyChannel(input: ClassifyInput): MarketingChannel {
   if (source === ASSOCIATION_UTM_SOURCE || medium === ASSOCIATION_UTM_SOURCE) return 'association'
 
   // 2. Paid click ids / paid UTM intent.
+  //    Microsoft is asked FIRST among the search platforms: a campaign
+  //    imported from Google keeps its `utm_source=google` suffix unless
+  //    somebody edits it, so on a Bing click the click id is the truth and the
+  //    UTM is a leftover. Until 2026-11 `source=bing` was filed under Google
+  //    Ads, which would have charged one platform's trials to the other's
+  //    budget the day a second platform was switched on.
   const paidMedium = medium === 'cpc' || medium === 'ppc' || medium === 'paid' || medium === 'paid_social'
-  if (input.gclid || (paidMedium && (source === 'google' || source === 'bing' || !source))) return 'google_ads'
+  if (input.msclkid || (paidMedium && (source === 'bing' || source === 'microsoft'))) return 'microsoft_ads'
+  if (input.gclid || (paidMedium && (source === 'google' || !source))) return 'google_ads'
   if (
     input.fbclid ||
     (paidMedium && (source === 'facebook' || source === 'meta' || source === 'instagram'))
@@ -293,11 +360,21 @@ export function buildAttributionTouch(input: {
   const utmSource = cleanParam(params.get('utm_source'))
   const utmMedium = cleanParam(params.get('utm_medium'))
   const utmCampaign = cleanParam(params.get('utm_campaign'))
+  const utmTerm = cleanParam(params.get('utm_term'))
   const referrerHost = referrerHostOf(input.referrer)
+  // The first kind present wins, in registry order. PRESENCE classifies the
+  // touch even when the value fails validation — a malformed `gclid` is still
+  // an ad click; it just leaves nothing worth uploading.
+  let clickId: AdClickId | null = null
+  for (const kind of AD_CLICK_ID_KINDS) {
+    clickId = readAdClickId(kind, params.get(kind))
+    if (clickId) break
+  }
   const channel = classifyChannel({
     utmSource,
     utmMedium,
-    gclid: params.has('gclid'),
+    gclid: GOOGLE_CLICK_ID_KINDS.some((kind) => params.has(kind)),
+    msclkid: params.has('msclkid'),
     fbclid: params.has('fbclid'),
     referrerHost,
     selfHost: input.selfHost ?? null,
@@ -309,6 +386,8 @@ export function buildAttributionTouch(input: {
     utmSource,
     utmMedium,
     utmCampaign,
+    utmTerm,
+    clickId,
     firstSeenAt: (input.now ?? new Date()).toISOString(),
   }
 }
@@ -325,6 +404,13 @@ interface CookieTouchV1 {
   m: string | null
   g: string | null
   t: string
+  /** utm_term. OPTIONAL, and omitted when empty — added 2026-11 without a
+   *  version bump, so the 90-day memories already in browsers keep parsing
+   *  and a touch with no keyword costs the cookie nothing. */
+  k?: string
+  /** Click id kind + value, same rule: present only when there is one. */
+  i?: string
+  x?: string
 }
 interface CookiePayloadV2 {
   v: 2
@@ -341,6 +427,8 @@ function packTouch(touch: AttributionTouch): CookieTouchV1 {
     m: touch.utmMedium,
     g: touch.utmCampaign,
     t: touch.firstSeenAt,
+    ...(touch.utmTerm ? { k: touch.utmTerm } : {}),
+    ...(touch.clickId ? { i: touch.clickId.kind, x: touch.clickId.value } : {}),
   }
 }
 
@@ -369,6 +457,8 @@ function unpackTouch(p: unknown): AttributionTouch | null {
     utmSource: str(t.s),
     utmMedium: str(t.m),
     utmCampaign: str(t.g),
+    utmTerm: str(t.k),
+    clickId: readAdClickId(t.i, t.x),
     firstSeenAt,
   }
 }
@@ -425,6 +515,13 @@ export interface SignupAttribution extends AttributionTouch {
   last?: AttributionTouch | null
 }
 
+/** Read a stored `{ kind, value }` click id with the same validation a cookie gets. */
+function clickIdOf(raw: unknown): AdClickId | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const o = raw as Record<string, unknown>
+  return readAdClickId(o.kind, o.value)
+}
+
 /** Validate a stored signup_attribution jsonb back into a typed stamp.
  *  Unknown/malformed → null (the funnel then counts it as 'untracked'). */
 export function parseSignupAttribution(raw: unknown): SignupAttribution | null {
@@ -464,6 +561,8 @@ export function parseSignupAttribution(raw: unknown): SignupAttribution | null {
       utmSource: str(lr.utmSource),
       utmMedium: str(lr.utmMedium),
       utmCampaign: str(lr.utmCampaign),
+      utmTerm: str(lr.utmTerm),
+      clickId: clickIdOf(lr.clickId),
       firstSeenAt: lSeen,
     }
   })()
@@ -474,8 +573,31 @@ export function parseSignupAttribution(raw: unknown): SignupAttribution | null {
     utmSource: str(r.utmSource),
     utmMedium: str(r.utmMedium),
     utmCampaign: str(r.utmCampaign),
+    utmTerm: str(r.utmTerm),
+    clickId: clickIdOf(r.clickId),
     firstSeenAt,
     signedUpAt,
     last,
   }
+}
+
+/**
+ * THE CLICK ID AN UPLOAD FOR ONE PLATFORM SHOULD CARRY: the most recent touch
+ * that came from that platform — `last` if it has one, else the first touch.
+ *
+ * Most recent, because the platform attributes a conversion to the click it
+ * can still see; a journey that began on a Google ad in March and came back
+ * through another Google ad in May is May's click. And per PLATFORM, because a
+ * Microsoft id handed to Google matches nothing: a stamp whose last touch was
+ * a Bing click and whose first was a Google one has an answer for each.
+ * Null when no touch came from that platform — the signup is then simply not
+ * that platform's to hear about.
+ */
+export function adClickIdFor(stamp: Pick<SignupAttribution, 'clickId' | 'last'>, platform: 'google' | 'microsoft'): AdClickId | null {
+  const kinds: readonly AdClickIdKind[] = platform === 'google' ? GOOGLE_CLICK_ID_KINDS : ['msclkid']
+  for (const touch of [stamp.last, stamp]) {
+    const id = touch?.clickId
+    if (id && kinds.includes(id.kind)) return id
+  }
+  return null
 }

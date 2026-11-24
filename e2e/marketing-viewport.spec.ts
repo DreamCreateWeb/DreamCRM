@@ -97,6 +97,14 @@ const PAGES: string[] = [
   '/grade',
   '/roi',
   '/partner-program',
+  // The two legal documents (2026-11-23): long single-column prose, which is
+  // exactly where an over-long unbroken string (an email address, a URL)
+  // pushes a phone layout sideways.
+  '/privacy',
+  '/terms',
+  // The facts page (2026-11-24): a definition list of long sentences in one
+  // narrow column — the same overflow risk as the legal pages.
+  '/about',
   ...COMPARISONS.map((c) => `/compare/${c.slug}`),
   ...DOCS.map((d) => `/docs/${d.slug}`),
   ...RESOURCE_GUIDES.map((g) => `/resources/${g.slug}`),
@@ -107,7 +115,7 @@ test.describe('BRAND.md Part 10 — zero horizontal scroll on the marketing site
   // would make every loop below vacuous, and a suite that asserts nothing
   // looks exactly like a suite that passes.
   test('the page list is derived and non-empty', () => {
-    expect(PAGES.length).toBeGreaterThanOrEqual(11 + 8)
+    expect(PAGES.length).toBeGreaterThanOrEqual(13 + 8)
     expect(PAGES).toContain('/compare/weave')
     expect(PAGES.filter((p) => p.startsWith('/docs/')).length).toBeGreaterThan(0)
     expect(PAGES.filter((p) => p.startsWith('/resources/')).length).toBeGreaterThan(0)
@@ -141,6 +149,47 @@ test.describe('BRAND.md Part 10 — zero horizontal scroll on the marketing site
             panned,
             `${path} at ${width}px: the document really pans ${panned}px — a reader can drag it sideways`,
           ).toBe(0)
+
+          // A PRIMARY BUTTON'S LABEL IS ONE LINE (2026-11-24).
+          //
+          // The comparison pages' hero put the button in a row beside a
+          // caption, and the caption won: from 640px up the button was
+          // squeezed to its narrowest word and "Start your free trial" broke
+          // onto two lines — on all eight pages paid and organic search land
+          // on, for a day, with every unit test green, because a layout
+          // engine is the only thing that can see a wrap. It was found by
+          // looking at a screenshot of the page built next to them.
+          //
+          // So the engine is asked: for every primary button that is rendered
+          // at this width (`data-cta="primary"`, set by the two components
+          // that draw one), how many lines does its text occupy. A `Range`
+          // over the label returns one rect per line box.
+          const buttons = await page.evaluate(() => {
+            const wrapped: string[] = []
+            let seen = 0
+            for (const el of Array.from(document.querySelectorAll('[data-cta="primary"]'))) {
+              const box = el.getBoundingClientRect()
+              if (box.width === 0 || box.height === 0) continue
+              seen += 1
+              const range = document.createRange()
+              range.selectNodeContents(el)
+              const lines = new Set(
+                Array.from(range.getClientRects())
+                  .filter((r) => r.width > 1)
+                  .map((r) => Math.round(r.top)),
+              )
+              if (lines.size > 1) {
+                wrapped.push(`"${(el.textContent ?? '').trim()}" is ${lines.size} lines in a ${Math.round(box.width)}px button`)
+              }
+            }
+            return { wrapped, seen }
+          })
+          expect(buttons.wrapped, `${path} at ${width}px: a primary button's label wraps`).toEqual([])
+          // The premise, on the pages this was found on: there IS a button to
+          // measure. A renamed attribute would otherwise pass by seeing none.
+          if (path.startsWith('/compare/') || path === '/about') {
+            expect(buttons.seen, `${path} at ${width}px: no primary button was found to measure`).toBeGreaterThan(0)
+          }
         })
       }
     })

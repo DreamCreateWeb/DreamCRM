@@ -193,7 +193,7 @@ export async function getChurnStats(): Promise<ChurnStats> {
       .innerJoin(organization, eq(clinicProfile.organizationId, organization.id))
       .where(and(sql`${clinicProfile.subscriptionStatus} in ('past_due','unpaid','incomplete_expired')`, eq(organization.isDemo, false)))
 
-    // 'trialing' stays in the column after the 7 days run out (nothing writes
+    // 'trialing' stays in the column after a no-card trial runs out (nothing writes
     // it — the wall is derived from trial_ends_at), so the rows come back and
     // the same pure rule the wall reads decides who is still a live clinic.
     // One home for that answer: lib/platform-clinic-status.ts.

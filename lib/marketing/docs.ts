@@ -4,7 +4,7 @@
 // product or don't write the doc).
 
 import type { ToneTileGlyph } from '@/lib/marketing/tone-tiles'
-import { usd } from '@/lib/marketing/site'
+import { usd, TRIAL } from '@/lib/marketing/site'
 import { getQuotedPlan } from '@/lib/stripe-config'
 
 /**
@@ -82,20 +82,21 @@ export const DOCS: DocArticle[] = [
   {
     slug: 'create-your-practice-account',
     title: 'Create your practice account',
-    summary: 'From signup to a drafted website and a working dashboard in about ten minutes — no card.',
+    summary: `From signup to a drafted website and a working dashboard in about ten minutes, on a ${TRIAL.name}.`,
     category: 'Getting started',
     minutes: 3,
     sections: [
       {
         paragraphs: [
-          'Signing up creates three things at once: your practice organization, your staff login, and a draft of your practice website at your-practice.dreamcreatestudio.com. Nothing is charged at signup — every new practice starts a 7-day trial of the whole platform with no card on file.',
+          `Signing up creates three things at once: your practice organization, your staff login, and a draft of your practice website at your-practice.dreamcreatestudio.com. Nothing is charged at signup — the last step asks for a card, which starts a ${TRIAL.days}-day trial of the whole platform. The card is not charged until the trial ends, and you can cancel before then from Settings → Plan & billing.`,
         ],
         steps: [
           'Click Get started and create your login (you can switch to passwordless sign-in links later).',
           'Answer three short screens — practice name and address, your web address, your brand color. These seed your website, your booking rules, and your portal.',
+          `Add a card to start your ${TRIAL.name}. Nothing is charged that day: the card is charged when the trial ends, unless you cancel first.`,
           'Answer the short interview and we draft the whole site — services, about, FAQ — in your voice. Only you can see it until you publish from the Website hub, so take your time making it yours.',
-          `Add billing whenever you\u2019re ready, under Settings → Plan & billing. One plan with everything included \u2014 ${usd(PLAN.price)}/mo at the founding practice rate (regularly ${usd(PLAN.listPrice ?? 0)}), month-to-month, or annual with two months free.`,
-          'You land on your dashboard with the whole platform open for 7 days. Your site stays private — visitors see a coming-soon page on your subdomain — until you pull Publish on the Website hub.',
+          `Your plan and your card live under Settings → Plan & billing, where you can switch between monthly and annual or cancel at any time. One plan with everything included \u2014 ${usd(PLAN.price)}/mo at the founding practice rate (regularly ${usd(PLAN.listPrice ?? 0)}), month-to-month, or annual with two months free.`,
+          `You land on your dashboard with the whole platform open for the ${TRIAL.days} days of your trial. Your site stays private — visitors see a coming-soon page on your subdomain — until you pull Publish on the Website hub.`,
         ],
       },
       {
@@ -672,7 +673,12 @@ export const DOCS: DocArticle[] = [
   {
     slug: 'requesting-a-pms-integration',
     title: 'Requesting your PMS integration',
-    summary: 'Run Dentrix, Eaglesoft, or Curve? Raise your hand and we’ll notify you when it’s ready.',
+    // The line a search result shows for this page. It used to read "Run
+    // Dentrix, Eaglesoft, or Curve? Raise your hand and we’ll notify you when
+    // it’s ready" — telling a Dentrix practice to wait for something the
+    // first paragraph below says works today. It agrees with its own article
+    // now (found on the 2026-11-23 crawl).
+    summary: 'Most systems connect today through one bridge. If yours is one we cannot reach yet, raise your hand and we’ll tell you the day it is.',
     category: 'Money & integrations',
     minutes: 2,
     sections: [
@@ -806,6 +812,38 @@ export const DOCS: DocArticle[] = [
 
 export function getDoc(slug: string): DocArticle | undefined {
   return DOCS.find((d) => d.slug === slug)
+}
+
+/**
+ * The "More in <category>" list for one article: the NEXT few articles in its
+ * category, wrapping at the end.
+ *
+ * It used to be `category.filter(not me).slice(0, 3)` — the FIRST three in the
+ * category, for every reader. So the same three articles collected every
+ * cross-link in their category and the rest collected none: the live link
+ * graph (2026-11-23) showed fifteen help articles with exactly one inbound
+ * link on the whole site, the docs index. A page one click from a single hub
+ * is the weakest position a page can hold for a crawler, and it is no better
+ * for a reader, who was offered "Create your practice account" from the
+ * custom-domains article.
+ *
+ * Walking the category as a RING gives every article the same number of
+ * inbound links as it has outbound ones, and offers the reader what comes
+ * next rather than what came first. Held by
+ * `tests/marketing/docs-related-ring.test.ts`.
+ */
+export function relatedDocs(slug: string, count = 3): DocArticle[] {
+  const doc = getDoc(slug)
+  if (!doc) return []
+  const siblings = DOCS.filter((d) => d.category === doc.category)
+  const at = siblings.findIndex((d) => d.slug === slug)
+  const take = Math.min(count, siblings.length - 1)
+  const out: DocArticle[] = []
+  for (let k = 1; k <= take; k++) {
+    const next = siblings[(at + k) % siblings.length]
+    if (next) out.push(next)
+  }
+  return out
 }
 
 export function docsByCategory(): Array<{ category: DocCategory; articles: DocArticle[] }> {

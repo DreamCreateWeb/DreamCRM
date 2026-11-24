@@ -96,10 +96,13 @@ export default async function DashboardShell({
   const badge = sidebarBadgeFor(ctx)
   const roleLabel = roleLabelFor(ctx)
 
-  // Owner/admin of a clinic in the last 3 days of its no-card trial → mount the
+  // Owner/admin of a clinic in the last 3 days of its NO-CARD trial → mount the
   // once-a-day escalating reminder popup (a nudge; the hard lock is the wall).
+  // A trial with the card on file never gets it: the popup's whole message is
+  // "add a card", and that clinic already did — its notice is the banner's
+  // one line and the pre-charge emails.
   const trialNudgeDays =
-    ctx.onTrial && ctx.tenantType === 'clinic' && (ctx.role === 'owner' || ctx.role === 'admin')
+    ctx.onTrial && !ctx.trialCardOnFile && ctx.tenantType === 'clinic' && (ctx.role === 'owner' || ctx.role === 'admin')
       ? trialDaysLeft(ctx.trialEndsAt ?? null)
       : null
 
@@ -180,14 +183,16 @@ export default async function DashboardShell({
                 on-brand, accessible in-app dialog via useConfirm(). */}
             <ConfirmProvider>
               <ToastProvider>
-                {/* No-card trial expired without billing → lock the dashboard behind
-                    the "set up billing" wall (chrome stays so sign-out works). */}
+                {/* Closed — a no-card trial that ran out, a canceled subscription,
+                    or a signup that has not added its card → the billing wall in
+                    place of the page (chrome stays so sign-out works). */}
                 {ctx.trialExpired && ctx.tenantType === 'clinic' ? (
                   <TrialEndedWall
                     orgName={ctx.organizationName}
                     managed={!!ctx.hasReservedPlan}
                     canManageBilling={ctx.role === 'owner' || ctx.role === 'admin'}
                     canceled={ctx.subscriptionStatus === 'canceled'}
+                    needsCard={!!ctx.trialNeedsCard}
                   />
                 ) : (
                   children

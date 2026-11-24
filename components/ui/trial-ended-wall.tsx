@@ -2,13 +2,20 @@
 
 import { useState } from 'react'
 import { PURCHASABLE_PLANS, type BillingInterval, type PlanId } from '@/lib/stripe-config'
+import { TRIAL_DAYS } from '@/lib/trial'
 import { ActivationCheckoutForm, PlanCheckoutForm } from './billing-action-form'
 
 /**
- * The trial-ended LOCK. DashboardShell renders this IN PLACE of the page content
- * for a clinic whose no-card trial expired without a paid subscription — so every
- * route is gated uniformly with no redirect loop, while the sidebar + header (and
- * thus sign-out) stay reachable.
+ * The billing LOCK. DashboardShell renders this IN PLACE of the page content
+ * for a clinic that is closed — so every route is gated uniformly with no
+ * redirect loop, while the sidebar + header (and thus sign-out) stay reachable.
+ * Three ways to be closed, three things it says:
+ *
+ *   - `needsCard`: signed up, never added a card. THE TRIAL HAS NOT STARTED,
+ *     so this is the last signup step, not a lock — "start your free trial",
+ *     never "your free trial has ended" to somebody who has not had one.
+ *   - `canceled`: a former paying clinic whose subscription was canceled.
+ *   - otherwise: a no-card trial that ran out.
  *
  * It embeds the EXISTING checkout flows directly (no link to another gated page):
  *   - managed clinic (reserved plan) → the coupon-pre-applied activation checkout
@@ -25,11 +32,105 @@ import { ActivationCheckoutForm, PlanCheckoutForm } from './billing-action-form'
  * through `billing-action-form.tsx` now, which reads the action's returned
  * refusal with `useActionState` and shows it under the button pressed.
  */
+
+/**
+ * The self-serve plan picker: the billing-period toggle and one Checkout
+ * button per purchasable plan. Shared by the wall and the last signup step so
+ * the two cannot quote the offer differently.
+ *
+ * `startsTrial` only changes what the buttons SAY. Whether Checkout actually
+ * carries the free trial is decided on the server from the clinic's own row
+ * (`trialDaysAtCheckout`) — pass it only where that row is known to be
+ * awaiting its card, or the button promises days the Checkout will not give.
+ */
+export function PlanPicker({
+  startsTrial = false,
+  returnTo = 'billing',
+}: {
+  startsTrial?: boolean
+  returnTo?: 'billing' | 'onboarding'
+}) {
+  const [interval, setInterval] = useState<BillingInterval>('monthly')
+  const suffix = interval === 'annual' ? '/yr' : '/mo'
+
+  return (
+    <div className="text-left">
+      <div className="flex items-center justify-between bg-[color:var(--color-surface-2)] rounded-lg p-2 mb-3">
+        <span className="text-xs font-medium text-gray-600 dark:text-gray-300 pl-2">Billing</span>
+        <div className="flex gap-1">
+          {(['monthly', 'annual'] as const).map((iv) => (
+            <button
+              key={iv}
+              type="button"
+              onClick={() => setInterval(iv)}
+              aria-pressed={interval === iv}
+              className={`px-2.5 py-1 rounded text-xs font-medium transition ${
+                interval === iv
+                  ? 'bg-gray-900 text-gray-100 dark:bg-gray-100 dark:text-gray-800'
+                  : 'text-gray-600 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-700'
+              }`}
+            >
+              {iv === 'monthly' ? 'Monthly' : 'Annual · 2 mo free'}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-2.5">
+        {PURCHASABLE_PLANS.map((p) => {
+          const price = interval === 'annual' ? p.annualPrice : p.price
+          const priceLabel = `$${price.toLocaleString('en-US')}`
+          return (
+            <PlanCheckoutForm key={p.id} planId={p.id as PlanId} interval={interval} returnTo={returnTo}>
+              {startsTrial ? (
+                <>
+                  <button
+                    type="submit"
+                    className="w-full rounded-lg bg-teal-600 px-4 py-3 text-sm font-semibold text-white hover:bg-teal-700 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300"
+                  >
+                    Add a card &amp; start my {TRIAL_DAYS}-day free trial →
+                  </button>
+                  <p className="mt-2.5 text-xs leading-relaxed text-gray-600 dark:text-gray-300">
+                    {p.name}: free for {TRIAL_DAYS} days, then{' '}
+                    <span className="font-semibold tabular-nums">
+                      {priceLabel}
+                      {suffix}
+                    </span>{' '}
+                    plus sales tax where it applies. Your card is not charged until the trial ends. Cancel before
+                    then from Settings → Plan &amp; billing and you pay nothing.
+                  </p>
+                </>
+              ) : (
+                <button
+                  type="submit"
+                  className="w-full flex items-center justify-between rounded-lg border-2 border-gray-200 dark:border-gray-700/60 hover:border-teal-400 dark:hover:border-teal-500 p-3 transition text-left"
+                >
+                  <span className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full bg-${p.color}-500`} aria-hidden="true" />
+                    <span className="font-semibold text-gray-800 dark:text-gray-100">{p.name}</span>
+                  </span>
+                  <span className="text-base font-bold text-gray-900 dark:text-gray-100 tabular-nums">
+                    {priceLabel}
+                    <span className="text-xs font-normal text-gray-500">{suffix}</span>
+                  </span>
+                </button>
+              )}
+            </PlanCheckoutForm>
+          )
+        })}
+      </div>
+      <p className="mt-3 text-xs text-gray-500 dark:text-gray-400 text-center">
+        Have a promo or partner code? Apply it on the checkout page.
+      </p>
+    </div>
+  )
+}
+
 export default function TrialEndedWall({
   orgName,
   managed,
   canManageBilling,
   canceled = false,
+  needsCard = false,
 }: {
   orgName: string
   managed: boolean
@@ -38,8 +139,14 @@ export default function TrialEndedWall({
    *  "your subscription has ended", never "your free trial has ended" (telling
    *  a paying customer they were on a trial reads as a billing bug). */
   canceled?: boolean
+  /** Signed up, no card yet — the trial has not started (lib/trial.ts). */
+  needsCard?: boolean
 }) {
-  const [interval, setInterval] = useState<BillingInterval>('monthly')
+  const heading = needsCard
+    ? `One step left: start your ${TRIAL_DAYS}-day free trial`
+    : canceled
+      ? 'Your subscription has ended'
+      : 'Your free trial has ended'
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-12 w-full">
@@ -49,19 +156,26 @@ export default function TrialEndedWall({
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l2.5 2.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </span>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-          {canceled ? 'Your subscription has ended' : 'Your free trial has ended'}
-        </h1>
-        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-          {canceled ? 'Pick a plan to keep using' : 'Set up billing to keep using'} <strong>{orgName}</strong>. Your
-          website, patients, and everything you’ve set up are safe — access returns the moment you subscribe.
-        </p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{heading}</h1>
+        {needsCard ? (
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+            Add a card to open <strong>{orgName}</strong>. Everything you entered while signing up is saved, and
+            nothing is charged today.
+          </p>
+        ) : (
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+            {canceled ? 'Pick a plan to keep using' : 'Set up billing to keep using'} <strong>{orgName}</strong>. Your
+            website, patients, and everything you’ve set up are safe — access returns the moment you subscribe.
+          </p>
+        )}
 
         {!canManageBilling ? (
           <p className="mt-6 text-sm text-gray-600 dark:text-gray-300 rounded-[var(--r-md)] bg-[color:var(--color-surface-2)] px-4 py-3">
-            Ask your clinic’s owner or an admin to set up billing to restore access.
+            {needsCard
+              ? 'Ask your clinic’s owner or an admin to add a card and start the trial.'
+              : 'Ask your clinic’s owner or an admin to set up billing to restore access.'}
           </p>
-        ) : managed ? (
+        ) : managed && !needsCard ? (
           <ActivationCheckoutForm className="mt-6">
             <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
               Your plan is reserved at the price we agreed — finish setup to activate it.
@@ -74,53 +188,8 @@ export default function TrialEndedWall({
             </button>
           </ActivationCheckoutForm>
         ) : (
-          <div className="mt-6 text-left">
-            <div className="flex items-center justify-between bg-[color:var(--color-surface-2)] rounded-lg p-2 mb-3">
-              <span className="text-xs font-medium text-gray-600 dark:text-gray-300 pl-2">Billing</span>
-              <div className="flex gap-1">
-                {(['monthly', 'annual'] as const).map((iv) => (
-                  <button
-                    key={iv}
-                    type="button"
-                    onClick={() => setInterval(iv)}
-                    aria-pressed={interval === iv}
-                    className={`px-2.5 py-1 rounded text-xs font-medium transition ${
-                      interval === iv
-                        ? 'bg-gray-900 text-gray-100 dark:bg-gray-100 dark:text-gray-800'
-                        : 'text-gray-600 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    {iv === 'monthly' ? 'Monthly' : 'Annual · 2 mo free'}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-2.5">
-              {PURCHASABLE_PLANS.map((p) => {
-                const price = interval === 'annual' ? p.annualPrice : p.price
-                const suffix = interval === 'annual' ? '/yr' : '/mo'
-                return (
-                  <PlanCheckoutForm key={p.id} planId={p.id as PlanId} interval={interval}>
-                    <button
-                      type="submit"
-                      className="w-full flex items-center justify-between rounded-lg border-2 border-gray-200 dark:border-gray-700/60 hover:border-teal-400 dark:hover:border-teal-500 p-3 transition text-left"
-                    >
-                      <span className="flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full bg-${p.color}-500`} aria-hidden="true" />
-                        <span className="font-semibold text-gray-800 dark:text-gray-100">{p.name}</span>
-                      </span>
-                      <span className="text-base font-bold text-gray-900 dark:text-gray-100 tabular-nums">
-                        ${price.toLocaleString('en-US')}
-                        <span className="text-xs font-normal text-gray-500">{suffix}</span>
-                      </span>
-                    </button>
-                  </PlanCheckoutForm>
-                )
-              })}
-            </div>
-            <p className="mt-3 text-xs text-gray-500 dark:text-gray-400 text-center">
-              Have a promo or partner code? Apply it on the checkout page.
-            </p>
+          <div className="mt-6">
+            <PlanPicker startsTrial={needsCard} />
           </div>
         )}
       </div>

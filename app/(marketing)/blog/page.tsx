@@ -11,6 +11,7 @@ import {
   MONO_LABEL,
   DAY_WIRE,
 } from '@/components/marketing/ui'
+import { pageMetadata } from '@/lib/marketing/seo'
 
 /**
  * THE BLOG INDEX — `BRAND.md` Part 8 move 6, page 6 (the second half).
@@ -56,12 +57,12 @@ import {
 
 export const dynamic = 'force-dynamic'
 
-export const metadata = {
-  title: 'Blog — DreamCRM',
-  alternates: { canonical: '/blog' },
+export const metadata = pageMetadata({
+  title: 'DreamCRM blog — running a modern dental front office',
   description:
     'Product announcements and essays on running a modern dental front office — from the team building DreamCRM.',
-}
+  path: '/blog',
+})
 
 function fmtDate(d: Date | null): string {
   if (!d) return ''

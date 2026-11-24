@@ -11,7 +11,7 @@ import {
   type PracticeGradeResult,
 } from '@/lib/practice-grade'
 import type { PublicGradeView } from '@/lib/services/practice-grader'
-import { usd } from '@/lib/marketing/site'
+import { usd, TRIAL } from '@/lib/marketing/site'
 import { getQuotedPlan } from '@/lib/stripe-config'
 
 /**
@@ -208,10 +208,10 @@ export default function ReportView({ view }: { view: PublicGradeView }) {
           </h2>
           <p className="mx-auto mt-4 max-w-lg text-base" style={{ color: INK_2 }}>
             A website that books, a Google listing that’s watched, review asks that send themselves.{' '}
-            {usd(PLAN_RATE_MONTHLY)}/mo, no card to try it — and the trial is the whole product.
+            {usd(PLAN_RATE_MONTHLY)}/mo after {TRIAL.days} days free — and the trial is the whole product.
           </p>
           <a href="/signup" className="dg-btn mt-8">
-            Start free — 7 days
+            {TRIAL.cta}
           </a>
           <p className="mt-4 text-xs" style={{ color: INK_3 }}>
             Or keep the report and fix it yourself — it’s yours either way.

@@ -59,6 +59,15 @@ export interface TenantContext {
   onTrial?: boolean
   trialExpired?: boolean
   /**
+   * The two halves the 2026-11-23 ruling added (14 days, card to sign up).
+   * `trialNeedsCard`: signed up, no card yet — comes WITH `trialExpired`, and
+   * turns the wall into the last signup step. `trialCardOnFile`: the trial is
+   * a Stripe subscription that bills by itself — comes WITH `onTrial`, and is
+   * what stops every surface from asking that clinic for a card it gave.
+   */
+  trialNeedsCard?: boolean
+  trialCardOnFile?: boolean
+  /**
    * The prospect_caller row's status when tenantType is 'caller' (P-02) —
    * 'active' | 'paused' | 'archived'. A paused or archived caller STILL
    * resolves a context (so the root never mistakes them for a brand-new
@@ -319,6 +328,8 @@ export async function getTenantContext(): Promise<TenantContext | null> {
   let clinicRequiresTwoFactor = false
   let onTrial = false
   let trialExpired = false
+  let trialNeedsCard = false
+  let trialCardOnFile = false
   let trialEndsAt: Date | null = null
   let hasReservedPlan = false
   if (org.type === 'clinic') {
@@ -337,6 +348,8 @@ export async function getTenantContext(): Promise<TenantContext | null> {
     })
     onTrial = trial.onTrial
     trialExpired = trial.expired
+    trialNeedsCard = trial.needsCard
+    trialCardOnFile = trial.cardOnFile
     trialEndsAt = trial.trialEndsAt
     hasReservedPlan = profile?.billingMode === 'managed' && Boolean(profile?.pendingPlanId)
   }
@@ -387,6 +400,8 @@ export async function getTenantContext(): Promise<TenantContext | null> {
     subscriptionStatus,
     onTrial,
     trialExpired,
+    trialNeedsCard,
+    trialCardOnFile,
     trialEndsAt,
     hasReservedPlan,
   }

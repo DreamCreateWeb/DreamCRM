@@ -38,6 +38,7 @@ export const CAC_LAG_DAYS = 60
  *  without an entry have no bar — spend there is judged blended-only. */
 export const CHANNEL_TRIAL_BARS: Partial<Record<MarketingChannel, number>> = {
   google_ads: 120_00, // competitor/alternative terms: cost/trial <$120
+  microsoft_ads: 120_00, // the same campaign mirrored onto Bing, so the same bar
   meta_ads: 80_00, // trial $30–80; over $80 is the kill bar
 }
 
@@ -45,6 +46,7 @@ export const CHANNEL_TRIAL_BARS: Partial<Record<MarketingChannel, number>> = {
  *  channel; this is just what a human plausibly buys. */
 export const SPENDABLE_CHANNELS: MarketingChannel[] = [
   'google_ads',
+  'microsoft_ads',
   'meta_ads',
   'social',
   'email',
@@ -86,8 +88,10 @@ export function isMonthMature(month: string, now: Date): boolean {
 export interface MonthChannelDial {
   channel: MarketingChannel
   spendCents: number
-  /** Signups (= trials started; every signup starts a trial) attributed to
-   *  this channel in the month's cohort. */
+  /** Trials STARTED from this channel in the month's cohort: signups that
+   *  added their card. A signup still awaiting its card has not started a
+   *  trial (owner ruling 2026-11-23) and is left out by the caller. Clinics
+   *  from before the ruling all started a trial at signup, so they all count. */
   trials: number
   /** Spend ÷ trials; null when nothing converted to a trial yet. */
   costPerTrialCents: number | null
@@ -131,12 +135,13 @@ export interface MonthCohortInput {
   month: string
   /** Recorded spend per channel, cents. */
   spendByChannel: Partial<Record<MarketingChannel, number>>
-  /** Signups per channel in this month's cohort ('' key not allowed —
-   *  untracked signups ride the two totals below). */
+  /** Trials started per channel in this month's cohort — signups, less any
+   *  still awaiting a card ('' key not allowed — untracked ones ride the two
+   *  totals below). */
   signupsByChannel: Partial<Record<MarketingChannel, number>>
   /** Paying-today per channel from this cohort. */
   payingByChannel: Partial<Record<MarketingChannel, number>>
-  /** Cohort totals INCLUDING untracked signups. */
+  /** Cohort totals INCLUDING untracked signups (same rule: trials started). */
   totalSignups: number
   totalPaying: number
 }

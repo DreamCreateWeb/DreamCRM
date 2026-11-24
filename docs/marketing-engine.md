@@ -1,6 +1,6 @@
 # The Marketing Engine — research foundation + build log
 
-**Status: THE POWERHOUSE PROGRAM (Part 10, 2026-09-09) — foundation slices 1–4 shipped; Part 10 is the program of record.** This is the research foundation for
+**Status: THE POWERHOUSE PROGRAM (Part 10, 2026-09-09) — foundation slices 1–4 shipped; Part 10 is the program of record.** **Part 11 (2026-11-23) is research pass 3: it CORRECTS several facts in Parts 0–10 (11.0) and carries the site audit — read 11.0 before quoting an earlier part.** This is the research foundation for
 Dream Create's own growth program — the "marketing powerhouse" the owner
 directed: social campaigns via the existing Zernio key, email marketing,
 budget dials, and effectiveness monitors, all aimed at **driving self-serve
@@ -1004,6 +1004,245 @@ photo-consent wording, and whether the association should receive a
 goodwill commission from the partner rails even though none is owed.
 
 
+## Part 11 — Research pass 3 (2026-11-23): what changed since September, and the site audit
+
+**Owner directive (2026-11-23):** "focus entirely on marketing — research the
+app, then research 2026 marketing trends for my app, then … everything
+possible digitally from perfecting the SEO to setting up ad campaigns on
+various platforms." This part is the research half and the first build slice.
+Method: an outside-in audit of the live site (crawl of all 57 sitemap URLs,
+mobile Lighthouse, header and redirect probes, the internal link graph) plus
+fourteen web-research threads in two rounds. Full report:
+`docs/research/marketing-engine-2026-11/report.md`; the thread notes and the
+site audit sit beside it. Flags as before (FACT / VENDOR CLAIM / EST); a line
+marked **VERIFIED** was re-read by this session on the vendor's or
+organizer's own page on 2026-11-23.
+
+### 11.0 Corrections to Parts 0–10 (read these before quoting the earlier parts)
+
+1. **"Not one of 24 dental vendors publishes a real price or is self-serve"
+   (10.0 #2) is not true as written — and for Weave it was not true in
+   September either.** Pass 2's own research file recorded a "$199/mo
+   advertised" base and both $149 bundles from third-party pages; the 10.0
+   summary dropped it. Weave's own pages publish a base plan at $199/mo, a
+   $149/mo Coordinate bundle (online scheduling, forms, reminders, recall)
+   and a $149/mo Attract bundle (reviews, email marketing, bulk texting), and
+   answer "Do I have to commit to a long-term contract?" with "No"
+   (**VERIFIED**, getweave.com/plans). Weave still offers no free trial of the
+   full platform and the purchase path is "Checkout and demo". Solutionreach
+   publishes "Pricing starts at $199" with every package by quote
+   (**VERIFIED**, solutionreach.com/pricing). Flex Dental sells a self-serve
+   checkout at $299/mo + a $15 pass-through, Open Dental only (FACT,
+   flexdental.com/pricing, per the research thread). The claim that survives:
+   **self-serve, published price, free trial, and works across PMSs —
+   together.** Never "the only self-serve door".
+2. **The like-for-like Weave number is public and it is $497/mo** for the
+   base plus both bundles (arithmetic on Weave's published prices) against our
+   $200 flat — stronger than the old third-party band, and checkable.
+3. **Weave is private.** Francisco Partners closed the ~$650M take-private on
+   2026-10-26 (FACT, Weave newsroom, per the research thread). No pricing or
+   packaging change announced since. The ADA endorsement stands as far as
+   anything published shows.
+4. **Customer Match and list-based audiences are not a day-one tool.** Google
+   requires 90 days of account history and >$50k lifetime spend before a list
+   can be TARGETED, and limits uploads to data collected first-party (FACT,
+   Google Ads help, per the research thread). Part 3's "Meta custom audiences
+   seeded from the NPPES list" was not confirmed permitted — Meta's
+   custom-audience terms could not be retrieved; treat as unverified.
+5. **No-card trial conversion is lower than Part 0 assumed.** ChartMogul's
+   2026 conversion report (200 B2B products) puts the median free-to-paid at
+   8% and a card-required trial at 30%, "more than 5x" a no-card one, and
+   counts 4–6% as GOOD for a no-card trial; the old 9–18% planning range is
+   optimistic throughout (survey, published 2026-03-18). At 8%, a $120 trial
+   is a $1,500 customer — inside the ceiling, with no margin; at 5% it is
+   $2,400. And at $1,000/mo the test buys about eight trials a month, so it
+   can measure cost per trial and click-to-trial but NOT trial-to-paid, which
+   has to be read on trials pooled from every source.
+6. **FAQ rich results are gone** (ended 2026-05-07 per secondary sources); the
+   FAQPage markup on /compare and /pricing is still valid and now earns no
+   SERP feature. **SoftwareApplication rich results require a rating or a
+   review** (Google's docs) — ours has neither and should not invent one.
+7. **Schema does not buy AI citations.** Ahrefs' May-2026 controlled test
+   (1,885 pages that added JSON-LD vs 4,000 controls) found no meaningful
+   lift in AI Overviews, AI Mode or ChatGPT. What correlates is third-party
+   brand mentions (Spearman 0.664 with AI Overview visibility across 75,000
+   brands — Ahrefs, read through a secondary summary) and referring domains. Part 5's "schema" line item is hygiene, not a lever.
+
+### 11.1 What is new in the market
+
+- **AI answers sit on top of nearly every comparison query.** Seer (Apr 2026,
+  53 brands, 5.47M queries): AI Overviews on 95% of comparison queries;
+  organic click-through on those queries ~1.3–2.4% against 3.8% without one.
+  G2 (n=1,076): 51% of software buyers start in an AI chatbot more often than
+  Google; ChatGPT is used by 62%. AI assistants are still under 2% of B2B
+  referral sessions (VENDOR). The assistants' fetchers read raw HTML and do
+  not run JavaScript (Resoneo, Jan 2026) — our pages are server-rendered.
+- **Self-promotional "best X" listicles are a liability.** Lily Ray (100 B2B
+  queries, Apr–Jun 2026): 69% of cited self-promo listicles came from brands
+  the AI did not recommend. Law 6 already forbids them; keep it.
+- **Google Ads changed under small advertisers.** AI Max is ON by default for
+  new Search campaigns (FACT, Google help); broad-match campaigns were
+  auto-upgraded to it on 2026-09-01; offline conversions and enhanced
+  conversions for leads moved to the Data Manager API on 2026-06-15. Consent
+  Mode is an EEA/UK requirement, not a US one. Competitor names are legal as
+  KEYWORDS and restricted in AD TEXT.
+- **New inventory:** ChatGPT self-serve ads (opened to US businesses
+  2026-05-05; CPC bidding; healthcare is a restricted category in OpenAI's ad
+  policy of 2026-11-20, with no line for B2B software); Google ads inside AI
+  Mode run from the normal auction; Microsoft offers LinkedIn-profile
+  targeting on Search. G2 now owns Capterra, Software Advice and GetApp
+  (closed 2026-02-05); G2 caps review incentives at $100, disclosed, never
+  conditioned on sentiment.
+- **What competitors actually advertise** (Google Ads Transparency Center,
+  loaded 2026-11-23): Weave leads with "$150 Amazon gift card with Weave
+  demo"; NexHealth with "NexHealth For Eaglesoft — Writes Back To Your
+  Schedule … See pricing". Rough active-ad counts: getweave.com ~800,
+  nexhealth.com ~700, revenuewell.com ~200, dentalintel.com 91, adit.com 75.
+  None of the sampled ads named a rival.
+- **The buyer is more cautious.** ADA HPI Q3 2026, as reported by Becker's:
+  dentist confidence at 26%, the lowest in several years; practice expenses outpacing revenue for
+  general-dentist owners; 21% with a hygienist role open six months or more.
+  43% of dentists use AI for at least one task, 10% at the front desk (ADA
+  HPI, Jul 2026). The savings argument is the stronger door-opener again.
+- **AI receptionists are the loudest new category** and none is ours to
+  chase: Viva AI from $350/mo (FACT, own page), others $299–$1,500 per
+  location (THIRD-PARTY). "AI employee" is used loosely by several small
+  vendors and is not ownable; the FTC's AI cases turn on unsubstantiated
+  results claims, so ours stays "drafts the work, your team approves it".
+- **Open Dental's vendor page names our bridge.** 2026-06-05 entry: "NexHealth
+  is not partnered with or associated with Open Dental in any way"; the
+  2024-08-08 entry advises against NexHealth products that claim to integrate
+  (FACT, opendental.com, per the research thread). An Open Dental practice
+  that checks will find it. The mitigation Part 10 named — an OD-API-based
+  listing — is unchanged and still unbuilt.
+
+### 11.2 The calendar (verified where marked)
+
+| When | What | Note |
+|---|---|---|
+| 2027-02-12 | NW Arkansas District Dental Society annual meeting | **VERIFIED** arkansasdentistry.org |
+| 2027-02-25–27 | Chicago Midwinter | aggregator listing |
+| **2027-03-11–13** | **Arkansas State Dental Association Annual Session, North Little Rock Convention Center** | **VERIFIED** — the Headshot Funnel's deadline (10.8) |
+| 2027-03-18–20 | Hinman, Atlanta | booth $4,400 inline (published) |
+| 2027-04-08–10 | Arkansas Mission of Mercy, Conway | **VERIFIED** |
+| 2027-04-29–05-01 | Tennessee Music City Dental Conference | organizer site |
+| 2027-04-30–05-01 | Oklahoma Dental Association, Tulsa | organizer site |
+| 2027-06-03–06 | Mississippi Dental Association | organizer site |
+| 2027-09-09–11 | AADOM, Scottsdale | organizer site |
+
+### 11.3 What the audit found on our own site
+
+The full list with measurements is in `site-audit.md`. In one paragraph: the
+site is technically sound — server-rendered, fast enough, 100 on Lighthouse
+SEO — and has almost no footprint. In the research threads' field checks no
+page of ours surfaced for any of ten buyer queries, and the brand name
+returned unrelated products (an iOS app and a SugarCRM-based product are
+also called DreamCRM). That is a search TOOL's view and not Google's index —
+Search Console is the instrument, and it is not connected. The site has
+three blog posts, no legal pages, no review-marketplace profiles, and no way
+to tell an ad platform that a click became a trial.
+
+### 11.4 What could not be established
+
+Keyword volumes and click costs for every target term (the keyword tools
+refuse automated access — pull them from Keyword Planner inside the Ads
+account); how many of our pages Google and Bing have indexed, and the
+domain's authority (read them from Search Console and Bing Webmaster Tools);
+Meta's rules on uploaded prospect lists and how it classifies a dental-
+software domain; sponsorship prices for every community and podcast (none is
+published); whether a longer trial would convert better for this buyer (no
+controlled study exists for a busy owner-operator — our own cohorts are the
+only source).
+
+### 11.5 Rulings needed (owner-only, per the rulebook's §8 list)
+
+1. **"Regularly $500."** No practice has been charged $500, and the FTC's
+   former-price guide defines a former price as one actually offered "on a
+   regular basis for a reasonably substantial period of time". Options: keep
+   it; or "founding rate $200/mo, locked while you subscribe" with no former
+   price; or a dated future list price if one is actually decided.
+2. **Privacy Policy + Terms on www** — required before ads, lead forms or a
+   review-marketplace listing. Needs the legal entity name, address and
+   contact, then a legal read.
+3. **BAAs.** Marketing to practices at any volume surfaces "do you sign a
+   BAA?" on the first call; COMPLIANCE.md's posture is unchanged.
+4. **Clinic-site addresses**: flip to the subdomain canonical
+   (`NEXT_PUBLIC_SITE_USE_SUBDOMAIN`) and stop serving them under `www/site/…`?
+5. **The demo practice**: `noindex`?
+6. **Spend**: the $1,000/mo Google test needs an Ads account, a card, and the
+   advertiser-verification documents.
+7. **Two sentences of site copy**: `/product`'s "a shop and membership plans
+   nobody else ships" (membership-plan software is a category of its own), and
+   the help article that says integrations go through "the vendor's sanctioned
+   path … not a database scraper" beside Open Dental's published statement
+   about the bridge we ride. Both are in `site-audit.md`; neither was changed.
+
+**Ruled on 2026-11-23 (the owner, in the session that produced this part):**
+the trial is **14 days with a card required to sign up**, replacing the
+7-day no-card trial — built as "Part 11 slice 3" in the build log below. The
+same message supplied the operator details item 2 was waiting on, and the two
+pages are published as "Part 11 slice 4"; the legal read item 2 asks for has
+NOT happened. Items 1 and 3–7 are still open.
+
+**Ruled on 2026-11-24 (the owner, same session): organic first.** Paid ads
+wait until every organic tactic has been exhausted — Part 12. That DEFERS item
+6 (no ad account, no card, no spend until the gate in
+`docs/organic-go-live.md` Part 7 is met). **Item 5 was decided in the session,
+not ruled:** the demo practice is `noindex` now. It was listed here as an
+owner ruling in error — it is not pricing, a message to customers, spend or
+anything destructive, and it is one line to reverse (`withDemoNoindex` in
+`middleware.ts`). Items 1, 3, 4 and 7 are still open.
+
+
+## Part 12 — Organic first (owner ruling, 2026-11-24)
+
+> "I don't even want to do paid ads — I mean I do, but only after we've
+> exhausted every single perfected marketing tactic, then we can start paying
+> money to add fuel to that fire. If there's an SEO hack, if there's a search
+> ranking tip, if there's a method of getting ChatGPT to recommend us, I want
+> to exhaust those and then start pouring the cash into it."
+
+**What it changes.** Part 6's ranking and Part 11's plan both opened a
+$1,000-a-month Google test in December. That test is on the shelf. The
+campaign stays in the tree as data (`lib/marketing/ad-campaigns.ts`,
+`docs/ads-go-live.md`) and keeps itself current; nothing is spent.
+
+**What the evidence says about "a hack" — there isn't one.** Part 11.0 already
+corrected the September plan on this, and the ruling makes it the whole
+program: schema, `llms.txt` and FAQ markup show no measurable effect on being
+cited by an assistant; a self-ranked "best" list is cited and then passed
+over; what correlates is other sites naming the product (0.664 against 0.218
+for backlinks), review-marketplace profiles, and being in the indexes the
+assistants read. The measured baseline on 2026-11-24: **no page of ours in
+Bing's index, and no appearance for any of ten buyer queries.**
+
+**So the program is three things, in this order.**
+
+1. *Make the site impossible to misread or miss* — code, done in slice 1
+   below: one list of public pages, honest dates, a notice to Bing's family of
+   engines whenever a page changes, every competitor quoted from its own site
+   with the day it was read, the demo practice out of the index.
+2. *Get into the indexes and get measured* — the owner's steps: Search
+   Console (the platform's shared Domain property), Bing Webmaster Tools by
+   import, the sitemap in both.
+3. *Be named by other sites* — a free G2 profile (which now feeds Capterra,
+   Software Advice and GetApp), reviews from real practices, the other
+   profiles, and a small number of earned mentions where dentists read. This
+   is the lever with the strongest evidence and the one no code can pull.
+
+`docs/organic-go-live.md` is the runbook: the evidence table with sources, the
+owner's steps in order with the wording of Google's and Bing's own pages, the
+paste-ready listing copy (generated, so it cannot quote an old price), the
+monthly check, the content order, and a PROPOSED definition of "exhausted" so
+the ruling has an end. That definition is the owner's to change.
+
+**What this part does not claim.** Nobody can state when organic produces the
+first signup, or whether it reaches two a month by itself. Google's own
+documentation puts a crawl at "a few days to a few weeks", and the lever that
+matters most — reviews — cannot start until practices are live. The honest
+commitment is the monthly log.
+
+
 ## Build log
 
 **Slice 1 — the sensor layer + the loop (SHIPPED 2026-08-26, migration
@@ -1532,3 +1771,351 @@ grade, the consent footnote that says out loud which box was ticked).
 Still owner-gated: the event itself (create it on the Events tab once
 the conference date is known), the member rate + benefit page (10.8
 item 3), the statewide pre-scan (item 2).
+
+**Part 11 slice 1 — the technical SEO foundation (2026-11-23, no migration).**
+The first slice the audit paid for. Everything below was a measured defect on
+the live site, and each fix ships the test that was watched failing against
+it.
+
+- **The header menu is in the HTML.** The three dropdown panels were mounted
+  on hover, so the server document carried five nav links and none of the 23
+  behind them; `/resources` had three inbound pages on the whole site. The
+  panels are always rendered now and closed with `hidden` (still out of the
+  tab order and the accessibility tree). `components/marketing/chrome.tsx`;
+  `tests/marketing/nav-links-in-html.test.tsx` renders the header the way the
+  server does and reads the string.
+- **The Resources menu fits the window.** Found by the visual check of the
+  fix above, and older than it: the two-column panel under the last trigger
+  hung from the trigger's LEFT edge and ran 23px past a 1280px window, 87px
+  past 1152 and 191px past 1024, scrolling the page sideways while open — the
+  panel that holds the free tools. `panelAnchor()` hangs a wide panel in the
+  right half of the bar from the trigger's right edge. After: inside the
+  window at every width from 1024 up, zero sideways scroll.
+- **One head for every marketing page.** `pageMetadata()` in
+  `lib/marketing/seo.tsx` writes the canonical, `og:url`, `og:type`,
+  `og:site_name`, the share image and a matching Twitter card from one input;
+  every static marketing page and the two registry-driven ones build through
+  it. The homepage and the grader had no canonical; no page but a blog post
+  had an `og:url`. The homepage description went from 290 characters to under
+  160 with the price inside the visible window.
+  `tests/marketing/page-head.test.ts` derives its list from
+  `MARKETING_PUBLIC_PATHS`, so a new public route cannot ship a hand-built
+  head.
+- **The sitemap only states dates it can stand behind.** Every `lastmod` was
+  the time of the request. Now: a comparison is dated by its pricing check, a
+  guide by its revision day, a post by its own timestamps, and everything
+  else states none. `tests/marketing/sitemap-dates.test.ts`.
+- **Help articles link to each other.** "More in this category" walked the
+  first three articles for every reader, leaving fifteen articles with one
+  inbound link. `relatedDocs()` walks the category as a ring: inbound equals
+  outbound for every article. `tests/marketing/docs-related-ring.test.ts`.
+- **Three comparisons quote the vendor instead of a review site.** The
+  registry gained `pricingChecked { on, source, url }` — present only on an
+  entry somebody re-read against the vendor's own page — and the page renders
+  "pricing last checked <day> against <source>". **Weave** now carries its
+  published $199 base and two $149 bundles, its "no long-term contracts"
+  answer and the insurance-verification line from its pricing page; the
+  third-party band and the "annual agreements" and "Elite tier" lines are
+  gone. **Solutionreach** carries its own "pricing starts at $199" and its
+  "yearly contract options" answer in place of a $329 third-party figure.
+  **NexHealth** is described as it describes itself: no price on its pricing
+  page, a month-to-month option, annual plans paid up front with 90 days'
+  notice — the contract row moves from "terms vary" to an honest yes.
+  `tests/marketing/comparison-pricing-check.test.tsx`. **The other five
+  entries have not been re-read and carry no date** — the refresh law in 10.4
+  ("monthly, dated") now has the field it needs; it still needs the reading.
+  *(Update: all five were re-read on 2026-11-24 — "Part 12 slice 1" below.)*
+- **Titles that say what the page is.** `/pricing`, `/product`, `/compare`
+  and `/blog` carried "Pricing — DreamCRM"-shaped titles; they now name the
+  subject and, on pricing, the resolved price.
+- **A help article's search snippet stopped contradicting its own first
+  paragraph** (`requesting-a-pms-integration` told a Dentrix practice to wait
+  for something the article says works today).
+
+Not done here, by decision or because it is not marketing-site code: the
+"regularly $500" wording, the legal pages, the clinic-site canonical, the demo
+practice's indexability, the homepage's per-request render, and click-id
+capture for ad conversion upload (11.5 and `site-audit.md`).
+
+**Part 11 slice 2 — ad readiness: the click kept whole, and the campaign as data (2026-11-23, no migration).**
+Owner directive, same day: "we need 2 new customers per month from our web
+marketing alone", and "walk me through which ad account to set up". The
+arithmetic that answers the first: two paying practices a month is 25 trials
+at the 8% survey median (17 at 12%, 40 at 5%), about $3,000 a month at ~$120 a
+trial — so the target needs a larger budget, a trial-to-paid rate at or above
+the median, AND trials that cost nothing per click, together. The runbook for
+the second is `docs/ads-go-live.md`.
+
+- **The sensor keeps the click id's VALUE and the keyword.** It recorded only
+  that a `gclid` was present — enough to name the channel, useless for telling
+  Google which click became a trial (its Data Manager upload requires the id
+  when no tag collects user data, and we run no ad-platform tag on a domain
+  that also serves clinic sites). `AttributionTouch` gains `clickId { kind,
+  value }` for `gclid` / `gbraid` / `wbraid` / `msclkid` and `utmTerm`. Case
+  is preserved (the ids are case-sensitive; the UTM cleaner lowercases), an
+  over-long or malformed id is REJECTED rather than clipped, and presence
+  still classifies a touch whose value could not be kept. The cookie carries
+  them as three OPTIONAL short keys with no version bump, so every 90-day
+  memory already in a browser keeps parsing and a touch with neither costs
+  the cookie nothing. The signup stamp inherits both; `adClickIdFor(stamp,
+  platform)` answers "which click do I report?" — the most recent touch from
+  THAT platform.
+- **Two classification defects closed on the way.** Google's iOS click ids
+  (`gbraid`, `wbraid`) were not looked for at all, so those ad clicks arrived
+  with a google.com referrer and were filed under organic search. And paid
+  Bing intent was filed under Google Ads. **`microsoft_ads` is a channel now**
+  (registry, label, the dials' bar and spend list), and it is asked BEFORE
+  Google: a campaign imported from Google keeps `utm_source=google`, so on a
+  Bing click the click id is the truth and the UTM is a leftover.
+- **The campaign is data** — `lib/marketing/ad-campaigns.ts`. An ad is typed
+  into somebody else's system and never re-read, and it quotes the three
+  things here that change: the price, the trial length, and which comparison
+  pages were actually checked. The campaign resolves all three
+  (`getQuotedPlan`, `TRIAL_DAYS`, `pricingChecked`): **an ad group exists only
+  for a vendor whose page carries a dated check**, so an unverified page gets
+  no paid traffic by construction. `tests/marketing/ad-campaign.test.ts` holds
+  Google's limits, that no rival is named in ad text, that any dollar figure
+  in the copy is the resolved price, and that the brief in
+  `docs/ads-go-live.md` — the text that gets pasted — is the one the code
+  renders (`UPDATE_ADS_BRIEF=1` regenerates it).
+- **The landing pages have a door at the top.** A comparison page's only way
+  into a trial was its closing block, after the strengths, the matrix and the
+  FAQ. The header's button covers that on a desktop; below `lg` the header is
+  a logo and a menu icon. Measured in a browser at 390×844 on the built app:
+  the first trial button now sits at y≈660 on the Weave page and y≈580 on
+  NexHealth's — on the first screen — where it used to be at the bottom of a
+  page about 9,500px tall. The line beside it resolves the trial length and
+  the price. `tests/marketing/compare-hero-cta.test.tsx` holds its POSITION
+  (before the first section and the matrix) on every page in the registry.
+- **Not built:** the conversion upload itself (trial started / became paying,
+  through Google's Data Manager); a keyword readout on the Acquisition panel;
+  the Privacy Policy and Terms the campaign must not launch without.
+
+**Part 11 slice 3 — the trial: 14 days, and a card to sign up (2026-11-23, owner ruling, no migration).**
+
+The ruling replaced the 2026-06-16 trial (seven days, no card) and is the
+largest change to who gets charged since the single-plan collapse. No schema
+change: `subscription_status` is free text, and the new state is a value.
+
+- **Three kinds of clinic, one resolver (`lib/trial.ts`).** A signup that has
+  not added its card is `awaiting_card`: no end date, `expired` + `needsCard`,
+  so every existing gate (the wall, the public site, the engines) closes it
+  without learning a new rule. A trial with the card on file is a Stripe
+  subscription in `trialing`: **Stripe owns that clock**, so the clinic is
+  never walled on ours (at the end date Stripe is converting it and the
+  webhook is behind). The no-card trial is unchanged, and is what a
+  hand-provisioned clinic still starts on.
+- **Who is charged today is one pure function.** `trialDaysAtCheckout`
+  grants the days only to `awaiting_card`; `createCheckoutSession` passes them
+  as `subscription_data.trial_period_days` with `payment_method_collection:
+  'always'`, and FAILS CLOSED when it cannot read the row (the card step said
+  "nothing is charged today"). One trial per clinic: a cancel writes Stripe's
+  `canceled` over the status that grants them.
+- **The backstop the Stripe-owned clock needs.** `reconcileOverdueTrials`
+  re-reads from Stripe any trial still recorded as running two hours past its
+  end, from the `trial-reminders` cron — otherwise a webhook that never
+  arrives is free access forever. That cron is a money path on the review
+  gate now.
+- **The card is a counted signup step.** `/onboarding-complete` is the card
+  step for a practice without one (what it costs today, what happens at the
+  end, that reminders come first) and the "site is ready" screen after;
+  Stripe returns there and the subscription is synced before anything
+  renders. `/welcome` waits behind it, so no AI is spent on a signup that
+  never finished.
+- **The emails say the opposite things to the two trials.** A no-card trial
+  is still asked for a card. A card-on-file trial is told the DAY its card is
+  charged, in the clinic's own calendar, a week out and the day before — and
+  never an amount, which depends on the period, a promo code and tax. The
+  welcome moved from signup to the moment the card goes on file (the Stripe
+  webhook), claimed once.
+- **The platform reads it truthfully.** "No card yet" is its own standing,
+  pill and Acquisition column — not "walled" and not "trial ended". The dials
+  grade cost per trial STARTED, so a channel that fills the card step with
+  people who leave does not look cheap.
+- **The copy has one home.** `TRIAL` in `lib/marketing/site.ts` supplies the
+  length and the card terms to every public surface; the ad brief, the
+  comparison FAQ's JSON-LD, the help docs, the signup form and the outreach
+  knowledge file read it. `tests/marketing/trial-copy.test.ts` holds "no
+  card" about our own trial, and any typed trial length, at zero across the
+  public trees — 52 lines said otherwise on the day of the ruling.
+- **Not built, and each needs the owner:** an email to a signup that stops at
+  the card step (a new message to customers); a higher cost-per-trial bar now
+  that a trial is worth more; the Stripe dashboard's own trial-reminder and
+  cancellation-policy-link settings. **Not verifiable from here:** the
+  Checkout request against Stripe itself — the first real signup after the
+  deploy is the test.
+
+**Part 11 slice 4 — the Privacy Policy and the Terms of Service (2026-11-23, owner direction, no migration).**
+
+- **`/privacy` and `/terms`**, public (the same list the middleware and the
+  sitemap read), linked from the footer of every marketing page, from the
+  signup form ("by creating an account you agree…") and from the card step.
+  Two of the seven paths the DREAM-164 audit used as examples of pages that
+  did not exist now do.
+- **The words are data (`lib/marketing/legal.ts`) and every figure is
+  resolved** — the trial's length, the monthly and yearly price, the cookie
+  names and lifetimes — so the Terms cannot promise a trial the checkout does
+  not give. The Terms describe the trial exactly as slice 3 built it.
+- **One list of the companies information is sent to** (`SERVICE_PROVIDERS`),
+  quoted by the policy, including that AI features send the content they work
+  on to the AI provider. Adding a provider to the product means adding it
+  there in the same change.
+- **No compliance claim, by test.** `tests/marketing/legal-pages.test.tsx`
+  holds the vocabulary of docs/COMPLIANCE.md at zero over every sentence of
+  both documents; the Terms say whose duty the health-privacy laws are and
+  state that they claim nothing. Texting is not mentioned.
+- **What a careful reader should know:** nobody qualified has read these. The
+  clauses that most need it are the limit of liability, the governing-law
+  clause (Arkansas), the founding-rate promise restated as a term, and what
+  the Terms say — and deliberately do not say — about patient information. No
+  refund policy is stated; no data-processing addendum and no business
+  associate agreement is offered, because those decisions are still open
+  (11.5 item 3).
+
+**Part 12 slice 1 — the organic foundation (2026-11-24, owner ruling, no migration).**
+
+- **One list of what the marketing site publishes**
+  (`lib/marketing/public-pages.ts`). The sitemap renders it and the search
+  notice reads it, so a page cannot be in one and missing from the other.
+  Each page carries a real `lastModified` or none, and a CONTENT KEY that
+  moves exactly when the page's content does: a registry page is keyed on its
+  own entry, pricing on the resolved price and trial, the legal pages on
+  their date, an article on its own last change, the blog index on what its
+  cards show. A hand-written page carries a constant — announced once, then
+  left to ordinary crawling. That limit is stated, not papered over.
+- **Search notices (IndexNow)** — `lib/indexnow.ts` (the protocol, pure and
+  edge-safe), `lib/services/indexnow.ts` (the pass), `/api/cron/search-notify`
+  (hourly, a `JOBS` entry). A RECONCILE, not an event: it sends the difference
+  between what is public and what the engines were last told, so the
+  protocol's "do not resubmit unchanged URLs" holds by construction — no
+  deploy, restart, retry or autosave can re-send a page. The record lives
+  under its own key of `platform_config` (the seventh), passed whole.
+  **Three refusals to guess:** both reads are strict and a failure sends
+  nothing (a failed posts read must not announce every article as deleted; a
+  failed record read must not re-send the site); a page is marked announced
+  only on 200 or 202; and the pass fetches its own key file first, because an
+  engine that cannot read it discards the notice silently. The first notice
+  ever waits until the process has been up ten minutes — the protocol fetches
+  the key AFTER accepting the first request, and during a rolling deploy that
+  fetch can land on the old version. Inert wherever the app URL is not a
+  public https host: no laptop, test or browser harness makes a request.
+- **The key file** is answered by the middleware at the root of every host,
+  before any host logic. The key is public by design and committed for that
+  reason. Not on `SERVICE_PROVIDERS`: what is sent is the address of our own
+  public pages, no information about any person.
+- **The owner can see it ran.** The platform's Search Console page gained a
+  card, "Bing and the other search engines": when the last notice landed, how
+  many pages, and a warning mark (never colour alone) with the reason when
+  one was refused. Dated in the owner's timezone. A clinic never sees it.
+- **The demo practice is `noindex`** — an `X-Robots-Tag` header on every
+  response under its path, by subdomain and by `/site/<slug>`. A seeded
+  practice with an invented address and `Dentist` structured data was
+  indexable on the platform's own domain. A real clinic never gets the header,
+  including one whose slug merely starts like the demo's.
+- **A fallback font is no longer preloaded on every page.** Geist Sans sits
+  behind Nunito in the dashboard's stack and no public page reads it; it was
+  a 70 KB high-priority request on every page of the platform. Declared with
+  `next/font/local`, `preload: false`; the variable still resolves. Checked in
+  the built HTML and in a browser. NOT fixed: the mono face (71 KB) is still
+  preloaded on clinic sites, which do not use it.
+- **The last five comparison pages, re-read against the vendors' own sites.**
+  None of the five publishes a price; each page says so and attributes its
+  figure to third parties. Corrected in the COMPETITOR'S favour where the
+  read required it: RevenueWell's monthly contracts, free trials, shared
+  inbox and phone add-on; Adit's no-binding-contract answer; Dental
+  Intelligence's phones and insurance verification; Podium Phones. Claims the
+  read could not confirm are gone (a RevenueWell product name its site no
+  longer shows, "vendor-branded", postcards; "runs under its own brand" for
+  Dental Intelligence; every unhedged statement of Tebra's contract terms).
+  Tebra's home and pricing pages do not mention dentistry, and the page now
+  says that. **How read:** four first-hand, by fetching the page and
+  searching its text; Adit's through the fetch tool twice, because its site
+  answers a plain request with a challenge page. One RevenueWell claim rests
+  on its help centre, which refused both readers — kept on a search engine's
+  copy of the article, and reworded to say only what that copy says.
+- **"No check, no date" outlived its last example.** With all eight read, the
+  tests that picked an unread entry had nothing to pick. The rule is held on
+  a planted one now (`tests/marketing/unchecked-comparison.test.tsx`): no
+  date on its page, none in the sitemap, no ad pointed at it.
+- **The listing kit** (`lib/marketing/listing-kit.ts`) — the copy for G2 and
+  every other profile, generated from the resolved price, trial, insurance
+  allowance and comparison registry, and printed into
+  `docs/organic-go-live.md` between markers a test compares. "Dental" beside
+  the name in every field; no compliance word, no texting, no phones, no
+  superlative; the trial always with its card; the list price left out
+  (11.5 item 1); Open Dental left out (11.5 item 7).
+- **`docs/organic-go-live.md`** — the runbook.
+- **Verified live, 2026-11-24:** `/`, `/pricing` and `/sitemap.xml` answer 200
+  to the user agents of OpenAI's search crawler, ChatGPT's fetcher, GPTBot,
+  PerplexityBot, ClaudeBot, Bingbot and Googlebot.
+- **What a careful reader should know.** No notice has been sent to a real
+  engine: the pass is inert outside the public host, so its first run is the
+  first hour after deploy. The protocol's response codes are implemented from
+  its documentation, not observed. "Bing's index does not hold the site" is
+  two queries, not a Webmaster Tools report. And none of this is the lever
+  that matters most — Part 12 item 3 is the owner's, and it has not started.
+
+**Part 12 slice 2 — `/about`: which DreamCRM this is (2026-11-24, no migration).**
+
+- **A facts page** (`lib/marketing/about.ts`, `app/(marketing)/about/`). The
+  site had no page whose job was to STATE what the product is; the home page
+  argues, the tour shows, pricing prices. This one is a definition list in the
+  server HTML — what it is, who makes it, who it is for, what it costs, the
+  trial with its card, what it works with — then what is included, what it
+  does not do, a note that other products share the name, and the eight
+  comparisons.
+- **It writes almost nothing of its own.** The summary, the definition, the
+  audience, the price, both lists and the comparison links are the listing
+  kit's and the registry's, compared by test. A product described identically
+  on its own site and on a marketplace gives each page a second witness.
+- **What it withholds, by test:** the operator's name and email (the Privacy
+  Policy carries them; a marketing page naming the owner is his ruling), the
+  street and ZIP (the town and state are derived from the operator record,
+  never typed), Open Dental (11.5 item 7), every compliance word, and the
+  name of any other product called DreamCRM.
+- **Registered once.** `/about` is on `MARKETING_PUBLIC_PATHS`, so the
+  middleware serves it signed-out, the sitemap lists it and the search notice
+  announces it — keyed on its own data, so a reprice or a trial ruling
+  re-announces it. In the footer of every marketing page, and in the browser
+  sweep at three widths.
+- **Found by looking, and fixed on nine pages.** The hero button the
+  comparison pages gained in slice 1 sits in a row beside its caption, and
+  the caption won: from 640px up the button was squeezed to its narrowest
+  word and "Start your free trial" broke onto two lines — on all eight
+  comparison pages, for a day, and on this page, which copied the pattern.
+  Every unit test was green, because none has a layout engine; it was seen
+  in a screenshot. The wrapper no longer lets the button shrink
+  (`sm:shrink-0`), and the browser sweep now asks the engine how many lines
+  every primary button's label occupies, on every marketing page at three
+  widths (`data-cta="primary"` is the hook). Watched failing first: eighteen
+  failures, exactly those nine pages at 834 and 1440, and none anywhere else.
+
+**Part 12 slice 3 — the pricing guide (2026-11-24, no migration).**
+
+- **`/resources/dental-software-pricing`** — what each vendor's own website
+  says about its price and its contract terms, with the page it came from and
+  the day it was read; who publishes a price and who makes a buyer call; and
+  the questions to ask before a demo. On the day it shipped, six of the eight
+  vendors we compare ourselves with published no price.
+- **It has no words of its own about a competitor.** Every pricing line,
+  contract answer, source and date is read from the comparison registry
+  (`publishesPrice`, `contractAnswer`, `latestPricingCheck` are the three
+  readers), compared verbatim by test. A second copy of a competitor's price
+  is how a page comes to disagree with the vendor it quotes.
+- **Never a number in a vendor's mouth.** A vendor whose site states no price
+  is listed as stating none; any figure beside it is attributed to the third
+  parties who reported it; the two lists are held to be everyone exactly once.
+  Every pricing line in the registry must open one of three ways, so a new
+  entry cannot be classified by accident.
+- **Dated truthfully.** The guide's own date is the day of the newest read,
+  by test, so its sitemap date is real; an entry nobody read is not on the
+  page. Its search-notice key follows the registry it is built from, so a
+  same-day correction to a competitor's record re-announces the guide too.
+- **Not a ranking.** We are not on the list; our price is in the close,
+  resolved, with the trial and its card. The page says we make one of these
+  products and that this is a reason to check it. The guide shell gained an
+  optional closing block, because "everything in this guide is a job the
+  software does" is untrue of a guide about other companies' prices.
+- **Why a page and not a post.** The platform's seeded posts are written once
+  and never touched again; a price list frozen on its publication day is the
+  defect `pricingChecked` exists to end.

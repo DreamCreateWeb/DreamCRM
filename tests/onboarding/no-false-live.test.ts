@@ -56,11 +56,13 @@ describe('the signup journey never tells a new clinic its private site is live',
 
   it('the welcome email says what is true: drafted, private until published, with the Website hub as its door', () => {
     const email = readFileSync(join(ROOT, 'lib/email.ts'), 'utf8')
-    expect(email).toContain("subject: 'Welcome to DreamCRM — your trial is live'")
+    // The welcome is sent when the TRIAL starts (the card is added), from the
+    // billing notifications — not at signup. Same honesty about the site.
+    expect(email).toContain("subject: 'Welcome to DreamCRM — your free trial has started'")
     expect(email).toMatch(/Your website is drafted and waiting at/)
     expect(email).toMatch(/only you can see it until you publish/)
     expect(email).toMatch(/buttonUrl: data\.websiteHubUrl/)
-    const caller = readFileSync(join(ROOT, 'app/(onboarding)/actions.ts'), 'utf8')
-    expect(caller).toMatch(/websiteHubUrl: `\$\{base\}\/website`/)
+    const caller = readFileSync(join(ROOT, 'lib/services/billing-notifications.ts'), 'utf8')
+    expect(caller).toMatch(/websiteHubUrl: `\$\{APP_URL\}\/website`/)
   })
 })

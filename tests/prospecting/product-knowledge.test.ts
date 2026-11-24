@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { TRIAL_DAYS } from '@/lib/trial'
 import {
   PRODUCT_KNOWLEDGE,
   PRODUCT_KNOWLEDGE_SHORT,
@@ -26,7 +27,13 @@ describe('product knowledge — the facts the AI sells on', () => {
       expect(k).not.toContain('$150')
       expect(k).not.toContain('$250')
       expect(k).not.toMatch(/beta/i)
-      expect(k).toMatch(/7-day free trial/i)
+      // The length is the one constant Stripe is given; the card is REQUIRED
+      // (owner ruling 2026-11-23), and the model is told so in words it
+      // cannot read as "no card".
+      expect(k).toContain(`${TRIAL_DAYS}-day free trial`)
+      expect(k).toMatch(/card (is )?required to start/i)
+      expect(k).toMatch(/not charged until the trial ends/i)
+      expect(k).not.toMatch(/7-day/i)
     }
   })
 

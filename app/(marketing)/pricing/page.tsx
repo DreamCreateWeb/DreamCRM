@@ -10,8 +10,8 @@ import {
   DAY_WIRE,
   type ToneTileGlyph,
 } from '@/components/marketing/ui'
-import { JsonLd, faqPageLd, softwareApplicationLd } from '@/lib/marketing/seo'
-import { usd } from '@/lib/marketing/site'
+import { JsonLd, faqPageLd, pageMetadata, softwareApplicationLd } from '@/lib/marketing/seo'
+import { usd, TRIAL } from '@/lib/marketing/site'
 import { getQuotedPlan } from '@/lib/stripe-config'
 import { PriceCard } from './price-card'
 import { INCLUDED_MONTHLY_INSURANCE_CHECKS } from '@/lib/insurance-eligibility'
@@ -156,7 +156,7 @@ const INCLUDED: Array<{ group: string; glyph: ToneTileGlyph; rows: string[] }> =
 const PRICING_FAQS: Array<{ q: string; a: string }> = [
   {
     q: 'Do I have to pay to try it?',
-    a: 'No. Every practice starts with a 7-day free trial of everything — website, booking, portal, messaging, reviews, marketing, all of it — with no credit card required. You add billing only when you decide to stay.',
+    a: `No. Every practice starts with a ${TRIAL.name} of everything — website, booking, portal, messaging, reviews, marketing, all of it. You add a card to start it; the card is not charged until the trial ends, and if you cancel before then from Settings → Plan & billing you pay nothing.`,
   },
   {
     q: 'Is there a contract or setup fee?',
@@ -201,15 +201,17 @@ const PRICING_FAQS: Array<{ q: string; a: string }> = [
   },
 ]
 
-export const metadata = {
-  title: 'Pricing — DreamCRM',
-  alternates: { canonical: '/pricing' },
+export const metadata = pageMetadata({
+  // The price in the title is RESOLVED like every other copy of it on this
+  // page (DREAMCRM-38) — a typed one would be the eleventh place to forget.
+  title: `DreamCRM pricing: ${usd(PRICE.rateMonthly)}/mo for the whole dental front office`,
   description:
     `One plan, everything included: ${usd(PRICE.rateMonthly)}/mo founding practice rate` +
     `${PRICE.listMonthly ? ` (regularly ${usd(PRICE.listMonthly)})` : ''}. ` +
     'Website, booking, portal, messaging, reviews, recall, shop, insurance checks, PMS sync. ' +
     `Month-to-month, no contract — or annual with 2 months free (${usd(PRICE.rateAnnual)}/year).`,
-}
+  path: '/pricing',
+})
 
 /* `SectionOpener` moved to `components/marketing/ui.tsx` on move 6 page 2
    (DREAMCRM-76). It was local here on purpose while ONE page wanted the shape;
@@ -330,11 +332,11 @@ export default function PricingPage() {
             Start today
           </div>
           <h2 className="text-[1.9rem] font-extrabold leading-[1.05] tracking-[-0.03em] text-gray-950 sm:text-[2.4rem]">
-            Run it for a week before you decide.
+            Run it for {TRIAL.span} before you decide.
           </h2>
           <p className="mt-4 text-[1rem] leading-relaxed text-gray-600">
-            Seven days of the whole platform on your own practice — your website, your
-            booking page, your patients. No card, and nothing to cancel if you walk away.
+            {TRIAL.daysWord} days of the whole platform on your own practice — your website, your
+            booking page, your patients. {TRIAL.cardTerms}
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             <PrimaryCta href="/signup">Start your free trial</PrimaryCta>
@@ -344,7 +346,7 @@ export default function PricingPage() {
               no mark at all. Part 3 — "every mark says something", and four
               tiles here would be four statements the price has already made. */}
           <div className={`mt-8 flex flex-wrap items-center gap-x-3 gap-y-2 text-gray-600 ${MONO_LABEL}`}>
-            {['7 days free', 'No card to start', `${usd(PRICE.rateMonthly)}/mo after, flat`, 'Month-to-month'].map(
+            {[TRIAL.chip, TRIAL.cardChip, `${usd(PRICE.rateMonthly)}/mo after, flat`, 'Month-to-month'].map(
               (t, i) => (
                 <span key={t} className="flex items-center gap-3">
                   {i > 0 && <span className="h-1 w-1 rounded-full bg-teal-600" aria-hidden="true" />}

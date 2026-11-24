@@ -97,6 +97,33 @@ describe('getDialsReport', () => {
     ])
   })
 
+  it('COST PER TRIAL counts trials STARTED: a signup still awaiting its card is not one', async () => {
+    // Owner ruling 2026-11-23 (card required to sign up). $900 that produced
+    // three signups, one of which added a card, bought ONE trial at $900 —
+    // not three at $300. Counting the other two would grade a channel that
+    // loses people at the card step as three times cheaper than it is.
+    state.selectQueue.push([{ month: '2026-06', channel: 'google_ads', amountCents: 900_00, note: null }])
+    const row = (subscriptionStatus: string | null, stripeSubscriptionId: string | null) => ({
+      createdAt: new Date('2026-06-10T12:00:00Z'),
+      // A COMPLETE stamp (a signup stamp needs both instants, or it reads as
+      // untracked and the per-channel figure below would be vacuous).
+      attribution: {
+        channel: 'google_ads',
+        landing: '/',
+        firstSeenAt: '2026-06-01T00:00:00.000Z',
+        signedUpAt: '2026-06-10T12:00:00.000Z',
+      },
+      subscriptionStatus,
+      stripeSubscriptionId,
+    })
+    state.selectQueue.push([row('awaiting_card', null), row('awaiting_card', null), row('trialing', 'sub_1')])
+    const report = await getDialsReport(NOW)
+    const june = report.assessment.months.find((m) => m.month === '2026-06')!
+    expect(june.trials).toBe(1)
+    const google = june.channels.find((c) => c.channel === 'google_ads')!
+    expect(google).toMatchObject({ trials: 1, costPerTrialCents: 900_00 })
+  })
+
   it('a spend row on an unknown channel is dropped, never a crash or a phantom channel', async () => {
     state.selectQueue.push([{ month: '2026-06', channel: 'billboards', amountCents: 900_00, note: null }])
     state.selectQueue.push([])

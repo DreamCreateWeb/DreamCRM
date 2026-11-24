@@ -3,6 +3,8 @@ import { getSessionCookie } from 'better-auth/cookies'
 import { MARKETING_PUBLIC_PATHS } from '@/lib/marketing/site'
 import { isKnownRoute } from '@/lib/known-routes'
 import { RESERVED_SLUGS } from '@/lib/onboarding/slug'
+import { DEMO_CLINIC_SLUG } from '@/lib/services/demo-constants'
+import { INDEXNOW_KEY, INDEXNOW_KEY_PATH } from '@/lib/indexnow'
 import {
   ATTRIBUTION_COOKIE,
   ATTRIBUTION_COOKIE_MAX_AGE_SECONDS,
@@ -277,6 +279,34 @@ function withPortalClinicCookie<T extends NextResponse>(request: NextRequest, pa
   return res
 }
 
+/**
+ * THE DEMO PRACTICE IS NOT A PRACTICE, SO IT STAYS OUT OF SEARCH.
+ *
+ * "Dream Dental" is the fully-populated showcase the marketing site links to.
+ * It is seeded: an invented address, an invented phone number, staff who do
+ * not exist, and — because it runs the same templates a real clinic does —
+ * `Dentist` structured data describing all of it. Indexed, that is a dental
+ * office a patient could find in a search result and cannot visit, published
+ * on the platform's own domain (site audit 2026-11-23, finding 13).
+ *
+ * `X-Robots-Tag: noindex` on every response under the demo's path: honoured
+ * by Google and Bing, needs no change to any of the page-level metadata the
+ * templates own, and leaves the pages CRAWLABLE — which is how an engine that
+ * already indexed one learns to drop it (a robots.txt disallow would hide the
+ * instruction along with the page). Keyed on the path the request resolves
+ * to, so the subdomain form and `www…/site/<slug>` are both covered. It is a
+ * property of THIS slug only: a real clinic's site must never carry it, and
+ * tests/middleware.test.ts says so.
+ */
+const DEMO_SITE_PATH = `/site/${DEMO_CLINIC_SLUG}`
+
+function withDemoNoindex<T extends NextResponse>(sitePathname: string, res: T): T {
+  if (sitePathname === DEMO_SITE_PATH || sitePathname.startsWith(`${DEMO_SITE_PATH}/`)) {
+    res.headers.set('X-Robots-Tag', 'noindex')
+  }
+  return res
+}
+
 /** Where an unauthenticated /patient/* request goes — never /signin. */
 function portalExpiredDoor(request: NextRequest): URL {
   const url = request.nextUrl.clone()
@@ -325,14 +355,17 @@ function siteResponse(request: NextRequest, pathname: string) {
   // above: the layout can't read the pathname, so middleware tells it.
   const accessRoute = /^\/site\/[^/]+\/(portal|intake-start)(\/.*)?$/.test(pathname)
   if (!frame && !accessRoute && !request.headers.has('x-dc-template-frame') && !request.headers.has('x-dc-access-route')) {
-    return NextResponse.next()
+    return withDemoNoindex(pathname, NextResponse.next())
   }
   const requestHeaders = new Headers(request.headers)
   requestHeaders.delete('x-dc-template-frame')
   requestHeaders.delete('x-dc-access-route')
   if (frame) requestHeaders.set('x-dc-template-frame', frame[1])
   if (accessRoute) requestHeaders.set('x-dc-access-route', '1')
-  return withPortalClinicCookie(request, pathname, NextResponse.next({ request: { headers: requestHeaders } }))
+  return withDemoNoindex(
+    pathname,
+    withPortalClinicCookie(request, pathname, NextResponse.next({ request: { headers: requestHeaders } })),
+  )
 }
 
 export async function middleware(request: NextRequest) {
@@ -382,6 +415,21 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // The IndexNow key file (lib/indexnow.ts). The protocol requires
+  // `/<key>.txt` at the ROOT of every host we announce pages for, containing
+  // the key and nothing else — it is how an engine checks that whoever sent a
+  // notice also controls the host. Answered here, before any host logic, so
+  // it is the same file on www, on a clinic's subdomain and on a custom
+  // domain (each is a separate host to the protocol). The key is public by
+  // design; this leaks nothing. An exact match on one path — every other
+  // `.txt` still falls through to the rules below.
+  if (pathname === INDEXNOW_KEY_PATH) {
+    return new NextResponse(INDEXNOW_KEY, {
+      status: 200,
+      headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'public, max-age=3600' },
+    })
+  }
+
   // Vendor webhooks (Stripe, Stripe Connect, Gmail Pub/Sub, …) POST here and
   // do NOT follow redirects — a host-canonicalization 308 reads as a failed
   // delivery on their side. Serve them on whatever host they arrive at.
@@ -408,7 +456,7 @@ export async function middleware(request: NextRequest) {
     if (slug && !RESERVED_SLUGS.has(slug)) {
       const url = request.nextUrl.clone()
       url.pathname = `/site/${slug}${pathname === '/' ? '' : pathname}`
-      return withPortalClinicCookie(request, url.pathname, NextResponse.rewrite(url))
+      return withDemoNoindex(url.pathname, withPortalClinicCookie(request, url.pathname, NextResponse.rewrite(url)))
     }
   }
 
@@ -440,7 +488,10 @@ export async function middleware(request: NextRequest) {
       // comparison it makes is tedpinneydds.com against tedpinneydds.com.
       const headers = new Headers(request.headers)
       headers.set('x-forwarded-host', hostname)
-      return withPortalClinicCookie(request, url.pathname, NextResponse.rewrite(url, { request: { headers } }))
+      return withDemoNoindex(
+        url.pathname,
+        withPortalClinicCookie(request, url.pathname, NextResponse.rewrite(url, { request: { headers } })),
+      )
     }
   }
 

@@ -245,22 +245,66 @@ const ANIMATION_BUDGET_MS = 3_000
  * Infinite animations are skipped deliberately: `mkt-float` and `mkt-marquee`
  * in `components/marketing/ui.tsx` never finish, and waiting on them would
  * spend the whole budget on every marketing stop for nothing.
+ *
+ * ONE LOOK IS NOT ENOUGH — the residual false red, found 2026-11-24.
+ *
+ * This used to take a single snapshot of `document.getAnimations()` and wait
+ * for those. But `ScrollReveal` gives every item its OWN IntersectionObserver,
+ * so the three "what to expect" cards on the booking page do not start
+ * together: each begins its fade when IT crosses into view, and the last one
+ * can begin after the snapshot was taken. The scan then waited for the first
+ * two, and measured the third some 700ms later with a fraction of its fade
+ * still to run — `.gap-4.flex:nth-child(3) > div > h3` at 3.79:1 on one run
+ * and 3.09:1 on the next, the same element at two points of one fade, exactly
+ * the signature described above. Measured: 1 failure in 16 runs of
+ * `e2e/booking.spec.ts` on one build, and a red full suite on a change that
+ * touched no clinic page.
+ *
+ * So it now waits for what is running, then requires a QUIET WINDOW with
+ * nothing finite running before it believes the page has settled, and goes
+ * round again if something started in the meantime. The window is two frames
+ * plus `ANIMATION_QUIET_MS` — long enough for an observer callback, a React
+ * commit and a style recalculation to turn "about to fade" into an animation
+ * this can see. The whole loop is still bounded by the one budget.
  */
+const ANIMATION_QUIET_MS = 150
+
 async function settleAnimations(page: Page, budgetMs = ANIMATION_BUDGET_MS): Promise<void> {
-  await page.evaluate(async (budget) => {
-    const finishing = document.getAnimations().filter((a) => {
-      // A CSS transition reports iterations 1; a spinner reports Infinity.
-      const iterations = a.effect?.getComputedTiming().iterations
-      return iterations !== Infinity
-    })
-    if (finishing.length === 0) return
-    await Promise.race([
-      // `.finished` rejects if an animation is cancelled — that is a settled
-      // outcome for our purposes, so swallow it rather than failing the scan.
-      Promise.all(finishing.map((a) => a.finished.catch(() => undefined))),
-      new Promise((resolve) => setTimeout(resolve, budget)),
-    ])
-  }, budgetMs)
+  await page.evaluate(
+    async ({ budget, quiet }) => {
+      const deadline = performance.now() + budget
+      const remaining = () => Math.max(0, deadline - performance.now())
+      const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+      const frame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+      const finite = () =>
+        document.getAnimations().filter((a) => {
+          // A CSS transition reports iterations 1; a spinner reports Infinity.
+          const iterations = a.effect?.getComputedTiming().iterations
+          return iterations !== Infinity && a.playState !== 'finished' && a.playState !== 'idle'
+        })
+
+      for (;;) {
+        const running = finite()
+        if (running.length > 0) {
+          await Promise.race([
+            // `.finished` rejects if an animation is cancelled — that is a
+            // settled outcome for our purposes, so swallow it rather than
+            // failing the scan.
+            Promise.all(running.map((a) => a.finished.catch(() => undefined))),
+            sleep(remaining()),
+          ])
+        }
+        if (remaining() === 0) return
+        // The quiet window: anything that was about to start gets the chance
+        // to become an animation we can see.
+        await sleep(Math.min(quiet, remaining()))
+        await frame()
+        await frame()
+        if (finite().length === 0 || remaining() === 0) return
+      }
+    },
+    { budget: budgetMs, quiet: ANIMATION_QUIET_MS },
+  )
 }
 
 /**

@@ -1036,10 +1036,11 @@ export async function sendVerificationEmail(to: string, verifyUrl: string) {
   })
 }
 
-/** Escalating trial-ending email, keyed by the same milestones the cron uses. */
-export type TrialEmailMilestone = 'd3' | 'd1' | 'ended'
+/** Trial email, keyed by the same milestones the cron uses (lib/trial.ts). */
+export type TrialEmailMilestone = 'd7' | 'd3' | 'd1' | 'ended'
 
-const TRIAL_EMAIL: Record<TrialEmailMilestone, { subject: string; heading: string; intro: string; accent: string }> = {
+/** The NO-CARD trial's escalating ask: add a card before the trial runs out. */
+const TRIAL_EMAIL: Record<Exclude<TrialEmailMilestone, 'd7'>, { subject: string; heading: string; intro: string; accent: string }> = {
   d3: {
     subject: '3 days left in your DreamCRM free trial',
     heading: '3 days left in your free trial',
@@ -1063,14 +1064,64 @@ const TRIAL_EMAIL: Record<TrialEmailMilestone, { subject: string; heading: strin
   },
 }
 
-/** Trial-ending nudge to a clinic owner. Platform-identity send (Dream Create),
- *  NOT the clinic's patient-facing sender — this is billing comms TO the clinic. */
+/**
+ * THE PRE-CHARGE NOTICE for a trial with a card on file (owner ruling
+ * 2026-11-23: 14 days, card required to sign up). The opposite email from the
+ * one above: nothing is asked for, and one thing is said plainly — the day
+ * the card is charged, and how to stop that.
+ *
+ * It names the DATE and never an amount. The amount Stripe will charge
+ * depends on the billing period chosen, a promo code, and sales tax by state;
+ * a figure typed here would be wrong for some of the people reading it. The
+ * billing page shows Stripe's own number, so the email points there.
+ */
+function cardOnFileTrialEmail(chargeDate: string): { subject: string; heading: string; intro: string; accent: string } {
+  const date = escapeHtml(chargeDate)
+  return {
+    subject: `Your DreamCRM free trial ends ${chargeDate}`,
+    heading: `Your free trial ends ${date}`,
+    intro:
+      `A heads-up before your first charge: on <strong>${date}</strong> your free trial ends, your subscription starts, ` +
+      'and the card on file is charged for your plan. The exact amount, with any tax, is on your billing page.' +
+      '<br><br>Staying? There is nothing to do. Not for you? Cancel before then from Settings → Plan &amp; billing and you will not be charged.',
+    accent: '#28B3AD',
+  }
+}
+
+/** Trial email to a clinic owner. Platform-identity send (Dream Create), NOT
+ *  the clinic's patient-facing sender — this is billing comms TO the clinic.
+ *  `cardOnFile` switches it from the no-card ask to the pre-charge notice. */
 export async function sendTrialReminderEmail(
   to: string,
-  data: { firstName: string | null; milestone: TrialEmailMilestone; billingUrl: string },
+  data: {
+    firstName: string | null
+    milestone: TrialEmailMilestone
+    billingUrl: string
+    /** Set for a trial with a card on file: the day the card is charged,
+     *  already formatted in the clinic's own timezone. */
+    cardOnFile?: { chargeDate: string }
+  },
 ) {
-  const t = TRIAL_EMAIL[data.milestone]
   const hi = data.firstName ? `Hi ${escapeHtml(data.firstName)},` : 'Hi,'
+  if (data.cardOnFile) {
+    const c = cardOnFileTrialEmail(data.cardOnFile.chargeDate)
+    await deliver({
+      to,
+      subject: c.subject,
+      html: authEmailShell({
+        heading: c.heading,
+        introHtml: `${hi}<br><br>${c.intro}`,
+        buttonUrl: data.billingUrl,
+        buttonLabel: 'Review plan & billing',
+        accent: c.accent,
+        footnoteHtml: 'You’re receiving this because your clinic started a DreamCRM free trial with a card on file.',
+      }),
+    })
+    return
+  }
+  // The no-card schedule has no week-out milestone; a 'd7' with no card on
+  // file is a caller bug, and the 3-day copy is the nearest true thing to say.
+  const t = TRIAL_EMAIL[data.milestone === 'd7' ? 'd3' : data.milestone]
   await deliver({
     to,
     subject: t.subject,
@@ -1086,17 +1137,29 @@ export async function sendTrialReminderEmail(
 }
 
 /**
- * Welcome email the moment a clinic's no-card trial starts (from onboarding).
- * Platform-identity send. Doubles as an early deliverability check — before
- * this, the FIRST email an owner ever got was the day-3 trial reminder, so a
- * typo'd signup address went unnoticed until reminders and password resets
- * were already going nowhere.
+ * "Your free trial has started" — the welcome. Sent ONCE, when a signup adds
+ * its card and Stripe opens the trial (the Stripe webhook, through
+ * `sendTrialStartedEmailOnce`), not at signup: until the card is added there
+ * is no trial to welcome anybody to (owner ruling 2026-11-23).
+ *
+ * It is also the written record of what was agreed at the card step — when
+ * the trial ends, that the card is charged that day, and how to stop it. A
+ * card-on-file trial owes its customer that in an inbox, not only on a
+ * checkout page they have already closed. The DATE, never an amount, for the
+ * reason `cardOnFileTrialEmail` gives.
+ *
+ * Platform-identity send, and still the earliest deliverability check on the
+ * owner's address.
  */
-export async function sendTrialWelcomeEmail(
+export async function sendTrialStartedEmail(
   to: string,
   data: {
     firstName: string | null
     clinicName: string
+    /** The day the trial ends and the card is charged, already formatted in
+     *  the clinic's own timezone. Null only when Stripe's date never synced —
+     *  the email then says "when your trial ends" rather than guess a day. */
+    chargeDate: string | null
     /** The Website hub — where the Publish card lives, so the one button in
      *  the one email every owner reads lands where the site goes live. */
     websiteHubUrl: string
@@ -1114,14 +1177,20 @@ export async function sendTrialWelcomeEmail(
         data.siteUrl.replace('https://', ''),
       )}</a> — only you can see it until you publish it from Website, so take your time making it yours.`
     : ''
+  const opening = data.chargeDate
+    ? `Your free trial ends on <strong>${escapeHtml(data.chargeDate)}</strong>. That day your subscription starts and the card you added is charged for your plan`
+    : 'When your free trial ends, your subscription starts and the card you added is charged for your plan (the date is on your billing page)'
+  const termsLine =
+    `<br><br>${opening} — nothing before then. ` +
+    'Cancel any time before that from Settings → Plan &amp; billing and you will not be charged.'
   await deliver({
     to,
-    subject: 'Welcome to DreamCRM — your trial is live',
+    subject: 'Welcome to DreamCRM — your free trial has started',
     html: authEmailShell({
-      heading: 'Your free trial is live',
+      heading: 'Your free trial has started',
       introHtml: `${hi}<br><br>Welcome! <strong>${escapeHtml(
         data.clinicName,
-      )}</strong> is set up with full access for 7 days — website, bookings, patients, messaging, the lot. No card needed. Build your website, invite your team, and see how it fits your front desk.${siteLine}`,
+      )}</strong> has full access — website, bookings, patients, messaging, the lot. Build your website, invite your team, and see how it fits your front desk.${termsLine}${siteLine}`,
       buttonUrl: data.websiteHubUrl,
       buttonLabel: 'Open your Website hub',
       accent: '#28B3AD',

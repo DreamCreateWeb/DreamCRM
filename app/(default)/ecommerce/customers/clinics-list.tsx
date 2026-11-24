@@ -80,7 +80,7 @@ export default function ClinicsList({ rows }: Props) {
   }, [rows, filter, query, sort])
 
   const counts = useMemo(() => {
-    const c: Record<Filter, number> = { all: rows.length, trial: 0, live: 0, past_due: 0, walled: 0, churned: 0, invite_pending: 0 }
+    const c: Record<Filter, number> = { all: rows.length, trial: 0, awaiting_card: 0, live: 0, past_due: 0, walled: 0, churned: 0, invite_pending: 0 }
     for (const r of rows) c[clinicStanding(r).kind]++
     return c
   }, [rows])

@@ -11,6 +11,7 @@ vi.mock('better-auth/cookies', () => ({
 import { getSessionCookie } from 'better-auth/cookies'
 import { middleware } from '@/middleware'
 import { KNOWN_API_SEGMENTS, KNOWN_TOP_LEVEL_SEGMENTS, isKnownRoute } from '@/lib/known-routes'
+import { INDEXNOW_KEY, INDEXNOW_KEY_PATH, isValidIndexNowKey } from '@/lib/indexnow'
 
 function makeRequest(url: string, host = 'www.dreamcreatestudio.com') {
   return new NextRequest(new URL(url), {
@@ -318,11 +319,11 @@ describe('apex + webhook host handling (Vercel redirector retired)', () => {
 })
 
 describe('unknown routes get a real 404, not the sign-in page (DREAM-164)', () => {
-  // The seven paths from the audit: six plausible, one deliberate nonsense
-  // control. All seven answered 200 with byte-identical sign-in HTML.
+  // The paths from the audit: plausible ones, and one deliberate nonsense
+  // control. All of them answered 200 with byte-identical sign-in HTML.
+  // (`/privacy` and `/terms` were two of the original seven; they became REAL
+  // pages on 2026-11-23 and are asserted as such just below.)
   const AUDITED = [
-    '/privacy',
-    '/terms',
     '/baa',
     '/security',
     '/legal',
@@ -336,6 +337,15 @@ describe('unknown routes get a real 404, not the sign-in page (DREAM-164)', () =
       const res = (await middleware(req)) as NextResponse
       expect(res.headers.get('location'), path).toBeNull()
       expect(res.headers.get('x-middleware-rewrite'), path).toContain('/_dc-not-found')
+    }
+  })
+
+  it('the Privacy Policy and the Terms are real, PUBLIC pages now — served, not 404ed and not sent to sign-in', async () => {
+    for (const path of ['/privacy', '/terms']) {
+      const req = makeRequest(`https://www.dreamcreatestudio.com${path}`)
+      const res = (await middleware(req)) as NextResponse
+      expect(res.headers.get('location'), path).toBeNull()
+      expect(res.headers.get('x-middleware-rewrite') ?? '', path).not.toContain('/_dc-not-found')
     }
   })
 
@@ -506,5 +516,92 @@ describe('portal session expiry (ML-49) — a timed-out patient lands on their c
     expect(staff.headers.get('location') ?? '').toMatch(/\/signin\?redirect=%2Fdashboard$/)
     const door = (await middleware(makeRequest(`https://${www}/portal`))) as NextResponse
     expect(door.headers.get('location')).toBeNull()
+  })
+})
+
+/**
+ * THE DEMO PRACTICE STAYS OUT OF SEARCH (site audit 2026-11-23, finding 13).
+ * "Dream Dental" is seeded — an invented address, phone and staff, with
+ * `Dentist` structured data describing them — and it was indexable on the
+ * platform's own domain. Every response under its path now carries
+ * `X-Robots-Tag: noindex`. The half that matters most is the negative: a real
+ * clinic's site must NEVER get that header.
+ */
+describe('the demo practice is noindexed; real clinics never are', () => {
+  const DEMO = 'acme-dental-demo'
+
+  it('the demo on its own subdomain: still served, and marked noindex on every page', async () => {
+    for (const path of ['/', '/services', '/book', '/about']) {
+      const req = makeRequest(`https://${DEMO}.dreamcreatestudio.com${path}`, `${DEMO}.dreamcreatestudio.com`)
+      const res = (await middleware(req)) as NextResponse
+      expect(res.headers.get('x-middleware-rewrite'), path).toContain(`/site/${DEMO}`)
+      expect(res.headers.get('x-robots-tag'), path).toBe('noindex')
+    }
+  })
+
+  it('the same demo addressed as www…/site/<slug> is covered too', async () => {
+    for (const path of [`/site/${DEMO}`, `/site/${DEMO}/services`, `/site/${DEMO}/portal`]) {
+      const res = (await middleware(makeRequest(`https://www.dreamcreatestudio.com${path}`))) as NextResponse
+      expect(res.headers.get('x-robots-tag'), path).toBe('noindex')
+      expect(res.headers.get('location'), path).toBeNull()
+    }
+  })
+
+  it('A REAL CLINIC IS NEVER NOINDEXED — by subdomain, by path, or by a slug that merely starts like the demo', async () => {
+    const real: Array<[string, string]> = [
+      ['https://acme.dreamcreatestudio.com/', 'acme.dreamcreatestudio.com'],
+      ['https://bright-smile.dreamcreatestudio.com/services', 'bright-smile.dreamcreatestudio.com'],
+      // A prefix match would catch this one; the rule is the exact slug.
+      [`https://${DEMO}-2.dreamcreatestudio.com/`, `${DEMO}-2.dreamcreatestudio.com`],
+      ['https://www.dreamcreatestudio.com/site/acme/services', 'www.dreamcreatestudio.com'],
+      [`https://www.dreamcreatestudio.com/site/${DEMO}-2`, 'www.dreamcreatestudio.com'],
+    ]
+    for (const [url, host] of real) {
+      const res = (await middleware(makeRequest(url, host))) as NextResponse
+      expect(res.headers.get('x-robots-tag'), url).toBeNull()
+    }
+  })
+
+  it('the marketing site itself is not touched', async () => {
+    for (const path of ['/', '/pricing', '/compare/weave', '/privacy']) {
+      const res = (await middleware(makeRequest(`https://www.dreamcreatestudio.com${path}`))) as NextResponse
+      expect(res.headers.get('x-robots-tag'), path).toBeNull()
+    }
+  })
+})
+
+/**
+ * THE INDEXNOW KEY FILE (lib/indexnow.ts) — `/<key>.txt` at the root of every
+ * host, containing the key and nothing else. An engine that cannot read it
+ * discards the notice it was sent and says nothing, so this is the one part
+ * of the notices that fails silently. Without the branch the path is an
+ * unknown top-level route and the middleware answers 404.
+ */
+describe('the IndexNow key file is served at the root of every host', () => {
+  it('the key has the shape the protocol requires', () => {
+    expect(isValidIndexNowKey(INDEXNOW_KEY)).toBe(true)
+    expect(INDEXNOW_KEY_PATH).toBe(`/${INDEXNOW_KEY}.txt`)
+  })
+
+  it('www, a clinic subdomain and the legacy app host all answer with the key as plain text', async () => {
+    const hosts = ['www.dreamcreatestudio.com', 'acme.dreamcreatestudio.com', 'app.dreamcreatestudio.com']
+    for (const host of hosts) {
+      const res = (await middleware(makeRequest(`https://${host}${INDEXNOW_KEY_PATH}`, host))) as NextResponse
+      expect(res.status, host).toBe(200)
+      expect(res.headers.get('content-type'), host).toMatch(/^text\/plain/)
+      expect(await res.text(), host).toBe(INDEXNOW_KEY)
+      // Served, not redirected and not rewritten into a clinic's site.
+      expect(res.headers.get('location'), host).toBeNull()
+      expect(res.headers.get('x-middleware-rewrite'), host).toBeNull()
+    }
+  })
+
+  it('ONLY that exact path: a near miss is still an unknown page, not a second key file', async () => {
+    const near = [`/${INDEXNOW_KEY}`, `/${INDEXNOW_KEY}.txt/`, `/x${INDEXNOW_KEY}.txt`, `/${INDEXNOW_KEY.slice(1)}.txt`, '/key.txt']
+    for (const path of near) {
+      const res = (await middleware(makeRequest(`https://www.dreamcreatestudio.com${path}`))) as NextResponse
+      const body = res.body ? await res.text() : ''
+      expect(body, path).not.toBe(INDEXNOW_KEY)
+    }
   })
 })

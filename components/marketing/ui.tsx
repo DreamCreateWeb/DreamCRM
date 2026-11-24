@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { FOOTER_COLUMNS, MARKETING } from '@/lib/marketing/site'
+import { FOOTER_COLUMNS, LEGAL_LINKS, MARKETING } from '@/lib/marketing/site'
 import { COMPARISONS } from '@/lib/marketing/comparisons'
 import { DreamCreateLogo } from '@/components/brand/dream-create-logo'
 import { TONE_FILL } from '@/lib/ui/encodings'
@@ -540,6 +540,7 @@ export function HeroPrimaryCta({ href, children }: { href: string; children: Rea
   return (
     <Link
       href={href}
+      data-cta="primary"
       className="inline-flex w-full items-center justify-center rounded-[10px] bg-gradient-to-r from-teal-600 to-teal-700 px-6 py-3 text-[0.95rem] font-semibold text-white shadow-[0_8px_26px_-8px_rgb(58_103_217/0.65)] transition-all duration-150 ease-out hover:-translate-y-px hover:shadow-[0_10px_32px_-8px_rgb(58_103_217/0.78)] sm:w-auto"
     >
       {children}
@@ -808,6 +809,16 @@ export function MarketingFooter() {
           <span>
             © {new Date().getFullYear()} {MARKETING.companyName}. All rights reserved.
           </span>
+          {/* The two documents every page owes a way to: gray-400 on gray-950
+              (6.71:1), underlined so the link does not depend on colour alone,
+              at the row's own 0.78rem — above the 12px floor. */}
+          <nav aria-label="Legal" className="flex items-center gap-4">
+            {LEGAL_LINKS.map((l) => (
+              <Link key={l.href} href={l.href} className="underline underline-offset-2 hover:text-white">
+                {l.label}
+              </Link>
+            ))}
+          </nav>
           <span>Built for dental practices. Your PMS stays yours.</span>
         </div>
         {/* CC BY 4.0 attribution for the animated emoji set — a LICENCE TERM,
@@ -1097,6 +1108,7 @@ export function PrimaryCta({ href, children }: { href: string; children: React.R
   return (
     <Link
       href={href}
+      data-cta="primary"
       className="inline-flex w-full items-center justify-center rounded-[10px] bg-gradient-to-r from-teal-600 to-teal-700 px-5 py-2.5 text-[0.92rem] font-semibold text-white shadow-[0_6px_20px_-8px_rgb(58_103_217/0.6)] transition-all duration-150 ease-out hover:-translate-y-px hover:shadow-[0_9px_26px_-8px_rgb(58_103_217/0.78)] sm:w-auto"
     >
       {children}

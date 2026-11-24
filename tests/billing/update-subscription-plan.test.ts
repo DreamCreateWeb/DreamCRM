@@ -97,6 +97,32 @@ describe('updateSubscriptionPlan', () => {
     expect(stripeMock.subUpdate).not.toHaveBeenCalled()
   })
 
+  it('a FIRST PURCHASE is never a failed plan change: no subscription → false, even for a plan or price this deployment cannot sell', async () => {
+    // The order matters to what a person is TOLD. Thrown from here, the
+    // caller reports "we couldn't confirm that plan change — open Settings to
+    // see which plan you're on". For a clinic with no subscription nothing
+    // changed, and (at the signup card step) Settings is behind the wall. So
+    // "is there a subscription?" is asked first, and a bad plan or a missing
+    // price id is left for Checkout to report in its own words.
+    dbState.profile = { stripeSubscriptionId: null }
+    for (const planId of ['premium', 'not-a-plan'] as const) {
+      await expect(
+        updateSubscriptionPlan({ organizationId: 'org_1', planId: planId as never, interval: 'weekly' as never }),
+      ).resolves.toBe(false)
+    }
+    expect(stripeMock.subRetrieve).not.toHaveBeenCalled()
+  })
+
+  it('a clinic WITH a subscription still hears about a plan or price that cannot be sold', async () => {
+    dbState.profile = { stripeSubscriptionId: 'sub_1' }
+    await expect(
+      updateSubscriptionPlan({ organizationId: 'org_1', planId: 'not-a-plan' as never, interval: 'monthly' }),
+    ).rejects.toThrow(/Unknown plan/)
+    await expect(
+      updateSubscriptionPlan({ organizationId: 'org_1', planId: 'premium', interval: 'weekly' as never }),
+    ).rejects.toThrow(/is not configured/)
+  })
+
   it('returns false when the subscription is dead (canceled)', async () => {
     dbState.profile = { stripeSubscriptionId: 'sub_1', socialAddon: 0 }
     stripeMock.subRetrieve.mockResolvedValue(liveSub({ status: 'canceled' }))

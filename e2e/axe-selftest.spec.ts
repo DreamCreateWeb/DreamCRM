@@ -158,6 +158,71 @@ test.describe('a fade-in is measured settled, not mid-flight', () => {
 })
 
 /**
+ * A FADE THAT STARTS AFTER THE SCAN HAS LOOKED — the residual race, 2026-11-24.
+ *
+ * The two cases above start their animation before the scan is called, which
+ * is the easy half. On the real booking page each `ScrollReveal` item waits
+ * for its own IntersectionObserver, so one of them can begin fading a moment
+ * AFTER `settleAnimations` took its snapshot — and a single snapshot then
+ * reports "nothing running" and measures the element mid-flight. That was a
+ * 1-in-16 false red on `e2e/booking.spec.ts`.
+ *
+ * This page reproduces the order of events rather than the timing luck: the
+ * text sits at a dim, FAILING blend with no animation at all, and the test
+ * arms a timer that starts the fade 60ms later — after the scan has been
+ * called. A scan that looks once sees a still page and measures the dim blend.
+ * One that waits for a quiet window sees the fade begin, waits for it, and
+ * measures the colour a person reads.
+ *
+ * The text starts at opacity 0.45 rather than 0 on purpose: at 0 it would be
+ * invisible to axe and the old behaviour would pass by not looking, which is
+ * the false green the case above already covers.
+ */
+const LATE_PAGE = `<!doctype html>
+<html lang="en">
+  <head>
+    <title>Fading in late</title>
+    <style>
+      body { background: #faf7f2; }
+      .late { color: #6B635A; background: #faf7f2; opacity: 0.45; }
+      .late.go { opacity: 1; transition: opacity 900ms linear; }
+    </style>
+  </head>
+  <body>
+    <main><p class="late">This text is dim until something, a moment from now, starts its fade.</p></main>
+    <script>
+      window.startLate = function () {
+        setTimeout(function () { document.querySelector('.late').classList.add('go') }, 60)
+      }
+    </script>
+  </body>
+</html>`
+
+test.describe('a fade that begins after the scan has looked is still waited for', () => {
+  test('the element is measured settled, not at the blend it started from', async ({ page }) => {
+    await page.setContent(LATE_PAGE)
+    // Armed, not started: the fade begins 60ms from now.
+    await page.evaluate(() => (window as unknown as { startLate: () => void }).startLate())
+
+    expect(
+      (await findA11yViolations(page)).map((v) => v.id),
+      'the scan looked once, saw nothing running, and measured text that was about to fade in',
+    ).toEqual([])
+  })
+
+  test('and a page where nothing ever animates is not held up for the whole budget', async ({ page }) => {
+    await page.setContent(
+      '<!doctype html><html lang="en"><head><title>Still</title></head><body><main><p>Nothing here moves.</p></main></body></html>',
+    )
+    const started = Date.now()
+    await findA11yViolations(page)
+    // The quiet window is a fraction of a second. The 3s budget is a ceiling
+    // for a stuck animation, not a toll on every stop in the suite.
+    expect(Date.now() - started).toBeLessThan(2_000)
+  })
+})
+
+/**
  * The baseline in `e2e/axe-baseline.ts` carries 214 pre-existing violations so
  * the checks could land without merging red. That makes its comparison the
  * most safety-critical line in this harness: get the direction wrong and every

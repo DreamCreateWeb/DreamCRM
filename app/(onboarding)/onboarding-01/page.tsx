@@ -10,7 +10,7 @@ import { ActionButton } from '@/components/ui/action-button'
 
 const COUNTRIES = ['United States', 'Canada', 'United Kingdom', 'Australia', 'Other']
 
-/** Screen 2 of 3 — the practice: name, front-desk phone, and where patients find you. */
+/** Screen 2 of 4 — the practice: name, front-desk phone, and where patients find you. */
 export default function Onboarding01() {
   const [practiceName, setPracticeName] = useState('')
   const [phone, setPhone] = useState('')

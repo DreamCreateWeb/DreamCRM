@@ -3,10 +3,10 @@ import { redirect } from 'next/navigation'
 import { getTenantContext } from '@/lib/auth/context'
 import { homePathFor } from '@/lib/tenant-chrome'
 import { getServerSession } from '@/lib/session'
-import { DEMO_URL, usd } from '@/lib/marketing/site'
+import { DEMO_URL, usd, TRIAL } from '@/lib/marketing/site'
 import { getQuotedPlan } from '@/lib/stripe-config'
 import { COMPARISONS } from '@/lib/marketing/comparisons'
-import { JsonLd, softwareApplicationLd } from '@/lib/marketing/seo'
+import { JsonLd, pageMetadata, softwareApplicationLd } from '@/lib/marketing/seo'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import CinematicSpine from '@/components/marketing/cinematic-spine'
 import {
@@ -49,23 +49,26 @@ const PRICE = {
   listMonthly: PLAN.listPrice ?? null,
 }
 
-export const metadata = {
+/**
+ * THE HEAD, through `pageMetadata` — and the search snippet cut to fit.
+ *
+ * The description ran 290 characters, with the price and the trial as its
+ * LAST clause — the part a result page truncates. It is under 160 now with
+ * the category first and the price inside the visible window; the warmer line
+ * stays on the link-preview card, where there is room for it.
+ */
+export const metadata = pageMetadata({
   title: 'DreamCRM — the patient-relationship platform for dental practices',
   description:
-    'The patient-relationship platform for dental practices: website, online booking, patient portal, messaging, reviews, recall, and an online store — one system, wrapped around the PMS you already run. 7-day free trial, no card. ' +
+    'Dental practice software in one system: website, booking, portal, messages, reviews, recall. ' +
     `${usd(PRICE.rateMonthly)}/mo founding practice rate` +
-    `${PRICE.listMonthly ? ` (regularly ${usd(PRICE.listMonthly)})` : ''}, month-to-month.`,
-  openGraph: {
-    title: 'DreamCRM — the patient-relationship platform for dental practices',
+    `${PRICE.listMonthly ? ` (regularly ${usd(PRICE.listMonthly)})` : ''}. ${TRIAL.days}-day free trial.`,
+  path: '/',
+  social: {
     description:
       'Everything between you and your patients — website, booking, portal, messages, reviews, recall — in one calm system. Keep your PMS.',
-    type: 'website',
-    // A page-level openGraph block replaces the inherited one wholesale,
-    // dropping the root file-convention image — re-add it explicitly
-    // (resolved absolute via metadataBase).
-    images: ['/opengraph-image'],
   },
-}
+})
 
 const PILLARS: Array<{ title: string; body: string; href: string; glyph: React.ReactNode }> = [
   {
@@ -255,7 +258,7 @@ export default async function MarketingHome() {
                 gray-600, not gray-500: 6.91 on white against 5.30, and this
                 row sits closest to the fuchsia lobe's tail. */}
             <div className={`mkt-enter mkt-d4 mt-8 flex flex-wrap items-center gap-x-3 gap-y-2 text-gray-600 ${MONO_LABEL}`}>
-              {['7 days free', 'No card to start', `${usd(PRICE.rateMonthly)}/mo after, flat`, 'Month-to-month'].map((t, i) => (
+              {[TRIAL.chip, TRIAL.cardChip, `${usd(PRICE.rateMonthly)}/mo after, flat`, 'Month-to-month'].map((t, i) => (
                 <span key={t} className="flex items-center gap-3">
                   {i > 0 && <span className="h-1 w-1 rounded-full bg-teal-600" aria-hidden="true" />}
                   {t}
@@ -410,7 +413,7 @@ export default async function MarketingHome() {
               {
                 step: '1',
                 title: 'Create your account',
-                body: 'Name, practice, address, web address, brand color. Four screens, no card.',
+                body: `Name, practice, address, web address, brand color — then a card to start the trial. Nothing is charged for ${TRIAL.days} days.`,
               },
               {
                 step: '2',
@@ -419,8 +422,8 @@ export default async function MarketingHome() {
               },
               {
                 step: '3',
-                title: 'Your site is drafted + your trial starts',
-                body: 'A finished practice site on your address — private until you publish it — and 7 days of the whole platform to run for real.',
+                title: 'Your site is drafted',
+                body: `A finished practice site on your address — private until you publish it — and ${TRIAL.days} days of the whole platform to run for real.`,
               },
               {
                 step: '4',
@@ -525,7 +528,8 @@ export default async function MarketingHome() {
               </h2>
               <p className="mx-auto mt-3 max-w-xl text-[0.95rem] leading-relaxed text-gray-400">
                 Dream Dental is a fully-populated demo practice — browse its public website. When
-                you&apos;re convinced, every practice starts with 7 days of Premium, free, no card.
+                you&apos;re convinced, every practice starts with {TRIAL.days} days of Premium, free.{' '}
+                {TRIAL.cardTerms}
               </p>
               <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
                 <Link

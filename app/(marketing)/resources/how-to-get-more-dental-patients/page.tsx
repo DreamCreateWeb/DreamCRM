@@ -2,14 +2,15 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getResourceGuide } from '@/lib/marketing/resources'
 import { GuideShell, GuideH2, GuideP, GuideList, GuideNote } from '../guide-ui'
+import { pageMetadata } from '@/lib/marketing/seo'
 
 const guide = getResourceGuide('how-to-get-more-dental-patients')
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: 'How to get more dental patients — the order that actually works',
-  description: guide?.description,
-  alternates: { canonical: '/resources/how-to-get-more-dental-patients' },
-}
+  description: guide?.description ?? '',
+  path: '/resources/how-to-get-more-dental-patients',
+})
 
 export default function MorePatientsGuide() {
   if (!guide) notFound()

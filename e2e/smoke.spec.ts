@@ -42,6 +42,23 @@ test.describe('the marketing site (the storefront)', () => {
     await expect(page).toHaveTitle(/.+/)
     await expect(page.locator('h1').first()).toBeVisible()
 
+    // FONT PRELOADS ARE A BUDGET OF ONE. A preload is a high-priority request
+    // that competes with the page's largest paint, so it is spent only on a
+    // face that is above the fold: the mono of the eyebrow and the trust row.
+    // Until 2026-11-24 the root layout also preloaded Geist Sans — a fallback
+    // behind Nunito in the DASHBOARD's stack that no public page reads — on
+    // every page of the platform (70 KB). The source of that is held in
+    // tests/design-system/font-preload.test.ts; this is the result, in the
+    // HTML a crawler and a phone actually receive.
+    const fontPreloads = await page
+      .locator('link[rel="preload"][as="font"]')
+      .evaluateAll((els) => els.map((el) => el.getAttribute('href') ?? ''))
+    expect(
+      fontPreloads.filter((href) => !/GeistMono/.test(href)),
+      'a font other than the mono face is preloaded on the home page',
+    ).toEqual([])
+    expect(fontPreloads.length, 'more than one font file is preloaded').toBeLessThanOrEqual(1)
+
     // The decorative product mock-ups are excluded, and that is the ONLY
     // reason this stop can hold a ceiling of zero. See DECORATIVE_MOCKS in
     // e2e/axe.ts for what is exempted and why — the short version is that

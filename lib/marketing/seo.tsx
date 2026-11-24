@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { MARKETING } from './site'
 import JsonLdScript from '@/components/json-ld'
 
@@ -11,6 +12,76 @@ import JsonLdScript from '@/components/json-ld'
 
 export const SITE_URL = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.dreamcreatestudio.com').replace(/\/+$/, '')
 export const LOGO_URL = `${SITE_URL}/images/dream-create-logo-blue.png`
+
+/**
+ * The share card every marketing page uses — `app/opengraph-image.tsx`, the
+ * root file convention (1200×630). Named here because a page-level
+ * `openGraph` block REPLACES the inherited one wholesale, file-convention
+ * image included; a page that sets its own `og:url` without re-stating the
+ * image ships a share card with no picture.
+ */
+const SHARE_IMAGE = {
+  url: '/opengraph-image',
+  width: 1200,
+  height: 630,
+  alt: `${MARKETING.productName} — ${MARKETING.tagline.toLowerCase()}`,
+}
+
+/**
+ * THE ONE SHAPE OF A MARKETING PAGE'S HEAD.
+ *
+ * Every page under `app/(marketing)` builds its `metadata` here, so the four
+ * things a crawler and a link preview read are present on all of them and
+ * can never disagree with each other:
+ *
+ *  - `canonical` — the page's own address. The live crawl that prompted this
+ *    (2026-11-23) found the HOMEPAGE and the grader with none, on a site that
+ *    is reachable on three hosts (apex, `www`, `app.`) and whose ad landings
+ *    will arrive carrying `utm_*`/`gclid` query strings — the exact shape a
+ *    canonical exists for.
+ *  - `og:url` + `og:type` + `og:site_name` — absent on every page but the
+ *    blog posts, which had hand-written their own.
+ *  - the share image, re-stated (see `SHARE_IMAGE`).
+ *  - a Twitter card whose copy matches the Open Graph copy.
+ *
+ * `path` is site-relative and resolved against the root layout's
+ * `metadataBase`, so the helper needs no base URL of its own. `social` is for
+ * the page whose link-preview line should read differently from its search
+ * snippet (the homepage); omitted, both read the same.
+ *
+ * Held by `tests/marketing/page-head.test.ts`, which walks every marketing
+ * route and fails on one that builds its head by hand.
+ */
+export function pageMetadata(input: {
+  title: string
+  description: string
+  path: string
+  social?: { title?: string; description?: string }
+  type?: 'website' | 'article'
+}): Metadata {
+  const socialTitle = input.social?.title ?? input.title
+  const socialDescription = input.social?.description ?? input.description
+  return {
+    title: input.title,
+    description: input.description,
+    alternates: { canonical: input.path },
+    openGraph: {
+      title: socialTitle,
+      description: socialDescription,
+      url: input.path,
+      siteName: MARKETING.productName,
+      type: input.type ?? 'website',
+      locale: 'en_US',
+      images: [SHARE_IMAGE],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: socialTitle,
+      description: socialDescription,
+      images: [SHARE_IMAGE.url],
+    },
+  }
+}
 
 export function organizationLd() {
   return {

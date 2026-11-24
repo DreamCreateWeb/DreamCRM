@@ -814,7 +814,9 @@ export type StripeWebhookEvent = typeof stripeWebhookEvent.$inferSelect
  * rather than to any clinic. Today: `guardianAudience` (floored at
  * 'platform' by resolveGuardianAudience, so an absent or malformed row can
  * never start the machine talking to customers), `sharedBrain` (the learned
- * send hour), and `guardian` (the daily watch's own heartbeat).
+ * send hour), `guardian` (the daily watch's own heartbeat), and `indexNow`
+ * (which public marketing pages the search engines were last told about).
+ * The full, current list is in lib/services/platform-config.ts.
  *
  * EVERY WRITER OWNS ITS OWN TOP-LEVEL KEY and passes it whole, because
  * `writePlatformConfig` merges shallowly — a read-modify-write here drops

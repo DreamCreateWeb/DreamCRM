@@ -115,6 +115,13 @@ JOBS=(
   # schedule; every tick is idempotent (a landed send stamps email_sent_at,
   # a failed one bumps email_attempts, and a row past the cap is left alone).
   "notification-redrive|notification-redrive|rate(15 minutes)"
+  # Search notices (2026-11-24): tells the engines that take IndexNow (Bing
+  # and the others; not Google) which public marketing pages were added,
+  # changed or removed. It sends only the DIFFERENCE between what is public
+  # and what was last announced (lib/services/indexnow.ts), so an hour in
+  # which nothing changed costs two reads and no request. Hourly is the
+  # ceiling on how long a newly published post waits to be announced.
+  "search-notify|search-notify|rate(1 hour)"
 )
 
 echo "==> DreamCRM cron schedules (region ${REGION})"

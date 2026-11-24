@@ -1103,6 +1103,42 @@ async function seedPartner(pool) {
   console.log('seeded the referral partner (one referred clinic, $60 owed)')
 }
 
+// --- stranger: e2e/stranger.spec.ts ----------------------------------------
+// NOT A FIXTURE — the one scope here that seeds nothing. The stranger journey
+// signs up through the real form, so its clinic does not exist when the run
+// starts, and restoring this scope before the test is a no-op by design.
+//
+// What it does is STAND IN FOR STRIPE. A signup has to add a card to start its
+// 14-day trial (owner ruling 2026-11-23); the card step hands over to Stripe's
+// hosted Checkout; and the harness has no network (docs/E2E.md, "The Stripe
+// boundary"). The spec walks everything on OUR side of that boundary — the
+// card step, the wall behind it, the refusal when Stripe cannot be reached —
+// and then applies this scope MID-JOURNEY (`applySeedScope` in e2e/reseed.ts)
+// to write the columns Stripe's webhook would have: a subscription id,
+// 'trialing', and a trial end fourteen days out. From there the journey is
+// real again.
+//
+// Keyed on the SLUG the spec picks ('stranger-dental'), because the org id is
+// minted at signup. Only a clinic still awaiting its card is touched, so
+// applying it twice — or restoring it on a retry — changes nothing. It writes
+// no `*_e2e_*` row of its own, which is why its SCOPE_ROWS entry is empty.
+async function seedStranger(pool) {
+  const res = await pool.query(
+    `update clinic_profile
+        set subscription_status = 'trialing',
+            stripe_customer_id = 'cus_e2e_stranger',
+            stripe_subscription_id = 'sub_e2e_stranger',
+            trial_ends_at = now() + interval '14 days'
+      where subscription_status = 'awaiting_card'
+        and organization_id in (select id from organization where slug = 'stranger-dental')`,
+  )
+  console.log(
+    res.rowCount
+      ? "opened the stranger's trial (standing in for Stripe)"
+      : 'stranger: no signup awaiting a card (nothing to do)',
+  )
+}
+
 /**
  * Every scope, in the order a full seed applies them. `base` first because the
  * consumable scopes reference its patients; the rest are row-disjoint and so
@@ -1120,6 +1156,7 @@ export const SCOPES = {
   webhook: seedWebhook,
   'token-pages': seedTokenPages,
   partner: seedPartner,
+  stranger: seedStranger,
 }
 
 /** Everything except `base` — the rows a spec can spend and a retry must get back. */
@@ -1213,6 +1250,9 @@ export const SCOPE_ROWS = {
     // on its profile is what makes it appear on the portal at all.
     'org_e2e_referred',
   ],
+  // Owns no seeded row: it UPDATES the clinic the stranger journey creates
+  // through the real signup form (see the scope header).
+  stranger: [],
 }
 
 export async function seed(names = Object.keys(SCOPES)) {

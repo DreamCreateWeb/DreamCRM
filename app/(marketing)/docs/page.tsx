@@ -9,6 +9,8 @@ import {
   MONO_LABEL,
   DAY_WIRE,
 } from '@/components/marketing/ui'
+import { pageMetadata } from '@/lib/marketing/seo'
+import { TRIAL } from '@/lib/marketing/site'
 
 /**
  * THE HELP DOCS INDEX — `BRAND.md` Part 8 move 6, page 6 (the second half).
@@ -53,12 +55,12 @@ import {
  * a row, and Part 5's table is untouched.
  */
 
-export const metadata = {
-  title: 'Help docs — DreamCRM',
-  alternates: { canonical: '/docs' },
+export const metadata = pageMetadata({
+  title: 'DreamCRM help docs: setup guides for the dental front office',
   description:
     'Setup guides and how-tos for every part of DreamCRM: website, booking, patient portal, reviews, recall, shop, and the PMS sync.',
-}
+  path: '/docs',
+})
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
@@ -168,7 +170,7 @@ export default function DocsIndexPage() {
             . If the answer should have been in here, we write the doc too.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-            <PrimaryCta href="/signup">Start free — 7 days</PrimaryCta>
+            <PrimaryCta href="/signup">{TRIAL.cta}</PrimaryCta>
             <GhostCta href="/product">See what DreamCRM does</GhostCta>
           </div>
         </div>

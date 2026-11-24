@@ -1,16 +1,23 @@
 import Link from 'next/link'
 import type { TenantContext } from '@/lib/auth/context'
-import { trialDaysLeft, trialHeadline, trialUrgency, type TrialUrgency } from '@/lib/trial'
+import { cardOnFileTrialLine, trialDaysLeft, trialHeadline, trialUrgency, type TrialUrgency } from '@/lib/trial'
 import { TONE_FILL, TONE_FILL_HOVER } from '@/lib/ui/encodings'
 
 /**
- * Slim countdown strip for a clinic on its no-card free trial — full access,
- * no card on file, with a CTA to set up billing before it ends. Renders nothing
- * for paid/comped clinics, platform, patients, and partners. Escalates through
- * four tiers as day 7 nears (violet → amber → orange → rose) in both colour AND
- * copy (see `trialUrgency`/`trialHeadline`). The CTA routes a managed
- * (reserved-plan) clinic to the coupon-pre-applied activation flow, and a
- * self-serve clinic to the plan picker.
+ * Slim countdown strip for a clinic on its free trial. Renders nothing for
+ * paid/comped clinics, platform, patients, and partners. Two trials, two
+ * strips (lib/trial.ts):
+ *
+ *  - NO-CARD trial — full access, no card on file, with a CTA to set up
+ *    billing before it ends. Escalates through four tiers as the end nears
+ *    (violet → amber → orange → rose) in both colour AND copy (see
+ *    `trialUrgency`/`trialHeadline`). The CTA routes a managed (reserved-plan)
+ *    clinic to the coupon-pre-applied activation flow, and a self-serve clinic
+ *    to the plan picker.
+ *  - CARD-ON-FILE trial — one calm line that says when the card is charged
+ *    and where to cancel. It never escalates and never says "set up billing":
+ *    there is nothing for that clinic to do, and a strip turning red at a
+ *    customer who already gave us a card reads as a billing problem.
  *
  * Owner/admin only get the CTA — a non-billing staffer sees the countdown
  * without a dead-end button (they can't set up billing).
@@ -69,9 +76,30 @@ export default function TrialBanner({ ctx }: { ctx: TenantContext }) {
   if (!ctx.onTrial || ctx.tenantType !== 'clinic') return null
 
   const days = trialDaysLeft(ctx.trialEndsAt ?? null)
+  const canManageBilling = ctx.role === 'owner' || ctx.role === 'admin'
+
+  if (ctx.trialCardOnFile) {
+    const tone = TONE.calm
+    return (
+      <div className={`flex items-center justify-between gap-3 border-b px-4 py-1.5 text-sm sm:px-6 lg:px-8 ${tone.strip}`}>
+        <span className="flex min-w-0 items-center gap-2">
+          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${tone.dot}`} aria-hidden="true" />
+          <span className="truncate font-medium">
+            {cardOnFileTrialLine(days)}
+            {canManageBilling ? ' Cancel any time before then in Settings.' : ''}
+          </span>
+        </span>
+        {canManageBilling && (
+          <Link href="/settings/billing" className={`shrink-0 rounded-full px-3 py-0.5 text-xs font-semibold ${tone.btn}`}>
+            Billing →
+          </Link>
+        )}
+      </div>
+    )
+  }
+
   const urgency = trialUrgency(days)
   const tone = TONE[urgency]
-  const canManageBilling = ctx.role === 'owner' || ctx.role === 'admin'
   const href = ctx.hasReservedPlan ? '/billing/activate' : '/settings/billing'
   const ctaLabel = urgency === 'urgent' || urgency === 'final' ? 'Activate now →' : 'Set up billing →'
 

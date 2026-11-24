@@ -7,16 +7,17 @@ import {
   MONO_LABEL,
   DAY_WIRE,
 } from '@/components/marketing/ui'
-import { JsonLd, breadcrumbLd } from '@/lib/marketing/seo'
+import { JsonLd, breadcrumbLd, pageMetadata } from '@/lib/marketing/seo'
 import { PLAN_PRICE_MONTHLY, VISITS_PER_PATIENT_PER_YEAR } from '@/lib/recall-roi'
 import RoiCalculator from './roi-calculator'
+import { TRIAL } from '@/lib/marketing/site'
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: 'Dental recall ROI calculator — what missed hygiene visits cost',
   description:
     'Free calculator: enter your active patients, recall rate, and hygiene visit value — see what off-schedule patients cost your practice each year, and what winning some back is worth. Runs in your browser; nothing is sent to us.',
-  alternates: { canonical: '/roi' },
-}
+  path: '/roi',
+})
 
 /**
  * THE RECALL ROI CALCULATOR — `BRAND.md` Part 8 move 6, page 6 (the tools).
@@ -173,7 +174,7 @@ export default function RoiPage() {
             upside you just calculated.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-            <PrimaryCta href="/signup">Start free — 7 days, no card</PrimaryCta>
+            <PrimaryCta href="/signup">{TRIAL.cta}</PrimaryCta>
             <GhostCta href="/grade">Grade your practice free</GhostCta>
           </div>
         </div>

@@ -1,14 +1,15 @@
 import { notFound } from 'next/navigation'
 import { getResourceGuide } from '@/lib/marketing/resources'
 import { GuideShell, GuideH2, GuideP, GuideList, GuideNote, ScriptCard } from '../guide-ui'
+import { pageMetadata } from '@/lib/marketing/seo'
 
 const guide = getResourceGuide('dental-membership-plan-pricing')
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: 'Dental membership plan pricing: what to include & what to charge',
-  description: guide?.description,
-  alternates: { canonical: '/resources/dental-membership-plan-pricing' },
-}
+  description: guide?.description ?? '',
+  path: '/resources/dental-membership-plan-pricing',
+})
 
 export default function MembershipPricingGuide() {
   if (!guide) notFound()

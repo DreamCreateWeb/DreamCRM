@@ -1,15 +1,27 @@
 import 'server-only'
 import { and, eq, gte, inArray, isNotNull, lte, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
-import { resolveTrialState, dueTrialReminder } from '@/lib/trial'
-import { sendTrialReminderEmail, sendBillingPastDueEmail, type TrialEmailMilestone } from '@/lib/email'
+import { resolveTrialState, dueTrialReminder, hasCardOnFileTrial, trialReminderKind } from '@/lib/trial'
+import {
+  sendTrialReminderEmail,
+  sendTrialStartedEmail,
+  sendBillingPastDueEmail,
+  type TrialEmailMilestone,
+} from '@/lib/email'
+import { resolveClinicTimeZone } from '@/lib/clinic-timezone'
+import { formatClinicDate } from '@/lib/format-datetime'
 
 /**
- * Billing comms TO the clinic owner (not patient-facing): the escalating
- * trial-ending reminder sweep (cron) and the failed-payment dunning email
- * (Stripe webhook). Both are platform-identity sends and ALWAYS reach the
- * owner — they're billing-critical, so they deliberately bypass the optional
- * in-app notification preferences.
+ * Billing comms TO the clinic owner (not patient-facing): the trial reminder
+ * sweep (cron), the trial-started welcome and the failed-payment dunning
+ * email (both from the Stripe webhook). All are platform-identity sends and
+ * ALWAYS reach the owner — they're billing-critical, so they deliberately
+ * bypass the optional in-app notification preferences.
+ *
+ * TWO TRIALS, TWO SETS OF WORDS (lib/trial.ts). A no-card trial is asked for
+ * a card before it runs out. A trial with the card on file is told the day it
+ * is charged and how to cancel first — and is never asked for anything. A
+ * signup that has not added its card has no trial and gets no reminder.
  */
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -87,17 +99,21 @@ function removeMilestone(milestone: string) {
 }
 
 /**
- * Email every trialing clinic whose next reminder milestone is due (3 days /
- * 1 day / ends-today / ended) and hasn't been sent yet, then RECORD the
- * milestone so a re-run never re-emails it. Best-effort per clinic (one
+ * Email every trialing clinic whose next reminder milestone is due and hasn't
+ * been sent yet, then RECORD the milestone so a re-run never re-emails it.
+ * Which milestones exist depends on the trial (`dueTrialReminder`): a no-card
+ * trial hears at 3 days, 1 day and ended; a card-on-file trial hears a week
+ * out and the day before its card is charged. Best-effort per clinic (one
  * failure never aborts the sweep). Bounded by a time window so the query never
  * scans the whole customer base. Meant to run a few times a day via cron.
  */
 export async function sendDueTrialReminders(now: Date = new Date()): Promise<TrialReminderSweepResult> {
-  // Only clinics within ~3 days of expiry (where the first reminder fires) and
-  // up to 30 days past it (so a just-expired clinic still gets the 'ended' note,
-  // but we don't re-scan ancient rows forever).
-  const upper = new Date(now.getTime() + 3.5 * DAY_MS)
+  // Only clinics within ~a week of the end (where the earliest reminder, the
+  // card-on-file week-out notice, fires) and up to 30 days past it (so a
+  // just-expired no-card clinic still gets the 'ended' note, but we don't
+  // re-scan ancient rows forever). A signup awaiting its card has no end date
+  // and never enters the scan.
+  const upper = new Date(now.getTime() + 7.5 * DAY_MS)
   const lower = new Date(now.getTime() - 30 * DAY_MS)
 
   const rows = await db
@@ -108,6 +124,7 @@ export async function sendDueTrialReminders(now: Date = new Date()): Promise<Tri
       stripeSubscriptionId: schema.clinicProfile.stripeSubscriptionId,
       pendingPlanId: schema.clinicProfile.pendingPlanId,
       trialRemindersSent: schema.clinicProfile.trialRemindersSent,
+      timezone: schema.clinicProfile.timezone,
     })
     .from(schema.clinicProfile)
     .where(
@@ -132,7 +149,7 @@ export async function sendDueTrialReminders(now: Date = new Date()): Promise<Tri
       now,
     )
     const sent = Array.isArray(row.trialRemindersSent) ? (row.trialRemindersSent as string[]) : []
-    const milestone = dueTrialReminder(state.daysLeft, state.expired, sent)
+    const milestone = dueTrialReminder(state.daysLeft, state.expired, sent, trialReminderKind(state))
     if (!milestone) {
       result.skipped++
       continue
@@ -174,6 +191,12 @@ export async function sendDueTrialReminders(now: Date = new Date()): Promise<Tri
         firstName: owner.name,
         milestone: milestone as TrialEmailMilestone,
         billingUrl: billingUrl(row.pendingPlanId),
+        // A card-on-file trial is told the DAY, in the clinic's own calendar
+        // (the server is UTC; a charge late on the 7th Central is already the
+        // 8th here). `trialEndsAt` mirrors Stripe's `trial_end`.
+        ...(state.cardOnFile && row.trialEndsAt
+          ? { cardOnFile: { chargeDate: formatClinicDate(row.trialEndsAt, resolveClinicTimeZone(row.timezone)) } }
+          : {}),
       })
       result.sent++
     } catch (err) {
@@ -200,6 +223,88 @@ export async function sendDueTrialReminders(now: Date = new Date()): Promise<Tri
   }
 
   return result
+}
+
+/** The welcome's own key in `trial_reminders_sent` — one per clinic, ever. */
+const TRIAL_STARTED_MILESTONE = 'started'
+
+/**
+ * THE WELCOME, ONCE: "your free trial has started", sent when a signup adds
+ * its card and Stripe opens the trial. Called from the Stripe webhook on
+ * `checkout.session.completed`, after the subscription sync.
+ *
+ * Why it is safe to call from a webhook Stripe may deliver twice, and from
+ * any other place that later wants to: it only sends for a clinic that IS on
+ * a card-on-file trial right now, and it takes the same one-statement claim
+ * the reminder sweep takes — the 'started' key is appended to
+ * `trial_reminders_sent` under a not-already-there predicate, so exactly one
+ * caller gets a row back. A send that fails hands the claim back for the
+ * next delivery. Never throws: mail must not fail a billing webhook.
+ */
+export async function sendTrialStartedEmailOnce(
+  organizationId: string,
+): Promise<'sent' | 'skipped' | 'failed'> {
+  try {
+    const [row] = await db
+      .select({
+        trialEndsAt: schema.clinicProfile.trialEndsAt,
+        subscriptionStatus: schema.clinicProfile.subscriptionStatus,
+        stripeSubscriptionId: schema.clinicProfile.stripeSubscriptionId,
+        displayName: schema.clinicProfile.displayName,
+        timezone: schema.clinicProfile.timezone,
+        slug: schema.organization.slug,
+      })
+      .from(schema.clinicProfile)
+      .innerJoin(schema.organization, eq(schema.organization.id, schema.clinicProfile.organizationId))
+      .where(eq(schema.clinicProfile.organizationId, organizationId))
+      .limit(1)
+    // Only a trial that actually has the card on file is welcomed: a checkout
+    // by a clinic that was charged today (a no-card trial choosing its plan,
+    // a resubscribe) is not the start of anything.
+    if (!row || !hasCardOnFileTrial(row)) return 'skipped'
+    const owner = await getClinicOwnerContact(organizationId)
+    if (!owner) return 'skipped'
+
+    const claimed = await db
+      .update(schema.clinicProfile)
+      .set({ trialRemindersSent: appendMilestone(TRIAL_STARTED_MILESTONE) })
+      .where(
+        and(
+          eq(schema.clinicProfile.organizationId, organizationId),
+          milestoneNotYetSent(TRIAL_STARTED_MILESTONE),
+        ),
+      )
+      .returning({ organizationId: schema.clinicProfile.organizationId })
+    if (claimed.length === 0) return 'skipped'
+
+    try {
+      const siteDomain = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.com'
+      await sendTrialStartedEmail(owner.email, {
+        firstName: (owner.name || '').split(' ')[0] || null,
+        clinicName: row.displayName || 'Your practice',
+        chargeDate: row.trialEndsAt
+          ? formatClinicDate(row.trialEndsAt, resolveClinicTimeZone(row.timezone))
+          : null,
+        websiteHubUrl: `${APP_URL}/website`,
+        siteUrl: row.slug ? `https://${row.slug}.${siteDomain}` : null,
+      })
+      return 'sent'
+    } catch (err) {
+      console.warn('[billing-notifications] trial-started email failed for', organizationId, err)
+      try {
+        await db
+          .update(schema.clinicProfile)
+          .set({ trialRemindersSent: removeMilestone(TRIAL_STARTED_MILESTONE) })
+          .where(eq(schema.clinicProfile.organizationId, organizationId))
+      } catch (releaseErr) {
+        console.error('[billing-notifications] could not release the trial-started claim', organizationId, releaseErr)
+      }
+      return 'failed'
+    }
+  } catch (err) {
+    console.warn('[billing-notifications] trial-started email skipped for', organizationId, err)
+    return 'failed'
+  }
 }
 
 /**

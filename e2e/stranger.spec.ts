@@ -1,11 +1,28 @@
 import { test, expect } from '@playwright/test'
 import { expectNoA11yViolations } from './axe'
+import { applySeedScope, restoresSeedScope } from './reseed'
+
+// Owns the `stranger` scope: restoring it before the test is a no-op (the
+// clinic does not exist yet); the journey APPLIES it at the card step, where
+// it stands in for Stripe. See the scope header in scripts/e2e-seed.mjs.
+restoresSeedScope('stranger')
 
 /**
  * The stranger test (release program R4, run early in R3's harness): a person
  * who has never seen the product signs up, walks the four onboarding steps,
  * and lands in their own empty clinic — the entire acquisition path as one
  * real browser journey, with nothing seeded on their side.
+ *
+ * THE CARD STEP (owner ruling 2026-11-23: a 14-day free trial, card required
+ * to sign up). The fourth step is a card, and adding one happens on Stripe's
+ * hosted Checkout, which this harness cannot reach (docs/E2E.md, "The Stripe
+ * boundary"). So the journey walks everything on OUR side of that boundary
+ * for real — the card step says what it costs, nothing in the product opens
+ * without it, and a Stripe that cannot be reached is a sentence under the
+ * button rather than a dead click — and then one seed scope writes what
+ * Stripe's webhook would have. What a green run does NOT prove is the
+ * Checkout session itself or the webhook that follows it; those are
+ * `tests/billing/checkout-trial.test.ts` and `tests/billing/sync.test.ts`.
  *
  * The harness rebuilds the database from zero every run, so fixed
  * credentials are safe. The signup email is @example.com on purpose:
@@ -44,9 +61,8 @@ test.describe('the stranger journey', () => {
     await page.getByLabel(/ZIP/).fill('78701')
     await page.getByRole('button', { name: /Next step/ }).click()
 
-    // Step 2 — the software question, the web address, and the no-card trial.
-    // Wait for the availability check to say yes (the submit stays disabled
-    // until it does).
+    // Step 2 — the software question and the web address. Wait for the
+    // availability check to say yes (the submit stays disabled until it does).
     await page.waitForURL('**/onboarding-02', { timeout: 30_000 })
     await page.getByLabel('Not sure').check()
     const slugInput = page.getByLabel(/Web address/)
@@ -57,13 +73,53 @@ test.describe('the stranger journey', () => {
     // a moment ago — a runtime-composed status if ever there was one.
     await expectNoA11yViolations(page, 'onboarding: step 3, web address confirmed available')
 
-    await page.getByRole('button', { name: /Start my 7-day free trial/ }).click()
+    // This screen is no longer the last one, and no longer says "no card".
+    await expect(page.getByText(/no card/i)).toHaveCount(0)
+    await page.getByRole('button', { name: /Save and continue/ }).click()
+
+    // Step 4 — THE CARD. The practice exists; the trial has not started. The
+    // page says what the card costs today and does not call the site ready.
+    await page.waitForURL('**/onboarding-complete', { timeout: 60_000 })
+    await expect(page.getByRole('heading', { name: /one step left: start your 14-day free trial/i })).toBeVisible()
+    await expect(page.getByText(/Your card is saved, not charged/)).toBeVisible()
+    await expect(page.getByText(/your site is ready/i)).toHaveCount(0)
+    const startTrial = page.getByRole('button', { name: /add a card & start my 14-day free trial/i })
+    await expect(startTrial).toBeVisible()
+
+    await expectNoA11yViolations(page, 'onboarding: step 4, the card that starts the trial')
+
+    // NOTHING OPENS WITHOUT IT. The dashboard is the same step in place of
+    // the page, and the AI interview sends the practice back here.
+    await page.goto('/dashboard')
+    await expect(page.getByRole('heading', { name: /one step left: start your 14-day free trial/i })).toBeVisible()
+    await expect(page.getByText(/has ended/i)).toHaveCount(0)
+    await expectNoA11yViolations(page, 'staff: the card step in place of the dashboard')
+    await page.goto('/welcome')
+    await page.waitForURL('**/onboarding-complete', { timeout: 30_000 })
+
+    // STRIPE CANNOT BE REACHED HERE (the harness has no key and no network),
+    // which is this button's outage branch, deterministically: a sentence
+    // under it that says nothing was charged — never a dead click.
+    // (Filtered by its text: Next's route announcer is also a role="alert".)
+    await startTrial.click()
+    await expect(page.getByRole('alert').filter({ hasText: /nothing has been charged/i })).toBeVisible({
+      timeout: 30_000,
+    })
+    // …and NOT the plan-change message: nothing changed, and "open Settings"
+    // is behind the wall this practice is standing at.
+    await expect(page.getByText(/couldn’t confirm that plan change/i)).toHaveCount(0)
+
+    // STRIPE'S HALF, STOOD IN FOR: the card went on file and the trial began.
+    applySeedScope('stranger')
+    await page.goto('/onboarding-complete')
 
     // The completion page tells the TRUTH about the go-live lever: the site
-    // is READY (private until published), not "live".
-    await page.waitForURL('**/onboarding-complete', { timeout: 60_000 })
+    // is READY (private until published), not "live" — and about the money:
+    // the trial has started and the card is charged when it ends, not before.
     await expect(page.getByText(/your site is ready/i)).toBeVisible()
     await expect(page.getByText(/site is live/i)).toHaveCount(0)
+    await expect(page.getByText(/Your free trial has started/)).toBeVisible()
+    await expect(page.getByText(/your card is charged then, and\s+not before/)).toBeVisible()
 
     await expectNoA11yViolations(page, 'onboarding: the finished page')
 
@@ -71,6 +127,24 @@ test.describe('the stranger journey', () => {
     await page.getByRole('link', { name: 'Go to dashboard' }).click()
     await page.waitForURL(/\/(dashboard)?$/, { timeout: 60_000 })
     await expect(page.getByText('Stranger Dental').first()).toBeVisible({ timeout: 30_000 })
+
+    // THE DASHBOARD'S TYPE IS UNTOUCHED BY THE PRELOAD FIX. Geist Sans stopped
+    // being preloaded on every page (2026-11-24); it is still DECLARED, so the
+    // stack DESIGN-SYSTEM.md fixes — Nunito, then Geist Sans — must resolve
+    // exactly as before. An empty variable here would silently drop the
+    // fallback and nothing else in the suite would notice.
+    const type = await page.evaluate(() => {
+      const shell = document.querySelector('.v2-app')
+      return {
+        family: shell ? getComputedStyle(shell).fontFamily : '',
+        geist: getComputedStyle(document.documentElement).getPropertyValue('--font-geist-sans').trim(),
+      }
+    })
+    expect(type.family).toMatch(/^"?Nunito"?,/)
+    expect(type.geist, '--font-geist-sans no longer resolves on <html>').not.toBe('')
+    expect(type.family, 'the dashboard stack lost its Geist Sans fallback').toContain(
+      type.geist.split(',')[0].replace(/"/g, ''),
+    )
 
     // THE TENANT WALL: the other seeded clinic's patient must not exist here.
     await page.goto('/patients')

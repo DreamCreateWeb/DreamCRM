@@ -9,6 +9,7 @@ import { saveOnboardingState } from '@/lib/onboarding/storage'
 import { PLANS, type BillingInterval, type PlanId } from '@/lib/stripe-config'
 import { ActionButton } from '@/components/ui/action-button'
 import { TONE_PILL } from '@/lib/ui/encodings'
+import { TRIAL } from '@/lib/marketing/site'
 
 const SIGN_UP_TIMEOUT_MS = 25_000
 
@@ -88,7 +89,7 @@ export default function SignUpForm() {
       {pickedPlan && (
         <div className="mb-4 flex items-center gap-2 rounded-lg bg-teal-50 dark:bg-teal-500/10 px-3 py-2 text-sm text-teal-700 dark:text-teal-300">
           <span className="font-semibold">Interested in {pickedPlan.name}</span>
-          <span>— start with a free trial; no card required. Pick your plan when you set up billing.</span>
+          <span>— start with a {TRIAL.name}. You add a card on the last step; it is not charged until the trial ends.</span>
         </div>
       )}
       <div className="space-y-4">
@@ -170,7 +171,19 @@ export default function SignUpForm() {
           Start free trial
         </ActionButton>
         <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-          7-day free trial — no credit card required. Set up billing anytime in Settings.
+          {TRIAL.name}. You add a card on the last step — it is not charged until the trial ends, and you
+          can cancel before then in Settings.
+        </p>
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+          By creating an account you agree to the{' '}
+          <Link href="/terms" target="_blank" className="underline underline-offset-2 hover:text-gray-700 dark:hover:text-gray-200">
+            Terms of Service
+          </Link>{' '}
+          and acknowledge the{' '}
+          <Link href="/privacy" target="_blank" className="underline underline-offset-2 hover:text-gray-700 dark:hover:text-gray-200">
+            Privacy Policy
+          </Link>
+          .
         </p>
       </div>
     </form>

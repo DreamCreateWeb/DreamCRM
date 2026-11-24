@@ -13,9 +13,9 @@ import {
 
 const NOW = new Date('2026-11-09T12:00:00Z')
 const daysAgo = (n: number) => new Date(NOW.getTime() - n * 86_400_000)
-const NO_TRIAL: TrialState = { onTrial: false, expired: false, trialEndsAt: null, daysLeft: null }
-const onTrial = (d: number): TrialState => ({ onTrial: true, expired: false, trialEndsAt: new Date(NOW.getTime() + d * 86_400_000), daysLeft: d })
-const EXPIRED: TrialState = { onTrial: false, expired: true, trialEndsAt: daysAgo(30), daysLeft: 0 }
+const NO_TRIAL: TrialState = { onTrial: false, expired: false, trialEndsAt: null, daysLeft: null, needsCard: false, cardOnFile: false }
+const onTrial = (d: number): TrialState => ({ onTrial: true, expired: false, trialEndsAt: new Date(NOW.getTime() + d * 86_400_000), daysLeft: d, needsCard: false, cardOnFile: false })
+const EXPIRED: TrialState = { onTrial: false, expired: true, trialEndsAt: daysAgo(30), daysLeft: 0, needsCard: false, cardOnFile: false }
 
 const standing = (subscriptionStatus: string | null, trial = NO_TRIAL, ownerInvitePending = false) =>
   clinicStanding({ subscriptionStatus, trial, ownerInvitePending })
@@ -203,5 +203,40 @@ describe('getNeedsAHand', () => {
     errSpy.mockRestore()
     expect(r.unreadable).toBe(true)
     expect(r.rows.map((x) => x.orgId)).toEqual(['org_due'])
+  })
+})
+
+describe('the 2026-11-23 ruling — a signup awaiting its card is its own standing', () => {
+  const AWAITING: TrialState = { onTrial: false, expired: true, trialEndsAt: null, daysLeft: null, needsCard: true, cardOnFile: false }
+  const ON_FILE = (d: number): TrialState => ({ onTrial: true, expired: false, trialEndsAt: new Date(NOW.getTime() + d * 86_400_000), daysLeft: d, needsCard: false, cardOnFile: true })
+  const s = (kind: ClinicStanding['kind'], daysLeft: number | null = null): ClinicStanding => ({ kind, label: kind, tone: 'info', daysLeft })
+
+  it('is "awaiting_card", NOT "walled" — that word means a trial ran out', () => {
+    const st = clinicStanding({ subscriptionStatus: 'awaiting_card', trial: AWAITING })
+    expect(st).toMatchObject({ kind: 'awaiting_card', label: 'No card yet', tone: 'info', daysLeft: null })
+  })
+
+  it('an unaccepted invite still outranks it', () => {
+    expect(clinicStanding({ subscriptionStatus: 'awaiting_card', trial: AWAITING, ownerInvitePending: true }).kind).toBe('invite_pending')
+  })
+
+  it('a card-on-file trial is a trial, and does not warn inside two days', () => {
+    expect(clinicStanding({ subscriptionStatus: 'trialing', trial: ON_FILE(1) })).toMatchObject({ kind: 'trial', tone: 'info', daysLeft: 1 })
+    expect(clinicStanding({ subscriptionStatus: 'trialing', trial: onTrial(1) }).tone).toBe('warn')
+  })
+
+  it('needs a hand once a DAY has passed without a card — and never on a creation time we could not read', () => {
+    const created = (hoursAgo: number) => ({ createdAt: new Date(NOW.getTime() - hoursAgo * 3_600_000) })
+    expect(clinicIsStuck(s('awaiting_card'), null, NOW, created(2))).toBe(false) // still signing up
+    expect(clinicIsStuck(s('awaiting_card'), null, NOW, created(23))).toBe(false)
+    expect(clinicIsStuck(s('awaiting_card'), null, NOW, created(24))).toBe(true)
+    expect(clinicIsStuck(s('awaiting_card'), null, NOW, {})).toBe(false)
+    expect(clinicIsStuck(s('awaiting_card'), null, NOW, { createdAt: null })).toBe(false)
+  })
+
+  it('says why, in the owner’s words', () => {
+    const opts = { createdAt: new Date(NOW.getTime() - 3 * 86_400_000) }
+    expect(stuckReason(s('awaiting_card'), null, NOW, opts)).toMatch(/never added a card/i)
+    expect(stuckReason(s('awaiting_card'), null, NOW, {})).toBeNull()
   })
 })

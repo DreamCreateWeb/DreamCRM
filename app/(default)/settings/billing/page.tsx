@@ -76,6 +76,10 @@ export default async function BillingSettings({
   // = plan grid); trulyManaged drives the social card's "contact us" copy —
   // a self-serve TRIAL clinic has no sub either but is NOT managed billing.
   const managedBilling = !profileRow?.stripeSubscriptionId
+  // A trial with the card on file IS a subscription (lib/trial.ts): the panel
+  // shows the plan, the card, the next charge and Cancel. Only a NO-card
+  // trial gets the "choose a plan, no card on file yet" layout.
+  const trialCardOnFile = ctx.trialCardOnFile === true
   const trulyManaged =
     profileRow?.billingMode === 'managed' || profileRow?.billingMode === 'comped'
 
@@ -87,8 +91,10 @@ export default async function BillingSettings({
       >
           {checkout === 'success' && (
             <p className="mb-4 rounded-[var(--r-md)] bg-emerald-500/15 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-200">
-              You’re all set — thanks! Your plan is active. If anything below still shows the old
-              plan, give it a few seconds and refresh.
+              {trialCardOnFile
+                ? 'You’re all set — your free trial has started, and your card is not charged until it ends.'
+                : 'You’re all set — thanks! Your plan is active.'}{' '}
+              If anything below still shows the old plan, give it a few seconds and refresh.
             </p>
           )}
           {checkout === 'cancelled' && (
@@ -107,7 +113,8 @@ export default async function BillingSettings({
             nextChargeCents={summary?.nextChargeCents ?? null}
             nextChargeCurrency={summary?.nextChargeCurrency ?? null}
             hasSubscription={!managedBilling}
-            onTrial={ctx.onTrial ?? false}
+            onTrial={(ctx.onTrial ?? false) && !trialCardOnFile}
+            trialCardOnFile={trialCardOnFile}
             trialEndsAt={ctx.trialEndsAt ? ctx.trialEndsAt.toISOString() : null}
             upgradeModuleLabel={upgrade ? getModuleLabel('clinic', upgrade) ?? null : null}
             invoices={invoices.map((inv) => ({

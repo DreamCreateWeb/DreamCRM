@@ -80,6 +80,10 @@ export interface ChannelFunnelRow {
   sessions: number
   /** Clinics created in the window whose first touch was this channel. */
   signups: number
+  /** …of which signed up but have not added a card. The trial has NOT
+   *  started (owner ruling 2026-11-23: card required to sign up), so these
+   *  are not trials — they are the leak at the card step, per channel. */
+  awaitingCard: number
   /** …of which currently on a live trial. */
   trialing: number
   /** …of which trial-expired and unconverted (the leak to watch). */
@@ -208,6 +212,7 @@ export async function getAcquisitionReport(days = 30, now: Date = new Date()): P
           visits: v?.views ?? 0,
           sessions: v?.sessions ?? 0,
           signups: 0,
+          awaitingCard: 0,
           trialing: 0,
           expired: 0,
           paying: 0,
@@ -234,6 +239,10 @@ export async function getAcquisitionReport(days = 30, now: Date = new Date()): P
     if (!row) continue // registry drift — impossible today, harmless if ever
     row.signups++
     if (paid) row.paying++
+    // BEFORE `expired`: a signup awaiting its card reads `expired` (it is
+    // closed), and counting it there would report a trial that ran out for
+    // somebody who never had one.
+    else if (trial.needsCard) row.awaitingCard++
     else if (trial.onTrial) row.trialing++
     else if (trial.expired) row.expired++
     // The separator is written as an escape, not as a raw NUL byte: a raw one

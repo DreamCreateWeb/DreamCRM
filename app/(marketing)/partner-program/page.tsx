@@ -10,17 +10,18 @@ import {
   DAY_WIRE,
   type ToneTileGlyph,
 } from '@/components/marketing/ui'
-import { JsonLd, breadcrumbLd, faqPageLd } from '@/lib/marketing/seo'
+import { JsonLd, breadcrumbLd, faqPageLd, pageMetadata } from '@/lib/marketing/seo'
 import { getQuotedPlan } from '@/lib/stripe-config'
 import { PAYOUT_MIN_CENTS, formatBps } from '@/lib/types/referrals'
 import ApplyForm from './apply-form'
+import { TRIAL } from '@/lib/marketing/site'
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: 'DreamCRM partner program — 10% recurring for dental consultants & advisors',
   description:
     'Refer dental practices to DreamCRM and earn 10% of every payment, month after month, for as long as they stay. For practice consultants, dental CPAs and bookkeepers, IT providers, and agencies.',
-  alternates: { canonical: '/partner-program' },
-}
+  path: '/partner-program',
+})
 
 /**
  * THE PARTNER PROGRAM — `BRAND.md` Part 8 move 6, page 6 (the tools).
@@ -105,7 +106,7 @@ const FAQ = [
   },
   {
     q: 'Who is this for?',
-    a: `People dental practices already trust: practice-management consultants and coaches, dental CPAs and bookkeepers, IT providers, marketing agencies, and study-club leaders. If practices ask you “what software should we use?”, this program pays you for the answer you’d give anyway — and DreamCRM is easy to stand behind: ${usd(PLAN.price)}/mo published, month-to-month, free 7-day trial, no contracts.`,
+    a: `People dental practices already trust: practice-management consultants and coaches, dental CPAs and bookkeepers, IT providers, marketing agencies, and study-club leaders. If practices ask you “what software should we use?”, this program pays you for the answer you’d give anyway — and DreamCRM is easy to stand behind: ${usd(PLAN.price)}/mo published, month-to-month, a free ${TRIAL.days}-day trial, no contracts.`,
   },
 ]
 
@@ -248,7 +249,7 @@ export default function PartnerProgramPage() {
             style={{ borderColor: DAY_WIRE }}
           >
             Every month, for work you already do: being the person practices trust for advice.
-            They get a free 7-day trial, a published price, and{' '}
+            They get a free {TRIAL.days}-day trial, a published price, and{' '}
             <Link href="/grade" className="font-semibold text-teal-700 hover:underline">
               a free practice grade
             </Link>{' '}

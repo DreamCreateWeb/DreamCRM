@@ -1,7 +1,7 @@
 import 'server-only'
-import { eq, isNotNull } from 'drizzle-orm'
+import { eq, isNotNull, or } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
-import { resolveTrialState } from '@/lib/trial'
+import { AWAITING_CARD_STATUS, resolveTrialState } from '@/lib/trial'
 
 /**
  * THE SHUTDOWN RESOLVER (onboarding overhaul, owner ruling: "when a free
@@ -11,10 +11,12 @@ import { resolveTrialState } from '@/lib/trial'
  * (reminders, review asks, retention automations, scheduled campaigns,
  * proposal generators), and the metered PMS sync.
  *
- * Shut down = trial expired with no paid subscription — exactly
- * `resolveTrialState(...).expired`, the same rule the dashboard wall uses,
- * so the wall and the kill can never disagree. Clinics never on a trial
- * (trial_ends_at null: comped, legacy, the demo) are never shut down.
+ * Shut down = trial expired with no paid subscription, OR a signup that
+ * never added its card (its trial has not started, so nothing of ours runs
+ * for it) — exactly `resolveTrialState(...).expired`, the same rule the
+ * dashboard wall uses, so the wall and the kill can never disagree. Clinics
+ * never on a trial (trial_ends_at null and not awaiting a card: comped,
+ * legacy, the demo) are never shut down.
  *
  * FAIL-OPEN on an unreadable database: killing a paying clinic's reminders
  * on a DB blip is strictly worse than one extra reminder from an expired
@@ -40,7 +42,15 @@ export async function listShutDownOrgIds(now: Date = new Date()): Promise<Set<st
         stripeSubscriptionId: schema.clinicProfile.stripeSubscriptionId,
       })
       .from(schema.clinicProfile)
-      .where(isNotNull(schema.clinicProfile.trialEndsAt))
+      // The prefilter must admit every row the pure rule can call expired.
+      // A signup awaiting its card has NO end date, so `trial_ends_at is not
+      // null` alone would let it past every engine guard that asks this list.
+      .where(
+        or(
+          isNotNull(schema.clinicProfile.trialEndsAt),
+          eq(schema.clinicProfile.subscriptionStatus, AWAITING_CARD_STATUS),
+        ),
+      )
     return new Set(rows.filter((r) => resolveTrialState(r, now).expired).map((r) => r.organizationId))
   } catch (e) {
     console.error('[billing-state] shutdown list unreadable (fail-open):', e)
