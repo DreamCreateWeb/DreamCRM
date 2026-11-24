@@ -56,7 +56,7 @@ Measured on the live site, 2026-11-23 and 2026-11-24.
 
 | Question | Answer | How it was checked |
 |---|---|---|
-| Is the site in Bing's index? | **No sign of it.** `site:dreamcreatestudio.com` on Bing returned only unrelated hosts; a search for the product name with "dental software" returned nothing of ours | Two Bing queries, 2026-11-24. Google, DuckDuckGo and Brave refused the automated check, so Google's count is **unknown** until Search Console says |
+| Is the site in Bing's index? | **Unknown.** This row first said "no sign of it", and the check behind it does not show that. `site:dreamcreatestudio.com` on Bing came back with unrelated hosts — and a real `site:` search cannot return another site's pages, so that was Bing answering an automated visitor with filler. Run again after the deploy, the same query returned weather pages for Mumbai. A separate web-search tool, limited to our domain, returned two pages: the sign-in page and the demo practice | Two Bing queries before the deploy and two after, 2026-11-24; corrected the same day. Google, DuckDuckGo and Brave refused the automated check outright. Both counts are **unknown** until Search Console and Bing Webmaster Tools say, or until `site:www.dreamcreatestudio.com` is run by a person in an ordinary browser |
 | Does any assistant or search result name us for a buyer's question? | **No.** Ten buyer queries, zero appearances. Review marketplaces (Capterra, Software Advice, GetApp, G2, TrustRadius), competitors' blogs and list sites filled the results | Web-search tool, 2026-11-23 (notes-01 §6). Not logged-out Google, so positions are unverified |
 | Can the crawlers read the site? | **Yes.** `/`, `/pricing` and `/sitemap.xml` answered 200 to the user agents of OpenAI's search crawler, ChatGPT's fetcher, GPTBot, PerplexityBot, ClaudeBot, Bingbot and Googlebot. `robots.txt` admits all of them and blocks only signed-in and token pages | `curl` with each user agent against the live site, 2026-11-24. This tests the user agent, not the crawlers' own addresses |
 | Do pages render without JavaScript? | **Yes.** Server-rendered, including the header menu's 23 links (fixed in the first slice) | Site audit, 2026-11-23 |
@@ -218,8 +218,9 @@ Sources: Google's Search Console help (answers 9008080, 34592, 7451001) and
 
 ### Step 2 — Bing Webmaster Tools (10 minutes)
 
-This is the step closest to the ChatGPT question, because the site is not in
-Bing's index today.
+This is the step closest to the ChatGPT question, and the reliable way to
+learn what Bing holds of the site: its public search does not answer an
+automated check truthfully (Part 1), so today that is unknown.
 
 1. Go to [bing.com/webmasters](https://www.bing.com/webmasters) and sign in.
 2. On My Sites, choose **Import**, sign in with the Google account from step

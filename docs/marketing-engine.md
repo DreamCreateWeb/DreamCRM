@@ -1213,8 +1213,11 @@ program: schema, `llms.txt` and FAQ markup show no measurable effect on being
 cited by an assistant; a self-ranked "best" list is cited and then passed
 over; what correlates is other sites naming the product (0.664 against 0.218
 for backlinks), review-marketplace profiles, and being in the indexes the
-assistants read. The measured baseline on 2026-11-24: **no page of ours in
-Bing's index, and no appearance for any of ten buyer queries.**
+assistants read. The measured baseline on 2026-11-24: **no appearance for any
+of ten buyer queries.** Whether Bing's index holds the site is unknown: the
+query first read here as "no page of ours" was answered with unrelated pages,
+which is what Bing gives an automated visitor (corrected the same day;
+`docs/organic-go-live.md` Part 1).
 
 **So the program is three things, in this order.**
 
@@ -2051,8 +2054,10 @@ change: `subscription_status` is free text, and the new state is a value.
 - **What a careful reader should know.** No notice has been sent to a real
   engine: the pass is inert outside the public host, so its first run is the
   first hour after deploy. The protocol's response codes are implemented from
-  its documentation, not observed. "Bing's index does not hold the site" is
-  two queries, not a Webmaster Tools report. And none of this is the lever
+  its documentation, not observed. "Bing's index does not hold the site" was
+  never established: the two queries behind it were answered with unrelated
+  pages, which is how Bing answers an automated visitor, so it is unknown
+  until Webmaster Tools says (corrected 2026-11-24). And none of this is the lever
   that matters most — Part 12 item 3 is the owner's, and it has not started.
 
 **Part 12 slice 2 — `/about`: which DreamCRM this is (2026-11-24, no migration).**
