@@ -32,9 +32,10 @@ So the work splits in two.
 
 1. **What the site can do alone — done in this change.** Every public page is
    readable by every search and AI crawler; the sitemap states only true
-   dates; Bing and the engines that share its notice protocol are told the
-   moment a page changes; the comparison pages quote each competitor from its
-   own site with the day it was read; the demo practice is out of the index.
+   dates; Bing and the engines that share its notice protocol are told within
+   the hour a page changes; the comparison pages quote each competitor from
+   its own site with the day it was read; one page says plainly which DreamCRM
+   this is; and the demo practice is marked to stay out of the index.
 2. **What only you can do — Part 4.** Verify the site with Google and Bing,
    claim a free G2 profile, and ask real customers for reviews. Those three
    are most of the distance. An hour and a half of your time starts all of
@@ -74,7 +75,7 @@ says why.
 | **Schema markup** (JSON-LD) to earn AI citations | No measurable lift: 1,885 pages that added JSON-LD, against 4,000 controls, across Google AI Overviews, AI Mode and ChatGPT | Ahrefs, May 2026 (a vendor's study; limited to pages already cited) | Keep what is already there for ordinary search eligibility. Add no more |
 | **`llms.txt`** | No effect found | Report, "Controlled tests turned against schema, llms.txt and self-ranked lists" | **Not built.** It would be a file nobody reads |
 | **FAQ markup** | Google ended FAQ rich results on May 7, 2026 | Google Search Central | The comparison FAQs stay (they are content). Nothing is added for the markup's sake |
-| **A "best dental software" list with us first** | Such lists are cited — but 69% of the cited self-promotional lists came from brands the answer then did **not** recommend, and Google has demoted them since January 2026 | Lily Ray, Apr–Jun 2026 (an estimate, 100 queries) | **Not written.** The comparison pages lead with what each rival does better instead, which is the form the evidence calls credible |
+| **A "best dental software" list with us first** | Such lists are cited — but 69% of the cited self-promotional lists came from brands the answer then did **not** recommend, and the same researcher reports Google demoting them since January 2026 | Lily Ray, Apr–Jun 2026 (an estimate, 100 queries) | **Not written.** The comparison pages lead with what each rival does better instead, which is the form the evidence calls credible |
 | **Other sites naming you** | The strongest signal measured: branded web mentions correlate with AI Overview visibility at 0.664, against 0.218 for backlinks | Ahrefs data on 75,000 brands, seen through a secondary summary (May 2026) | Part 4, steps 3–6. This is the main lever and it is not code |
 | **Review-marketplace profiles** | Correlate with citation; 45% of B2B buyers call a review-site citation the most confidence-inspiring thing in an AI answer | SE Ranking; G2's survey of 1,076 buyers, March 2026 (G2 owns the sites it finds persuasive) | Part 4, steps 3–4 |
 | **Being in Bing's index** | Microsoft Copilot answers from it. OpenAI says ChatGPT search has its own crawler and "sometimes partners with other search providers" | notes-02 §5; OpenAI's crawler documentation and help centre, read 2026-11-24 (the help article does not name Bing) | Part 3 (the notices) and Part 4, step 2 |
@@ -140,10 +141,12 @@ and each corroborates the other. It gives the town, not the street, and it does
 not name you — the Privacy Policy does, as it must; whether a marketing page
 should is yours to rule (Part 8).
 
-**The demo practice is out of the index.** "Dream Dental" is seeded: an
-invented address, phone and staff. Every page under it now answers with
-`X-Robots-Tag: noindex`. It is still there to browse. A real clinic's site
-never gets that header.
+**The demo practice is marked to stay out of the index.** "Dream Dental" is
+seeded: an invented address, phone and staff. Every page under it now answers
+with `X-Robots-Tag: noindex`, so an engine that already holds one drops it the
+next time it looks. It is still there to browse. A real clinic's site never
+gets that header. This was decided in the session, not ruled by you; it is one
+line to reverse (`withDemoNoindex` in `middleware.ts`).
 
 **One font instead of two before the page paints.** A fallback font nobody
 sees on a public page was being fetched at high priority on every page of the
@@ -198,8 +201,8 @@ and each clinic's SEO page then reads its own slice of it.
    subdomains (m, www, and so on) and multiple protocols".
 3. Google gives you a TXT record. Add it at name.com, where the DNS lives. A
    Domain property is verified by "DNS record verification only". Google says
-   "it can take up to two or three days for your provider to start serving the
-   record", though minutes is usual.
+   it "can take a few minutes or even days" for the record to be visible to
+   it.
 4. Back in the app, press **Connect Search Console**, sign in with the same
    Google account, and pick the `sc-domain:dreamcreatestudio.com` property.
 5. In Search Console, open the **Sitemaps** report, enter
@@ -285,9 +288,8 @@ software is not settled (notes-14), so the same line is the safe one: the same
 ask to everyone, the same thank-you whatever they write, and never write one
 for them. **This is not legal advice.**
 
-The ask that works is a personal one, sent a few weeks after a practice goes
-live, with the link. You have no customers' numbers yet, so this step starts
-when the first practices do.
+The ask that works is a personal one, from you, with the link, a few weeks
+after a practice goes live. Start with the practices that are live today.
 
 ### Step 5 — The other profiles (an hour, once)
 
@@ -320,7 +322,7 @@ channel research (notes-12, read 2026-11-23, with its own caveats):
 - **The Arkansas State Dental Association.** Its Annual Scientific Session is
   March 11–13, 2027 in North Little Rock. Exhibitor terms were not on the page.
   A member-benefit listing on an association's own site is a mention on a
-  domain assistants trust.
+  dental organisation's own domain.
 - **The communities** (Dental Nachos, Nifty Thrifty Dentists, the Dental
   Office Managers Community). Their rules for vendors could not be read. The
   safe route is the founder-run sponsor or deal page, by direct email — not
@@ -333,8 +335,7 @@ channel research (notes-12, read 2026-11-23, with its own caveats):
   question that was asked, and never lead with a link.
 
 None of this is free of effort, and most of it costs nothing but a founder's
-time. It is also the part a competitor with a bigger budget cannot simply buy
-past you on.
+time.
 
 ### Step 7 — The monthly check (20 minutes, first week of each month)
 
