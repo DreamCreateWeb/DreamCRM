@@ -458,6 +458,34 @@ export function getComparison(slug: string): VendorComparison | undefined {
 }
 
 /**
+ * Does this vendor's OWN site state a price? Read off the pricing line's
+ * opening, which the registry writes one of two ways on purpose: "Published…"
+ * when the vendor's page carries a number, and "No … price published…" or
+ * "Custom quote only…" when it does not. `tests/marketing/pricing-guide.test.tsx`
+ * holds that every entry opens one of those ways, so a new entry phrased some
+ * third way fails there instead of being silently counted as a non-publisher.
+ */
+export function publishesPrice(c: VendorComparison): boolean {
+  return /^Published\b/.test(c.reportedPricing)
+}
+
+/** The vendor's answer on the "Month-to-month, no contract" row. */
+export function contractAnswer(c: VendorComparison): { value: MatrixValue; note: string } {
+  const row = c.matrix.find((r) => r.feature.startsWith('Month-to-month'))
+  return { value: row?.vendor ?? 'partial', note: row?.vendorNote ?? '' }
+}
+
+/** The most recent day any entry's pricing was read against its vendor's
+ *  page — an ISO day, or undefined when nothing has been read. */
+export function latestPricingCheck(comparisons: readonly VendorComparison[] = COMPARISONS): string | undefined {
+  const days = comparisons
+    .map((c) => c.pricingChecked?.on)
+    .filter((d): d is string => Boolean(d))
+    .sort()
+  return days[days.length - 1]
+}
+
+/**
  * The per-vendor FAQ (slice 4a, docs/marketing-engine.md Part 5): the
  * questions buyers actually type — "{vendor} pricing", "{vendor}
  * alternatives" — and the ones AI assistants extract answers from. DERIVED

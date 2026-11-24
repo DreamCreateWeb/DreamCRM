@@ -1,5 +1,5 @@
 import { buildAbout } from '@/lib/marketing/about'
-import { COMPARISONS } from '@/lib/marketing/comparisons'
+import { COMPARISONS, contractAnswer } from '@/lib/marketing/comparisons'
 import { CHANGELOG_ENTRIES } from '@/lib/marketing/changelog'
 import { DOCS } from '@/lib/marketing/docs'
 import { LEGAL_UPDATED } from '@/lib/marketing/legal'
@@ -61,6 +61,17 @@ export interface PublicPost {
 
 /** A hand-written page: announced once, then left to ordinary crawling. */
 export const HAND_WRITTEN_KEY = 'hand-written'
+
+/**
+ * What a guide's page is built from, when that is not the guide's own entry.
+ * The pricing guide renders the comparison registry's pricing lines, contract
+ * answers and check dates — so a competitor's page re-read on the same day,
+ * with no date to bump, still moves the guide's key and gets it re-announced.
+ */
+const GUIDE_SOURCES: Record<string, () => unknown> = {
+  'dental-software-pricing': () =>
+    COMPARISONS.map((c) => [c.slug, c.name, c.reportedPricing, c.pricingChecked ?? null, contractAnswer(c)]),
+}
 
 function postModified(post: PublicPost): Date | null {
   return post.updatedAt ?? post.publishedAt
@@ -139,7 +150,9 @@ export function publicPages(posts: readonly PublicPost[]): PublicPage[] {
     lastModified: g.datePublished,
     changeFrequency: 'monthly' as const,
     priority: 0.7,
-    contentKey: contentKey(g),
+    // A guide whose body is built from another registry changes when THAT
+    // does, not only when its own entry is edited.
+    contentKey: contentKey(GUIDE_SOURCES[g.slug] ? [g, GUIDE_SOURCES[g.slug]()] : g),
   }))
 
   const blog: PublicPage[] = posts.map((post) => {

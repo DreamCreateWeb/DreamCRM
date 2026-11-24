@@ -455,9 +455,7 @@ searching for, written from something we know first-hand. Not volume.
 
 | # | Page | The search it answers | Why us |
 |---|---|---|---|
-| 1 | What dental front-office software actually costs in 2026 | "{vendor} pricing", "dental software cost" | Five of eight rivals publish nothing. We read all eight sites on stated dates and can say exactly what each one shows |
-| 2 | Which dental software vendors publish their price, and which make you call | "dental software pricing transparent" | Same first-hand read. A table nobody else has a reason to publish |
-| 3 | Month-to-month or annual: the contract terms of eight dental software vendors | "{vendor} contract", "cancel {vendor}" | Each answer quoted from the vendor's own page, with the date |
+| 1–3 | **PUBLISHED as one living page, 2026-11-24:** `/resources/dental-software-pricing` — what each vendor's own site says about price, who publishes one and who makes you call, and the contract answer beside each | "{vendor} pricing", "dental software cost", "{vendor} contract" | We read all eight sites on stated dates. The page is built from the comparison records, so re-reading a vendor updates it, its date and the search notice together. It is not a blog post: a post is frozen on the day it is published, and a price list that cannot be corrected is the thing this page exists to replace |
 | 4 | What a dental practice website should cost, and what you get | "dental website cost" | We sell one inside a flat price and can show the arithmetic |
 | 5 | Asking every patient for a review, the same way: what the FTC rule allows | "dental reviews FTC", "review gating dental" | The product was built around the rule |
 | 6 | A patient portal patients will actually use | "dental patient portal" | The portal research already written up in the launch post |
@@ -466,7 +464,13 @@ searching for, written from something we know first-hand. Not volume.
 
 Three rules for every one of them: the word "dental" beside the product name;
 no claim about a competitor that is not on its own site with a date; and no
-ranking of ourselves. I can draft any of these for you to read and publish.
+ranking of ourselves.
+
+**How a piece gets published.** Two routes, and neither needs you to write.
+A reference page that has to stay true (like the pricing guide) is built into
+the site and goes live when you merge. An article (4 to 8 below) I draft for
+you; you paste it into the Platform Blog and press Publish, and it is
+announced to the search engines within the hour.
 
 Each month, re-read the eight competitor pages. Their `pricingChecked` dates
 are on the comparison pages for everyone to see, and a stale one is worse than

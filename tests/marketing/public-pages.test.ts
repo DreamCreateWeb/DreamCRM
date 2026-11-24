@@ -81,7 +81,16 @@ describe('a content key moves exactly when the page’s content does', () => {
   it('a page built from a registry is keyed on its own entry', () => {
     for (const c of COMPARISONS) expect(keyOf(`/compare/${c.slug}`), c.slug).toBe(contentKey(c))
     for (const d of DOCS) expect(keyOf(`/docs/${d.slug}`), d.slug).toBe(contentKey(d))
-    for (const g of RESOURCE_GUIDES) expect(keyOf(`/resources/${g.slug}`), g.slug).toBe(contentKey(g))
+    // A guide is keyed on its own entry — except the one whose BODY is built
+    // from the comparison registry, which must move when that registry does
+    // (held in tests/marketing/pricing-guide.test.tsx).
+    for (const g of RESOURCE_GUIDES) {
+      if (g.slug === 'dental-software-pricing') {
+        expect(keyOf(`/resources/${g.slug}`), g.slug).not.toBe(contentKey(g))
+        continue
+      }
+      expect(keyOf(`/resources/${g.slug}`), g.slug).toBe(contentKey(g))
+    }
     // …so re-reading a competitor's pricing moves that page's key and no other.
     const [first] = COMPARISONS
     expect(contentKey({ ...first, summary: `${first.summary}!` })).not.toBe(contentKey(first))

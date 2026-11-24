@@ -115,6 +115,28 @@ export const RESOURCE_GUIDES: ResourceGuide[] = [
     readMinutes: 10,
     datePublished: '2026-09-08',
   },
+  {
+    slug: 'dental-software-pricing',
+    title: 'Dental front-office software pricing: what each vendor publishes',
+    description:
+      'What dental front-office software vendors say about price and contract terms on their own websites — each quoted with the page it came from and the day it was read, and which of them publish no price at all.',
+    // `tag` — the price. The subject of this guide is the number, and who
+    // will and will not write theirs down.
+    glyph: 'tag',
+    contains: [
+      'Each vendor’s price, in its own words',
+      'Which of them publish no price at all',
+      'The contract answer beside every price',
+      'The questions to ask before a demo',
+    ],
+    readMinutes: 6,
+    // NOT a writing date: the day the newest line on the page was read
+    // against its vendor's site. The page is built from the comparison
+    // registry, so this must move when that does —
+    // `tests/marketing/pricing-guide.test.tsx` fails until it equals the
+    // registry's latest `pricingChecked.on`.
+    datePublished: '2026-11-24',
+  },
 ]
 
 export function getResourceGuide(slug: string): ResourceGuide | undefined {

@@ -106,7 +106,33 @@ import type { ResourceGuide } from '@/lib/marketing/resources'
  *  no Stripe call — so this costs nothing at render. */
 const PLAN = getQuotedPlan()
 
-export function GuideShell({ guide, children }: { guide: ResourceGuide; children: ReactNode }) {
+/**
+ * The closing block's words. The default is written for the how-to guides —
+ * "everything in this guide is a job the software does" — and it is simply
+ * untrue of a guide that is ABOUT something else (the pricing guide is about
+ * other companies' prices, none of which the software does). A guide like
+ * that passes its own; the price in it is still resolved, never typed.
+ */
+export interface GuideClose {
+  eyebrow: string
+  title: string
+  body: ReactNode
+}
+
+export function GuideShell({
+  guide,
+  children,
+  close,
+  note = 'Free to copy and use in your practice',
+}: {
+  guide: ResourceGuide
+  children: ReactNode
+  close?: GuideClose
+  /** The last item of the hero's spine: what the reader may do with the
+   *  guide. The default is true of the script guides and not of a reference
+   *  page, which has nothing to copy. */
+  note?: string
+}) {
   return (
     <>
       <JsonLd
@@ -133,7 +159,7 @@ export function GuideShell({ guide, children }: { guide: ResourceGuide; children
           <ToneTile glyph={guide.glyph} size="sm" />
           <span>{guide.readMinutes}-minute read</span>
           <span className="h-1 w-1 rounded-full bg-teal-600" aria-hidden="true" />
-          <span>Free to copy and use in your practice</span>
+          <span>{note}</span>
         </div>
       </PageHero>
 
@@ -156,14 +182,18 @@ export function GuideShell({ guide, children }: { guide: ResourceGuide; children
               className="h-[3px] w-9 shrink-0 rounded-full bg-gradient-to-r from-teal-600 via-violet-700 to-fuchsia-700"
               aria-hidden="true"
             />
-            Want this to run itself?
+            {close?.eyebrow ?? 'Want this to run itself?'}
           </div>
           <h2 className="text-[1.9rem] font-extrabold leading-[1.05] tracking-[-0.03em] text-gray-950 sm:text-[2.4rem]">
-            Everything in this guide is a job the software does
+            {close?.title ?? 'Everything in this guide is a job the software does'}
           </h2>
           <p className="mt-4 text-[1rem] leading-relaxed text-gray-600">
-            Recall asks that send themselves, a website that books 24/7, reviews that grow
-            on their own. {usd(PLAN.price)}/mo, flat, after {TRIAL.days} days free.
+            {close?.body ?? (
+              <>
+                Recall asks that send themselves, a website that books 24/7, reviews that grow
+                on their own. {usd(PLAN.price)}/mo, flat, after {TRIAL.days} days free.
+              </>
+            )}
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             <PrimaryCta href="/signup">{TRIAL.cta}</PrimaryCta>

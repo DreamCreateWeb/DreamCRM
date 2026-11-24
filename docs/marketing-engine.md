@@ -2089,3 +2089,33 @@ change: `subscription_status` is free text, and the new state is a value.
   every primary button's label occupies, on every marketing page at three
   widths (`data-cta="primary"` is the hook). Watched failing first: eighteen
   failures, exactly those nine pages at 834 and 1440, and none anywhere else.
+
+**Part 12 slice 3 — the pricing guide (2026-11-24, no migration).**
+
+- **`/resources/dental-software-pricing`** — what each vendor's own website
+  says about its price and its contract terms, with the page it came from and
+  the day it was read; who publishes a price and who makes a buyer call; and
+  the questions to ask before a demo. On the day it shipped, six of the eight
+  vendors we compare ourselves with published no price.
+- **It has no words of its own about a competitor.** Every pricing line,
+  contract answer, source and date is read from the comparison registry
+  (`publishesPrice`, `contractAnswer`, `latestPricingCheck` are the three
+  readers), compared verbatim by test. A second copy of a competitor's price
+  is how a page comes to disagree with the vendor it quotes.
+- **Never a number in a vendor's mouth.** A vendor whose site states no price
+  is listed as stating none; any figure beside it is attributed to the third
+  parties who reported it; the two lists are held to be everyone exactly once.
+  Every pricing line in the registry must open one of three ways, so a new
+  entry cannot be classified by accident.
+- **Dated truthfully.** The guide's own date is the day of the newest read,
+  by test, so its sitemap date is real; an entry nobody read is not on the
+  page. Its search-notice key follows the registry it is built from, so a
+  same-day correction to a competitor's record re-announces the guide too.
+- **Not a ranking.** We are not on the list; our price is in the close,
+  resolved, with the trial and its card. The page says we make one of these
+  products and that this is a reason to check it. The guide shell gained an
+  optional closing block, because "everything in this guide is a job the
+  software does" is untrue of a guide about other companies' prices.
+- **Why a page and not a post.** The platform's seeded posts are written once
+  and never touched again; a price list frozen on its publication day is the
+  defect `pricingChecked` exists to end.

@@ -8,6 +8,7 @@ import ResourcesIndexPage from '@/app/(marketing)/resources/page'
 import RecallScriptsGuide from '@/app/(marketing)/resources/dental-recall-scripts/page'
 import MembershipPricingGuide from '@/app/(marketing)/resources/dental-membership-plan-pricing/page'
 import MorePatientsGuide from '@/app/(marketing)/resources/how-to-get-more-dental-patients/page'
+import PricingGuide from '@/app/(marketing)/resources/dental-software-pricing/page'
 
 /**
  * The practice-growth resource library (marketing-engine slice 4b). The
@@ -140,6 +141,7 @@ describe('the library reads as a shelf rather than three equal cards', () => {
       ['dental-recall-scripts', RecallScriptsGuide],
       ['dental-membership-plan-pricing', MembershipPricingGuide],
       ['how-to-get-more-dental-patients', MorePatientsGuide],
+      ['dental-software-pricing', PricingGuide],
     ] as const) {
       const guide = getResourceGuide(name)!
       const { container, unmount } = render(<Page />)
@@ -151,18 +153,26 @@ describe('the library reads as a shelf rather than three equal cards', () => {
       // its place: it is the difference between the two heroes.
       expect(h1?.className, `${name}: not the shared hero's type`).toContain('lg:text-[3.6rem]')
       expect(screen.getByText(`${guide.readMinutes}-minute read`)).toBeInTheDocument()
+      // The script guides say what a reader may do with them; the reference
+      // guide says something else, because it has nothing to copy.
+      expect(
+        screen.queryByText('Free to copy and use in your practice') !== null,
+        `${name}: the hero's last line`,
+      ).toBe(name !== 'dental-software-pricing')
       unmount()
     }
   })
 
-  it('the shared shell quotes the price from the plan config, on all three guides at once', () => {
+  it('the shared shell quotes the price from the plan config, on every guide at once', () => {
     // DREAMCRM-38, found a fourth time. The literal lived in `GuideShell`, so
     // it was live on three public pages while counting as one surface.
     // `tests/marketing/pricing-price-source.test.tsx` owns the source scan;
     // this is the rendered twin, and it is per-page on purpose — a shell that
     // stopped rendering the close would pass a source scan silently.
     const price = `$${getQuotedPlan().price.toLocaleString('en-US')}/mo`
-    for (const Page of [RecallScriptsGuide, MembershipPricingGuide, MorePatientsGuide]) {
+    // The pricing guide closes in its own words (it is not a how-to), and
+    // its price is resolved from the same config — so it is held here too.
+    for (const Page of [RecallScriptsGuide, MembershipPricingGuide, MorePatientsGuide, PricingGuide]) {
       const { unmount } = render(<Page />)
       expect(
         screen.getByText((_, el) => el?.textContent?.includes(price) === true, {

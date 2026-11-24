@@ -183,6 +183,7 @@ export const FOOTER_COLUMNS: Array<{ title: string; links: Array<{ label: string
       { label: 'Dental recall scripts', href: '/resources/dental-recall-scripts' },
       { label: 'Membership plan pricing', href: '/resources/dental-membership-plan-pricing' },
       { label: 'Get more dental patients', href: '/resources/how-to-get-more-dental-patients' },
+      { label: 'Dental software pricing', href: '/resources/dental-software-pricing' },
       { label: 'Help docs', href: '/docs' },
       { label: 'Blog', href: '/blog' },
       { label: 'Changelog', href: '/changelog' },
