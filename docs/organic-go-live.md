@@ -533,3 +533,88 @@ anything sent to customers, external communications).
 - **Changing the IndexNow key** → one line in `lib/indexnow.ts`. The middleware
   serves whatever it says. The record of what was announced survives a key
   change.
+
+---
+
+## 10. The plan for page one (2026-11-25)
+
+**What the owner asked for.** Page one for the searches that matter to the
+people who would buy this, by whatever legitimate means exist, including paid
+ones — and reports back in plain English, short, without the detail.
+
+This part is the plan: which searches, which page answers each, what is built,
+what is next, and what money can and cannot buy. It grants nothing. What may
+be shipped without asking is whatever the owner has said in the session doing
+the work, and `CLAUDE.md`.
+
+**What does not bend.** No compliance claim and no texting promise. A
+competitor fact is read three ways and dated. Nothing is sent to a customer or
+posted in the owner's name without him. And **no bought links**: Google's spam
+policy counts buying links for ranking as link spam, and a paid placement must
+be tagged as sponsored. What can be bought is listed below.
+
+### The searches that matter, by who is typing
+
+| Who is searching | What they type | Our page for it | Where it stands |
+|---|---|---|---|
+| The front desk, looking for wording to copy | "dental recall script", "… letter template", "appointment reminder text", "no-show policy template", "review request template" | The practice-growth guides | The recall guide is on page two for about two dozen searches, and it is the only one built. **Google already shows us here — the fastest ground to take** |
+| An owner pricing a vendor | "{vendor} pricing", "{vendor} cost" | Each comparison page's pricing section | Tebra (PatientPop) is read out in full; the other seven carry one dated line |
+| An owner leaving a vendor | "{vendor} alternatives", "{vendor} vs …" | The comparison pages | Eight vendors; four of them had no showings at all in three months |
+| An owner sizing up a purchase | "how much does a dental website cost", "dental patient portal", "dental membership plan software" | Not built, except membership pricing | Part 6 lists them |
+| Anyone who heard the name | "dreamcrm", "dream crm", "dream create" | Home, `/about` | Fifth and thirteenth for our own name. Mostly fixed off the site: profiles and reviews |
+| A buyer asking for a shortlist | "best dental patient communication software" | No vendor's own page ranks — review directories and list sites do | We reach page one there by being LISTED on them (Capterra, G2), which is the owner's step |
+
+### The queue
+
+In this order, one or two at a time. Each is the thing the searcher wanted,
+ready to copy — not an article about it.
+
+1. Appointment reminder and confirmation templates (text, email, phone).
+2. No-show and cancellation policy, with the letters that go with it. The
+   results for this search are weak; it is the likeliest quick page one.
+   **Built 2026-11-25:** `/resources/dental-cancellation-no-show-policy`
+   (`docs/marketing-engine.md`, Part 12 slice 6).
+3. Review request templates, and what Google and the FTC allow.
+4. Weave's pricing, read out line by line (the largest name dentists search).
+5. What a dental practice website costs.
+6. NexHealth's pricing, line by line.
+7. New-patient welcome letter and first-visit email.
+8. Unscheduled-treatment follow-up scripts.
+9. Past-due balance letters and scripts.
+10. A free Google-review link and QR-card maker (a tool earns links that a
+    page does not).
+11. The other five vendors' pricing, line by line; then comparisons for the
+    vendors dentists search that we do not cover yet (website makers,
+    reminder services, membership-plan software).
+12. The search scoreboard: the app saves what Search Console reports each
+    week, so results can be read without an export.
+
+A text template is content a practice may use anywhere; it is never a
+statement that this product sends texts (the recall guide's closing block is
+the pattern).
+
+### What money can buy, and what it cannot
+
+| Option | What it does | Cost | Needs the owner |
+|---|---|---|---|
+| **Google Ads on these same searches** | The only way onto page one this week — as an ad, above the results. The campaign is already built (`docs/ads-go-live.md`) | His earlier figure was a $1,000 a month test | An Ads account and a card; and it reverses "organic first", so it is his call |
+| **Capterra, Software Advice and GetApp** (one company) | Their category pages already hold page one for the "best dental … software" searches. A listing puts us on them; paying per click puts us at the top | Clicks reported from about $2 each (third-party figure, read 2026-11-25; the terms of a free listing were not confirmed) | Signing up as the vendor |
+| **G2** | The same, and the profile assistants quote most | Free | Part 4, step 3 |
+| **Sponsoring where dentists read** | A named mention in a newsletter, a study club or a student association is what makes people search the name, with a legitimate, tagged link | Varies | His relationships |
+| **A keyword and ranking data feed** | Search volumes and daily positions that can be read without an export, so the work aims at the right terms | Roughly $50 to start, pay as used (not priced first-hand) | An account, and a key entered in the secure form |
+| Links | Nothing we may buy | — | — |
+
+### What only the owner can do
+
+1. The free profiles: G2, then Capterra (the copy is Part 5).
+2. Ask the practices that are live today for a review on them.
+3. Decide on ads (above).
+4. Once: say whether the Search Console page inside the app shows numbers or
+   a Connect button — the scoreboard (queue item 12) reads through that
+   connection.
+
+### How it is judged
+
+By the monthly export until the scoreboard exists: showings, clicks, and the
+number of searches where we are on page one. Baseline, 2026-08-24 to
+2026-11-23: about 2,100 showings and 8 clicks.

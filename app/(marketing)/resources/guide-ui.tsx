@@ -14,6 +14,7 @@ import { JsonLd, articleLd, breadcrumbLd } from '@/lib/marketing/seo'
 import { usd, TRIAL } from '@/lib/marketing/site'
 import { getQuotedPlan } from '@/lib/stripe-config'
 import type { ResourceGuide } from '@/lib/marketing/resources'
+import type { GuideSource } from '@/lib/marketing/guide-sources'
 
 /**
  * THE GUIDE SHELL AND THE ARTICLE PRIMITIVES — `BRAND.md` Part 8 move 6,
@@ -518,5 +519,27 @@ export function GuideNote({ children }: { children: ReactNode }) {
       <p className={`mb-1.5 text-amber-700 ${MONO_LABEL}`}>Watch out</p>
       <p className="text-[0.98rem] leading-relaxed text-gray-700">{children}</p>
     </div>
+  )
+}
+
+/**
+ * A LINK TO AN OUTSIDE PAGE A GUIDE QUOTES (`lib/marketing/guide-sources.ts`).
+ *
+ * One component so the three things that must be true of every such link are
+ * true in one place: it opens beside the guide rather than replacing it, it is
+ * `nofollow` (we vouch for the sentence we quoted and nothing else on the
+ * page), and it wears the same underline the pricing guide's source lines do.
+ * The reader's own label wins; the source's label is the default.
+ */
+export function GuideSourceLink({ source, children }: { source: GuideSource; children?: ReactNode }) {
+  return (
+    <a
+      href={source.url}
+      target="_blank"
+      rel="nofollow noopener noreferrer"
+      className="text-teal-700 underline underline-offset-2"
+    >
+      {children ?? source.label}
+    </a>
   )
 }

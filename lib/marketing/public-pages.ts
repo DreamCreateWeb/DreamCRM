@@ -4,6 +4,8 @@ import { CHANGELOG_ENTRIES } from '@/lib/marketing/changelog'
 import { DOCS } from '@/lib/marketing/docs'
 import { LEGAL_UPDATED } from '@/lib/marketing/legal'
 import { RESOURCE_GUIDES } from '@/lib/marketing/resources'
+import { NO_SHOW_SOURCES } from '@/lib/marketing/guide-sources'
+import { productEmail } from '@/lib/marketing/guide-templates'
 import { MARKETING_PUBLIC_PATHS, TRIAL } from '@/lib/marketing/site'
 import { contentKey } from '@/lib/indexnow'
 import { getQuotedPlan } from '@/lib/stripe-config'
@@ -71,6 +73,11 @@ export const HAND_WRITTEN_KEY = 'hand-written'
 const GUIDE_SOURCES: Record<string, () => unknown> = {
   'dental-software-pricing': () =>
     COMPARISONS.map((c) => [c.slug, c.name, c.reportedPricing, c.pricingChecked ?? null, contractAnswer(c)]),
+  // The no-show guide quotes outside pages word for word and dates each read
+  // (`guide-sources.ts`), and shows the product's own missed-visit note
+  // (`guide-templates.ts`). A re-read source or an edit to that email changes
+  // what the page says without touching the guide's own entry.
+  'dental-cancellation-no-show-policy': () => [NO_SHOW_SOURCES, productEmail('no_show_rebook')],
 }
 
 function postModified(post: PublicPost): Date | null {

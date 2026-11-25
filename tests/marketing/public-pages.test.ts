@@ -81,11 +81,14 @@ describe('a content key moves exactly when the page’s content does', () => {
   it('a page built from a registry is keyed on its own entry', () => {
     for (const c of COMPARISONS) expect(keyOf(`/compare/${c.slug}`), c.slug).toBe(contentKey(c))
     for (const d of DOCS) expect(keyOf(`/docs/${d.slug}`), d.slug).toBe(contentKey(d))
-    // A guide is keyed on its own entry — except the one whose BODY is built
-    // from the comparison registry, which must move when that registry does
-    // (held in tests/marketing/pricing-guide.test.tsx).
+    // A guide is keyed on its own entry — except the ones whose BODY is built
+    // from another registry, which must move when that registry does: the
+    // pricing guide (the comparison registry — held in
+    // tests/marketing/pricing-guide.test.tsx) and the no-show policy guide
+    // (the outside pages it quotes — tests/marketing/no-show-policy-guide.test.tsx).
+    const builtFromElsewhere = ['dental-software-pricing', 'dental-cancellation-no-show-policy']
     for (const g of RESOURCE_GUIDES) {
-      if (g.slug === 'dental-software-pricing') {
+      if (builtFromElsewhere.includes(g.slug)) {
         expect(keyOf(`/resources/${g.slug}`), g.slug).not.toBe(contentKey(g))
         continue
       }
