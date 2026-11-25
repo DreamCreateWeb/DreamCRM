@@ -2023,7 +2023,9 @@ change: `subscription_status` is free text, and the new state is a value.
   preloaded on clinic sites, which do not use it.
 - **The last five comparison pages, re-read against the vendors' own sites.**
   None of the five publishes a price; each page says so and attributes its
-  figure to third parties. Corrected in the COMPETITOR'S favour where the
+  figure to third parties. **(WRONG FOR TWO OF THE FIVE — Podium and Tebra
+  do publish. Found and corrected the next day; slice 5 below has the
+  account and the method that replaced this read.)** Corrected in the COMPETITOR'S favour where the
   read required it: RevenueWell's monthly contracts, free trials, shared
   inbox and phone add-on; Adit's no-binding-contract answer; Dental
   Intelligence's phones and insurance verification; Podium Phones. Claims the
@@ -2100,8 +2102,9 @@ change: `subscription_status` is free text, and the new state is a value.
 - **`/resources/dental-software-pricing`** — what each vendor's own website
   says about its price and its contract terms, with the page it came from and
   the day it was read; who publishes a price and who makes a buyer call; and
-  the questions to ask before a demo. On the day it shipped, six of the eight
-  vendors we compare ourselves with published no price.
+  the questions to ask before a demo. On the day it shipped it said six of
+  the eight vendors we compare ourselves with published no price; the true
+  count was four (slice 5 below).
 - **It has no words of its own about a competitor.** Every pricing line,
   contract answer, source and date is read from the comparison registry
   (`publishesPrice`, `contractAnswer`, `latestPricingCheck` are the three
@@ -2175,3 +2178,69 @@ change: `subscription_status` is free text, and the new state is a value.
   whether clicks moved. The four comparison pages with no showings at all, the
   patient-growth guide at position 70, and being fifth for our own name are
   all untouched here.
+
+**Part 12 slice 5 — two wrong lines about competitors corrected, and the PatientPop pricing read out in full (2026-11-25, no migration).**
+
+- **THE CORRECTION, FIRST.** For one day the site said two competitors
+  publish no price when they do. **Podium's** pricing page shows $399 and
+  $599 a month; the figures are drawn by the page's scripts, and the read of
+  the 24th fetched the page's text without running them. **Tebra's** main
+  pricing page really is a form with no number — and a second page on its own
+  site, `/pricing/overview`, publishes its whole price list; the read of the
+  24th looked at one page. Tebra's wrong line was restated in that page's
+  meta description by the next day's merge. Both were found on the 25th while
+  researching the pricing section below, not by a test: no test can know what
+  a vendor's website says.
+- **The method that replaced it.** A "no price" line now takes three reads:
+  the vendor's pricing page in a real browser with scripts running; a search
+  of the vendor's own domain for a price on any other page; and the page's
+  structured data. All eight were re-read that way on the 25th and re-dated.
+  Two more lines changed without flipping — **Adit** shows a reader no price
+  and carries $399 in its pages' structured data; **RevenueWell's** Plans page
+  shows none while an offer page elsewhere on its site quotes $199 a month —
+  and both lines say so now. Four of eight show a buyer no price on their
+  pricing page, not six. The rule is in `CLAUDE.md`; the account is in
+  `tests/marketing/comparison-pricing-check.test.tsx`.
+- **What else was wrong in Tebra's entry, corrected with it.** "Terms not
+  stated on its site" — its terms of service state them (automatic renewal
+  for the same term, sixty days' notice, no early cancellation). "A
+  quote-only price" in the card that says where we win. Both are gone; the
+  card now compares one flat price with per-provider pricing.
+- **THE PRICING, LINE BY LINE.** The owner asked for the top of page one for
+  "patientpop pricing" (240 showings in three months; he found the page near
+  the bottom of page two). What the results above it lack is the vendor's own
+  fee schedule and contract terms, which are public on pages nobody quotes.
+  So `pricingDetail` in the registry carries them, a line per fact, each
+  group under ONE page of Tebra's own site with the day it was read and that
+  page's own date: the published prices (from $49 and $99 per provider for
+  the package that holds the PatientPop tools), what that package includes
+  and marks as not included, the fees outside the subscription (a one-time
+  onboarding fee, website hosting as its own monthly line, $84.87 per
+  location a year in messaging compliance, $1,000 to export the website),
+  the contract, and what happens to the site and the domain on leaving.
+- **Third parties are kept apart.** One report, under its reporter's name,
+  with the reporter's own caveat. Six sources that refused an automated read
+  are named on the page so their absence is not taken for agreement.
+- **It says where their price is lower than ours** — for one provider on the
+  marketing package alone it is — by test.
+- **The rest of what the site can do for that search.** The head leads with
+  the name people type ("PatientPop pricing (now Tebra) …", since five
+  searches in six used the old name). Three pricing questions join the page's
+  questions and their data twin, each answer ending with its source and date.
+  The pricing guide links straight to the section. Every comparison page
+  names the other seven in its body by "{vendor} pricing". Each page's data
+  carries `lastReviewed`, the day its vendor's pages were read, and never a
+  modification date nobody recorded.
+- **What the site cannot do, said plainly.** The pages above ours are Tebra's
+  own and review directories with years of links. Content gets a page from
+  the bottom of page two toward page one; the top of page one also takes
+  other sites naming us, which is the owner's half (`docs/organic-go-live.md`
+  steps 3 to 6). And most people who search PatientPop are not dentists —
+  the same treatment on the Weave and NexHealth pages would bring
+  better-matched readers, and is the natural next slice.
+- **Not re-read.** Only pricing was re-read on the 25th. One thing seen in
+  passing and left alone: RevenueWell's Plans page now marks its patient
+  portal and its review management "coming soon" on its new platform, while
+  our page credits it with both. That errs in their favour; re-read the whole
+  entry before touching it.
+

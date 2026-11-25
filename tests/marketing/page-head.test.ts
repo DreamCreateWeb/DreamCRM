@@ -37,7 +37,7 @@ vi.mock('next/navigation', () => ({
 
 import { MARKETING, MARKETING_PUBLIC_PATHS, usd } from '@/lib/marketing/site'
 import { getQuotedPlan } from '@/lib/stripe-config'
-import { COMPARISONS, formatCheckedOn, pricingHeadline } from '@/lib/marketing/comparisons'
+import { COMPARISONS, formatCheckedOn, pricingHeadline, searchName, searchNameWithNow } from '@/lib/marketing/comparisons'
 import { DOCS } from '@/lib/marketing/docs'
 import { RESOURCE_GUIDES } from '@/lib/marketing/resources'
 import { pageMetadata } from '@/lib/marketing/seo'
@@ -180,8 +180,9 @@ describe('the registry-driven pages carry one too', () => {
     for (const c of COMPARISONS) {
       const meta = (await generateMetadata({ params: Promise.resolve({ vendor: c.slug }) })) as Metadata
       expectCompleteHead(meta, `/compare/${c.slug}`)
-      // The queries the page exists for stay in the title.
-      expect(String(meta.title)).toContain(c.name)
+      // The queries the page exists for stay in the title — under the name a
+      // searcher types, which for a renamed product is the old one.
+      expect(String(meta.title)).toContain(searchName(c))
       expect(String(meta.title)).toMatch(/pricing/i)
     }
   })
@@ -212,7 +213,14 @@ describe('the registry-driven pages carry one too', () => {
       const title = String(meta.title)
       const description = String(meta.description)
 
-      expect(title.startsWith(c.name), `${c.slug}: "${title}"`).toBe(true)
+      // The name THEY typed: "PatientPop pricing (now Tebra) …" for the one
+      // entry searched under an old name, and the entry's own name otherwise.
+      expect(title.startsWith(`${searchName(c)} pricing`), `${c.slug}: "${title}"`).toBe(true)
+      if (c.searchedAs) {
+        expect(title, `${c.slug}: the name it has today is missing`).toContain(`(now ${c.searchedAs.now})`)
+      } else {
+        expect(searchName(c)).toBe(c.name)
+      }
       expect(title, c.slug).toMatch(/alternatives/i)
       // It is still OUR comparison, and says so.
       expect(title, `${c.slug}: does not say whose comparison it is`).toContain(MARKETING.productName)
@@ -226,7 +234,7 @@ describe('the registry-driven pages carry one too', () => {
       // A clause, not a cut-off: it stops at punctuation the line itself has.
       expect(headline, `${c.slug}: "${headline}"`).not.toMatch(/[—;,(]\s*$|\s$/)
 
-      expect(description.startsWith(`${c.name} pricing: `), `${c.slug}: "${description}"`).toBe(true)
+      expect(description.startsWith(`${searchNameWithNow(c)} pricing: `), `${c.slug}: "${description}"`).toBe(true)
       expect(description.toLowerCase(), c.slug).toContain(headline.toLowerCase())
       // A dated line carries its date to where the searcher reads it.
       if (c.pricingChecked) expect(description, c.slug).toContain(formatCheckedOn(c.pricingChecked.on))

@@ -315,6 +315,14 @@ booking, intake, shop, the token landings. Brand-derived palette
   (`platform_config.indexNow`), because the protocol forbids re-sending an
   unchanged page — so nothing fires on a deploy. Both of its reads are strict
   and a failure sends nothing. Runbook: `docs/organic-go-live.md`.
+- **A competitor fact is read in a browser, from the vendor's own site, and
+  dated** (`lib/marketing/comparisons.ts`, `pricingChecked`). A "no price
+  published" line takes three reads: the pricing page RENDERED with its
+  scripts, a search of the vendor's own domain for a price on another page,
+  and the page's structured data — the read of 2026-11-24 skipped the first
+  two and put two false lines on the site for a day. A third party's figure
+  stays under that party's name; a source that refused to be read is named,
+  never cited (`pricingDetail`, `tests/marketing/pricing-detail.test.tsx`).
 - **Outside profiles are pasted from the listing kit**
   (`lib/marketing/listing-kit.ts`, printed into `docs/organic-go-live.md`
   between markers a test compares). When the price or trial changes the test

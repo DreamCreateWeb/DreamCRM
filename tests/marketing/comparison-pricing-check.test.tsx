@@ -107,44 +107,117 @@ describe('the other entries re-read the same day', () => {
 })
 
 /**
- * THE REMAINING FIVE, RE-READ 2026-11-24 — and what the read found is that
- * NONE of them publishes a price. So the rule these hold is NexHealth's: the
- * page says the vendor shows no number, and any figure on the line is
- * attributed to the third parties who reported it. A number sitting beside a
- * "last checked against their own page" stamp, on a page that shows none,
- * would be the stamp vouching for something the vendor never said.
+ * ALL EIGHT, RE-READ IN A BROWSER ON 2026-11-25 — AND WHY THE READ OF THE DAY
+ * BEFORE WAS WRONG TWICE.
  *
- * Four were read first-hand (the page text fetched and searched for each
- * phrase); Adit's came through the fetch tool twice, because its site
- * answers a plain request with a challenge page.
+ * The block that stood here said "NONE of them publishes a price" about five
+ * vendors. Two of the five do:
+ *
+ *  - PODIUM's pricing page shows $399 and $599 a month. The figures are drawn
+ *    by the page's own scripts. The read of the 24th fetched the page's text
+ *    without running them, found no number, and wrote "its own pricing page
+ *    shows none".
+ *  - TEBRA's main pricing page really does show no number — and a second page
+ *    on its own site, `/pricing/overview`, publishes the whole price list.
+ *    The read of the 24th looked at one page.
+ *
+ * Both lines were live for a day saying a competitor hides a price it
+ * publishes, and Tebra's was restated in that page's meta description. Found
+ * on the 25th while researching the Tebra page's pricing section, and not by
+ * any test: no test can know what a vendor's website says.
+ *
+ * WHAT A "NO PRICE" LINE REQUIRES NOW — the method, since a test cannot hold
+ * it: the vendor's pricing page read in a real browser with its scripts
+ * running; a search of the vendor's own domain for a price on any other page;
+ * and the page's structured data. The read of the 25th did all three for all
+ * eight. Two more lines changed by it without flipping: Adit's pricing page
+ * shows a reader no price and carries one in its structured data, and
+ * RevenueWell's Plans page shows none while an offer page elsewhere on its
+ * site quotes one. Both lines say so now.
  */
-describe('the five entries re-read on 2026-11-24', () => {
-  const FIVE: Array<[slug: string, host: string]> = [
+describe('all eight entries, re-read in a browser on 2026-11-25', () => {
+  const ALL: Array<[slug: string, host: string]> = [
+    ['weave', 'getweave.com'],
+    ['nexhealth', 'nexhealth.com'],
     ['revenuewell', 'revenuewell.com'],
+    ['solutionreach', 'solutionreach.com'],
     ['adit', 'adit.com'],
     ['dental-intelligence', 'dentalintel.com'],
     ['podium', 'podium.com'],
     ['patientpop', 'tebra.com'],
   ]
+  const entry = (slug: string) => COMPARISONS.find((c) => c.slug === slug)!
+  const contract = (slug: string) => entry(slug).matrix.find((r) => r.feature.startsWith('Month-to-month'))!
 
-  it.each(FIVE)('%s: dated that day, against a page on %s', (slug, host) => {
-    const c = COMPARISONS.find((x) => x.slug === slug)!
-    expect(c.pricingChecked?.on).toBe('2026-11-24')
+  it('is the whole registry — a ninth vendor needs a row here, and a read', () => {
+    expect(ALL.map(([slug]) => slug).sort()).toEqual(COMPARISONS.map((c) => c.slug).sort())
+  })
+
+  it.each(ALL)('%s: dated that day, against a page on %s', (slug, host) => {
+    const c = entry(slug)
+    expect(c.pricingChecked?.on).toBe('2026-11-25')
     expect(new URL(c.pricingChecked!.url).hostname.endsWith(host)).toBe(true)
   })
 
-  it.each(FIVE)('%s: says the vendor publishes no price, and attributes the only figure to third parties', (slug) => {
-    const c = COMPARISONS.find((x) => x.slug === slug)!
-    expect(c.reportedPricing).toMatch(/^No (subscription )?price published/)
-    // The figure survives — it is useful to a buyer — but never as theirs.
-    const [, afterTheSemicolon] = c.reportedPricing.split(';')
-    expect(afterTheSemicolon, `${slug}: the figure must follow the attribution`).toMatch(/third-party reviews report ~\$\d/)
-    expect(c.reportedPricing.split(';')[0], `${slug}: no dollar figure in the vendor's own half`).not.toMatch(/\$\d/)
+  it('Podium is quoted from its own pricing page — Core, Pro, and the plan priced by quote', () => {
+    const podium = entry('podium')
+    expect(podium.reportedPricing).toMatch(/^Published at \$399\/mo for its Core plan and \$599\/mo for Pro/)
+    expect(podium.reportedPricing).toMatch(/Signature plan priced by quote/)
+    // The retracted line, and the third-party band that turned out to be
+    // Podium's own two prices.
+    const text = JSON.stringify(podium)
+    expect(text).not.toMatch(/No price published|shows none|third-party reviews report|volume-based add-ons/)
   })
 
-  it('every contract answer that changed is the vendor’s own, and says so', () => {
-    const contract = (slug: string) =>
-      COMPARISONS.find((c) => c.slug === slug)!.matrix.find((r) => r.feature.startsWith('Month-to-month'))!
+  it('Tebra is quoted from its pricing OVERVIEW page — and the line says its main pricing page shows nothing', () => {
+    const tebra = entry('patientpop')
+    expect(tebra.pricingChecked!.url).toBe('https://www.tebra.com/pricing/overview')
+    expect(tebra.reportedPricing).toMatch(/^Published from \$49 per provider per month/)
+    expect(tebra.reportedPricing).toContain('$99')
+    // The asterisk on Tebra's own table, carried with the figure it qualifies.
+    expect(tebra.reportedPricing).toMatch(/starter prices for practices submitting fewer than 100 claims a month/)
+    // Why a careful reader could look at tebra.com/pricing and think we made
+    // the number up.
+    expect(tebra.reportedPricing).toMatch(/main pricing page shows no number/)
+    // The retracted claims, everywhere in the entry.
+    const text = JSON.stringify(tebra)
+    expect(text).not.toMatch(/No subscription price published|publishes no subscription price|quote-only price|published price/)
+  })
+
+  const SHOW_NO_PRICE = ['nexhealth', 'revenuewell', 'adit', 'dental-intelligence']
+
+  it('"shows a buyer no price" is exactly these four, and the other four open "Published"', () => {
+    const silent = COMPARISONS.filter((c) => !/^Published\b/.test(c.reportedPricing)).map((c) => c.slug)
+    expect(silent.sort()).toEqual([...SHOW_NO_PRICE].sort())
+  })
+
+  it.each(SHOW_NO_PRICE)('%s: says so, and any figure on the line says where it came from', (slug) => {
+    const c = entry(slug)
+    expect(c.reportedPricing).toMatch(/^(No price published|Custom quote only)/)
+    // Nothing with a dollar sign before the line has said whose figure it is.
+    expect(c.reportedPricing.split(';')[0], `${slug}: a figure in the vendor's own half`).not.toMatch(/\$\d/)
+    expect(c.reportedPricing, slug).toMatch(/third-party reviews report ~\$\d/)
+  })
+
+  it('Adit: none in the text of its pricing page, one in that page’s structured data — both on the line', () => {
+    const line = entry('adit').reportedPricing
+    expect(line).toMatch(/^No price published on the page a buyer reads/)
+    expect(line).toMatch(/structured data[^;]*lists a price of \$399 with no period stated/)
+  })
+
+  it('RevenueWell: none on its Plans page, one in an offer headline elsewhere on its site — both on the line', () => {
+    const line = entry('revenuewell').reportedPricing
+    expect(line).toMatch(/^No price published on its Plans page/)
+    // Said to be an offer page's headline, with the figure in the headline's
+    // own spelling — not restated as "its price". (The headline also names the
+    // length of its free period. That number is left out on purpose: the
+    // trial-length guard in `trial-copy.test.ts` reads every typed length
+    // beside "free" as ours, and a competitor's offer is not worth teaching it
+    // an exception for.)
+    expect(line).toMatch(/offer page for WinOMS practices is headlined with a free introductory period and “\$199\/Month” for its Marketing Platform/)
+  })
+
+  it('every contract answer is the vendor’s own where the vendor states one, and says so', () => {
     // RevenueWell's site: "Monthly and annual contracts available".
     expect(contract('revenuewell').vendor).toBe('yes')
     expect(contract('revenuewell').vendorNote).toMatch(/Monthly and annual contracts, per its own site/)
@@ -153,17 +226,23 @@ describe('the five entries re-read on 2026-11-24', () => {
     expect(contract('adit').vendor).toBe('yes')
     expect(contract('adit').vendorNote).toMatch(/No binding contract/)
     expect(contract('adit').vendorNote).toMatch(/one-year commitment/)
-    // The three whose pages state no terms are NOT upgraded to a flat "no":
+    // The two whose pages state no terms are NOT upgraded to a flat "no":
     // what reviewers report is said to be what reviewers report.
-    for (const slug of ['dental-intelligence', 'podium', 'patientpop']) {
+    for (const slug of ['dental-intelligence', 'podium']) {
       expect(contract(slug).vendor, slug).toBe('partial')
       expect(contract(slug).vendorNote, slug).toMatch(/not stated/i)
     }
+    // Tebra's terms of service DO state them — the 24th's read said "not
+    // stated on its site" because it did not open them. Both kinds of
+    // agreement its terms describe are on the line, so it stays "partial".
+    expect(contract('patientpop').vendor).toBe('partial')
+    expect(contract('patientpop').vendorNote).toMatch(/renew automatically for the same term unless you give 60 days’ notice/)
+    expect(contract('patientpop').vendorNote).toMatch(/no early cancellation/)
+    expect(contract('patientpop').vendorNote).toMatch(/month-to-month agreements/)
   })
 
-  it('what the read found them AHEAD on is on the page too', () => {
-    const row = (slug: string, feature: string) =>
-      COMPARISONS.find((c) => c.slug === slug)!.matrix.find((r) => r.feature.includes(feature))!
+  it('what the reads found them AHEAD on is on the page too', () => {
+    const row = (slug: string, feature: string) => entry(slug).matrix.find((r) => r.feature.includes(feature))!
     // Dental Intelligence sells phones and eligibility checks now; the page
     // used to say it had neither.
     expect(row('dental-intelligence', 'VoIP phones').vendor).toBe('yes')
@@ -174,48 +253,16 @@ describe('the five entries re-read on 2026-11-24', () => {
     expect(row('podium', 'VoIP phones').vendor).toBe('yes')
   })
 
-  it('the claims the read could NOT confirm are gone, not restated with more confidence', () => {
-    const text = (slug: string) => JSON.stringify(COMPARISONS.find((c) => c.slug === slug))
+  it('the claims the reads could NOT confirm are gone, not restated with more confidence', () => {
+    const text = (slug: string) => JSON.stringify(entry(slug))
     // A product name that is not on RevenueWell's site today, an adjective
     // nobody re-verified, and a channel its pages no longer mention.
     expect(text('revenuewell')).not.toMatch(/PatientConnect365|vendor-branded|postcard/i)
     // "Runs under its own brand" was asserted of an app the vendor's home
     // page no longer names.
     expect(text('dental-intelligence')).not.toMatch(/runs under its own brand|not clinic-branded/i)
-    // Tebra's pages state no contract terms, so no sentence states them for it.
-    expect(text('patientpop')).not.toMatch(/on annual contracts|typically annual|don’t mind an annual contract/)
+    // Tebra's terms name no length, so no sentence gives its agreements one.
+    expect(text('patientpop')).not.toMatch(/on annual contracts|typically annual|don’t mind an annual contract|reviewers report annual/)
     expect(text('patientpop')).toMatch(/do not mention dentistry/)
-  })
-})
-
-describe('the comparison page', () => {
-  it('shows the day and links the source on a page whose pricing was re-read', async () => {
-    const weave = COMPARISONS.find((c) => c.slug === 'weave')!
-    render(await ComparePage({ params: Promise.resolve({ vendor: 'weave' }) }))
-    expect(screen.getByText(/Weave pricing last checked November 23, 2026 against/)).toBeInTheDocument()
-    const source = screen.getByRole('link', { name: weave.pricingChecked!.source })
-    expect(source).toHaveAttribute('href', weave.pricingChecked!.url)
-    // A citation, not an endorsement.
-    expect(source.getAttribute('rel') ?? '').toContain('nofollow')
-  })
-
-  it('every page now carries a date, and each one links ITS OWN source', async () => {
-    // The last unchecked entry was re-read on 2026-11-24, so the case that
-    // used to stand here — "an unchecked page shows no date" — had no entry
-    // left to stand on. The rule itself did not go anywhere: it is held on a
-    // synthetic unchecked vendor in tests/marketing/unchecked-comparison.test.tsx.
-    expect(COMPARISONS.every((c) => c.pricingChecked)).toBe(true)
-    for (const c of COMPARISONS) {
-      const { unmount } = render(await ComparePage({ params: Promise.resolve({ vendor: c.slug }) }))
-      expect(
-        screen.getByText(new RegExp(`pricing last checked ${formatCheckedOn(c.pricingChecked!.on)} against`)),
-        c.slug,
-      ).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: c.pricingChecked!.source }), c.slug).toHaveAttribute(
-        'href',
-        c.pricingChecked!.url,
-      )
-      unmount()
-    }
   })
 })

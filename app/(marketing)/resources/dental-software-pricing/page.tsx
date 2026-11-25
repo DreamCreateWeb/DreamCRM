@@ -7,6 +7,7 @@ import {
   formatCheckedOn,
   latestPricingCheck,
   publishesPrice,
+  searchName,
   type MatrixValue,
   type VendorComparison,
 } from '@/lib/marketing/comparisons'
@@ -28,8 +29,12 @@ import { GuideShell, GuideH2, GuideP, GuideList, GuideNote } from '../guide-ui'
  * and this page, that vendor's comparison page, the sitemap's date and the
  * search notice all move together.
  *
- * WHY IT IS WORTH A PAGE. On 2026-11-24 six of the eight vendors we compare
- * ourselves with published no price at all, and the searches a buyer types —
+ * WHY IT IS WORTH A PAGE. Half of the eight vendors we compare ourselves with
+ * show a buyer no price on their pricing page (this said "six of the eight
+ * published no price at all" for a day: the read of 2026-11-24 missed Podium's
+ * script-drawn prices and Tebra's second pricing page, and the browser re-read
+ * of the 25th corrected both — the account is in
+ * `tests/marketing/comparison-pricing-check.test.tsx`). The searches a buyer types —
  * "{vendor} pricing" — were answered by review marketplaces quoting numbers
  * nobody dated (docs/research/marketing-engine-2026-11). A page that says,
  * per vendor, "its own site shows this, on this day, here is the link" is a
@@ -112,7 +117,7 @@ export default function DentalSoftwarePricingGuide() {
       <GuideP>
         Most dental front-office software is sold on a demo call, and the price arrives at the end of it. So we read
         each vendor’s own website and wrote down what it says about price and contract terms — not what a review site
-        says it costs. Of the {read.length} vendors below, {silent.length} publish no price at all.
+        says it costs. Of the {read.length} vendors below, {silent.length} show no price on their pricing page.
       </GuideP>
       <GuideP>
         Every line names the page it came from and the day it was read
@@ -129,6 +134,18 @@ export default function DentalSoftwarePricingGuide() {
               The full comparison
             </Link>
             .
+            {/* Where an entry's fees and contract terms were read out in
+                full, the way straight to them — named for what a searcher
+                would call it, which is also what the link is about. */}
+            {c.pricingDetail && (
+              <>
+                {' '}
+                <Link href={`/compare/${c.slug}#pricing`} className="text-teal-700 underline underline-offset-2">
+                  {searchName(c)} pricing, line by line
+                </Link>
+                .
+              </>
+            )}
           </span>
         ))}
       />
@@ -136,13 +153,14 @@ export default function DentalSoftwarePricingGuide() {
       <GuideH2>Who publishes a price, and who makes you call</GuideH2>
       {publishers.length > 0 && (
         <GuideP>
-          <strong>A price on their own site:</strong> {names(publishers)}.
+          <strong>A price on their pricing page:</strong> {names(publishers)}.
         </GuideP>
       )}
       {silent.length > 0 && (
         <GuideP>
-          <strong>No price on their own site:</strong> {names(silent)}. For these, the figure in the list above is what
-          third-party reviewers report, and is marked as that. It is not the vendor’s number.
+          <strong>No price on their pricing page:</strong> {names(silent)}. For these, each figure in the list above
+          says where it came from — third-party reviewers, or some other corner of the vendor’s own site. It is not a
+          price the vendor’s pricing page gives a buyer.
         </GuideP>
       )}
       <GuideP>
