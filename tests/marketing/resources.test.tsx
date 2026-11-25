@@ -5,7 +5,7 @@ import { TONE_TILE_TONE } from '@/lib/marketing/tone-tiles'
 import { MARKETING_PUBLIC_PATHS } from '@/lib/marketing/site'
 import { getQuotedPlan } from '@/lib/stripe-config'
 import ResourcesIndexPage from '@/app/(marketing)/resources/page'
-import RecallScriptsGuide from '@/app/(marketing)/resources/dental-recall-scripts/page'
+import RecallScriptsGuide, { metadata as recallMetadata } from '@/app/(marketing)/resources/dental-recall-scripts/page'
 import MembershipPricingGuide from '@/app/(marketing)/resources/dental-membership-plan-pricing/page'
 import MorePatientsGuide from '@/app/(marketing)/resources/how-to-get-more-dental-patients/page'
 import PricingGuide from '@/app/(marketing)/resources/dental-software-pricing/page'
@@ -58,6 +58,54 @@ describe('the guides carry their original material', () => {
     // The compliance note is visible content, not a footnote.
     expect(screen.getByText(/TCPA/)).toBeInTheDocument()
     expect(screen.getAllByText(/Reply STOP to opt out/i).length).toBeGreaterThanOrEqual(1)
+  })
+
+  /**
+   * THE LETTER — added because of what the page was being SHOWN for.
+   *
+   * On 2026-11-25 Search Console listed this guide for "dental patient recall
+   * letter template" (45 showings, no clicks), and the page did not contain
+   * the word "letter": it had an email, two texts and two phone scripts. A
+   * searcher who wanted a letter and found none is the cheapest kind of miss
+   * there is, so the letter is on the page now — and it changed what the page
+   * may truthfully say about the product, which is the half worth pinning.
+   */
+  it('recall scripts: the mailed letter and the postcard, as copy-ready cards', () => {
+    render(<RecallScriptsGuide />)
+    expect(screen.getByText(/^Letter ·/)).toBeInTheDocument()
+    expect(screen.getByText(/^Postcard ·/)).toBeInTheDocument()
+    expect(screen.getByText(/Dear \{first name\},/)).toBeInTheDocument()
+    // Named where a searcher and the hub's reader look first.
+    const g = getResourceGuide('dental-recall-scripts')!
+    expect(g.title).toMatch(/letter/i)
+    expect(g.description).toMatch(/letter/i)
+    expect(g.contains.join(' | ')).toMatch(/letter/i)
+    expect(String(recallMetadata.title)).toMatch(/letter/i)
+  })
+
+  it('recall scripts: the page says who sends what — the software does not print or mail a letter', () => {
+    const { container } = render(<RecallScriptsGuide />)
+    const text = container.textContent ?? ''
+    // The shell's default close ("everything in this guide is a job the
+    // software does") was true of this page until it gained a letter. So was
+    // the opening line that called every script one "our own platform sends".
+    expect(text).not.toMatch(/Everything in this guide is a job the software does/)
+    expect(text).not.toMatch(/scripts below are the ones our own platform sends/i)
+    expect(text).toMatch(/does not print or mail/i)
+    // The email IS the product's own, and the page still says so.
+    expect(text).toMatch(/reactivation template that ships inside DreamCRM/)
+  })
+
+  it('recall scripts: every script obeys the guide’s own first rule — warm, never clinical', () => {
+    // The opening paragraph quotes the billing-notice voice as the thing to
+    // avoid. A script card that used it would be the guide breaking its own
+    // rule one screen later, so the cards are read, not the prose around them.
+    const { container } = render(<RecallScriptsGuide />)
+    const cards = Array.from(container.querySelectorAll('figure'))
+    expect(cards.length).toBeGreaterThanOrEqual(7)
+    for (const card of cards) {
+      expect(card.textContent ?? '').not.toMatch(/overdue|our records indicate|prophylaxis|delinquent|past due/i)
+    }
   })
 
   it('membership pricing: the worked math + the state-regulation caveat', () => {

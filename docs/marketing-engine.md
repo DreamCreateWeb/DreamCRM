@@ -1213,8 +1213,11 @@ program: schema, `llms.txt` and FAQ markup show no measurable effect on being
 cited by an assistant; a self-ranked "best" list is cited and then passed
 over; what correlates is other sites naming the product (0.664 against 0.218
 for backlinks), review-marketplace profiles, and being in the indexes the
-assistants read. The measured baseline on 2026-11-24: **no page of ours in
-Bing's index, and no appearance for any of ten buyer queries.**
+assistants read. The measured baseline on 2026-11-24: **no appearance for any
+of ten buyer queries.** Whether Bing's index holds the site is unknown: the
+query first read here as "no page of ours" was answered with unrelated pages,
+which is what Bing gives an automated visitor (corrected the same day;
+`docs/organic-go-live.md` Part 1).
 
 **So the program is three things, in this order.**
 
@@ -2051,8 +2054,10 @@ change: `subscription_status` is free text, and the new state is a value.
 - **What a careful reader should know.** No notice has been sent to a real
   engine: the pass is inert outside the public host, so its first run is the
   first hour after deploy. The protocol's response codes are implemented from
-  its documentation, not observed. "Bing's index does not hold the site" is
-  two queries, not a Webmaster Tools report. And none of this is the lever
+  its documentation, not observed. "Bing's index does not hold the site" was
+  never established: the two queries behind it were answered with unrelated
+  pages, which is how Bing answers an automated visitor, so it is unknown
+  until Webmaster Tools says (corrected 2026-11-24). And none of this is the lever
   that matters most — Part 12 item 3 is the owner's, and it has not started.
 
 **Part 12 slice 2 — `/about`: which DreamCRM this is (2026-11-24, no migration).**
@@ -2119,3 +2124,54 @@ change: `subscription_status` is free text, and the new state is a value.
 - **Why a page and not a post.** The platform's seeded posts are written once
   and never touched again; a price list frozen on its publication day is the
   defect `pricingChecked` exists to end.
+
+**Part 12 slice 4 — the first read of Search Console, and what it changed (2026-11-25, no migration).**
+
+- **The first real measurement.** The owner opened Search Console on the
+  25th and exported it. The Domain property already existed, so nothing had
+  to be verified. Google held **57 pages indexed and 46 known-and-not** across
+  the whole domain — marketing site, demo practice and clinic sites together.
+  Over three months it showed the site **about 2,100 times for 117 queries,
+  and was clicked 8 times.** The full reading is in
+  `docs/organic-go-live.md` Part 1; what follows is what it changed.
+- **Two pages are 60% of everything Google shows:** the Tebra (PatientPop)
+  comparison (937 showings, no clicks) and the recall scripts guide (505).
+  The best position on the sheet — sixth on average for `patientpop pricing`,
+  240 showings — was never clicked. Our own name is not ours: `dreamcrm`
+  averages fifth and `dream crm` thirteenth.
+- **It confirmed the demo practice had to leave the index.** About a tenth of
+  all showings were the made-up practice appearing for people who were
+  looking for real dentists by name. The header shipped the day before.
+- **The recall guide gained a letter and a postcard.** Eight queries, 135
+  showings between positions 12 and 26, were asking for a recall letter, and
+  the page did not contain the word. Both are copy-ready cards written to the
+  guide's own three rules, with the cadence step and a plain note on what a
+  postcard may say.
+- **And it stopped overclaiming.** The page closed on the shell's default,
+  "everything in this guide is a job the software does", and opened by calling
+  every script one "our own platform sends" — never true of the phone
+  scripts, not backable for the texts, and false of a letter. It now says the
+  email is the product's own template and sends itself, and that the text,
+  the letter and the phone call stay with the practice ("does not send text
+  messages today … does not print or mail letters", the listing kit's words).
+- **Every comparison page answers "what is {vendor}" first.** The Tebra page
+  was shown for "what is patientpop" under two spellings (150 showings) and
+  nothing on it said what PatientPop is without also arguing with it. The
+  registry gained a required `whatItIs` per vendor — a second wording of facts
+  the entry already carries, never a new one, with no price, nothing about us
+  and no superlative, by test — and `buildComparisonFaq` emits it as the first
+  question on the page and in its `FAQPage` twin.
+- **The comparison pages' heads lead with the vendor.** Every one of the
+  fifty-odd queries that showed a comparison page named a vendor; none named
+  us, and every title opened "DreamCRM vs". The title
+  is now `{vendor} pricing & alternatives, compared with DreamCRM`, and the
+  description opens with the answer: the dated pricing line's own opening
+  clause (`pricingHeadline`, a prefix and never a paraphrase, by test) and the
+  day it was read, then our resolved price.
+- **What this did not do, and what is not known.** No page was added. Whether
+  the page-one showings for `patientpop pricing` are ordinary results or
+  sources listed under an AI answer cannot be told from the export, so the
+  new head is a reasoned change and not a measured one — the next export says
+  whether clicks moved. The four comparison pages with no showings at all, the
+  patient-growth guide at position 70, and being fifth for our own name are
+  all untouched here.

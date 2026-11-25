@@ -72,23 +72,58 @@ describe('marketing structured data', () => {
 })
 
 describe('the comparison FAQ (slice 4a — derived, honest, schema-twinned)', () => {
-  it('every vendor gets the four buyer questions, derived from its own registry entry', () => {
+  it('every vendor gets the five buyer questions, derived from its own registry entry', () => {
     for (const c of COMPARISONS) {
       const faq = buildComparisonFaq(c)
-      expect(faq).toHaveLength(4)
+      expect(faq).toHaveLength(5)
+      // "What is {vendor}" comes FIRST. On 2026-11-25 Search Console showed
+      // the Tebra (PatientPop) page for "what is patientpop" — 150 showings
+      // across two spellings, more than any question the page then answered
+      // except price — and no line on the page answered it in one breath. The
+      // answer is the entry's own definition, word for word, with nothing
+      // about us attached: the rest of the page is the comparison.
+      expect(faq[0].q).toBe(`What is ${c.name}?`)
+      expect(faq[0].a).toBe(c.whatItIs)
       // The pricing answer quotes the SAME hedged pricing line the page
       // shows, and always states our published price beside it.
-      expect(faq[0].q).toBe(`How much does ${c.name} cost?`)
-      expect(faq[0].a).toContain(c.reportedPricing)
-      expect(faq[0].a).toContain('$200/mo')
+      expect(faq[1].q).toBe(`How much does ${c.name} cost?`)
+      expect(faq[1].a).toContain(c.reportedPricing)
+      expect(faq[1].a).toContain('$200/mo')
       // The alternatives answer names the vendor (the query it exists for).
-      expect(faq[1].q).toContain(`${c.name} alternative`)
+      expect(faq[2].q).toContain(`${c.name} alternative`)
       // The when-they-win answer concedes their real strengths — the
       // honesty bar, machine-checkable.
-      expect(faq[2].a.toLowerCase()).toContain(c.theirStrengths[0].title.toLowerCase())
+      expect(faq[3].a.toLowerCase()).toContain(c.theirStrengths[0].title.toLowerCase())
       // Every answer survives the FAQPage builder.
-      expect(faqPageLd(faq).mainEntity).toHaveLength(4)
+      expect(faqPageLd(faq).mainEntity).toHaveLength(5)
     }
+  })
+
+  it('"what is it" is about THEM — no price, nothing about us, no superlative', () => {
+    // A definition is the one answer on the page a reader should be able to
+    // lift out and trust without reading the rest. The price belongs to the
+    // dated pricing line (which says where it was read and when); what we
+    // think of them belongs to the comparison; and a superlative is a claim
+    // nobody checked. What is left is what the vendor sells.
+    for (const c of COMPARISONS) {
+      const d = c.whatItIs
+      expect(d.length, `${c.slug}: too thin to be an answer`).toBeGreaterThanOrEqual(80)
+      expect(d.length, `${c.slug}: an answer, not an essay`).toBeLessThanOrEqual(340)
+      expect(d.trim().endsWith('.'), `${c.slug}: ends mid-sentence`).toBe(true)
+      // It names the product in the words a searcher types — for a renamed
+      // product, BOTH names ("Tebra (PatientPop)" is searched as either).
+      for (const word of c.name.replace(/[()]/g, ' ').split(/\s+/).filter(Boolean)) {
+        expect(d, `${c.slug}: never says "${word}"`).toContain(word)
+      }
+      expect(d, `${c.slug}: talks about us`).not.toMatch(/DreamCRM|\b(we|our|us)\b/i)
+      expect(d, `${c.slug}: carries a price`).not.toMatch(/\$|\d/)
+      expect(d, `${c.slug}: a superlative nobody checked`).not.toMatch(
+        /\b(best|leading|leader|top-rated|excellent|impressive|mature|famous)\b/i,
+      )
+    }
+    // Eight entries, eight different definitions — a pasted one would pass
+    // every check above.
+    expect(new Set(COMPARISONS.map((c) => c.whatItIs)).size).toBe(COMPARISONS.length)
   })
 
   it('the retired "official API" OD-direct claim stays out of the registry — NexHealth is THE one PMS door', () => {

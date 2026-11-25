@@ -1,6 +1,13 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { COMPARISONS, COMPARISON_DISCLAIMER, buildComparisonFaq, formatCheckedOn, getComparison } from '@/lib/marketing/comparisons'
+import {
+  COMPARISONS,
+  COMPARISON_DISCLAIMER,
+  buildComparisonFaq,
+  formatCheckedOn,
+  getComparison,
+  pricingHeadline,
+} from '@/lib/marketing/comparisons'
 import {
   PageHero,
   PrimaryCta,
@@ -12,7 +19,7 @@ import {
   MONO_LABEL,
   DAY_WIRE,
 } from '@/components/marketing/ui'
-import { DEMO_URL, usd, TRIAL } from '@/lib/marketing/site'
+import { DEMO_URL, MARKETING, usd, TRIAL } from '@/lib/marketing/site'
 import { getQuotedPlan } from '@/lib/stripe-config'
 import { JsonLd, breadcrumbLd, faqPageLd, pageMetadata } from '@/lib/marketing/seo'
 
@@ -154,9 +161,21 @@ export async function generateMetadata({ params }: Props) {
   // "{vendor} pricing" and "{vendor} alternative(s)" (marketing-engine
   // Part 5: BOFU comparison pages, the terms thin-domain challengers rank
   // for today).
+  //
+  // THE VENDOR LEADS, BECAUSE THE SEARCH DOES. These read "DreamCRM vs
+  // {vendor}: …" until 2026-11-25, when three months of Search Console showed
+  // the pages for about fifty searches, every one naming a vendor and none
+  // naming us — and the best position among them (sixth on average, for
+  // "patientpop pricing", 240 showings) had not been clicked once. A searcher
+  // scans for the name they typed. The description opens with the ANSWER for
+  // the same reason: the pricing line's own opening and the day it was read,
+  // then us. Nothing here says more about the vendor than the page does.
+  const headline = pricingHeadline(c)
+  const answer = headline.charAt(0).toLowerCase() + headline.slice(1)
+  const checked = c.pricingChecked ? ` (checked ${formatCheckedOn(c.pricingChecked.on)})` : ''
   return pageMetadata({
-    title: `DreamCRM vs ${c.name}: pricing, features & alternatives`,
-    description: `${c.name} pricing as reported, what it genuinely does well, and an honest feature-by-feature comparison with DreamCRM — a ${usd(PLAN.price)}/mo published, dentistry-native alternative.`,
+    title: `${c.name} pricing & alternatives, compared with ${MARKETING.productName}`,
+    description: `${c.name} pricing: ${answer}${checked}. Compared with ${MARKETING.productName}: ${usd(PLAN.price)}/mo flat for dental practices, month-to-month.`,
     path: `/compare/${c.slug}`,
   })
 }

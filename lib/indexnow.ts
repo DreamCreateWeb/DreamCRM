@@ -2,9 +2,10 @@
  * INDEXNOW — telling search engines a public page changed, instead of waiting
  * for them to come back and notice.
  *
- * WHY IT EXISTS. On 2026-11-24 a `site:` query on Bing returned no page of
- * ours, and no answer engine named us for any of ten buyer questions
- * (docs/research/marketing-engine-2026-11). Bing's index is also what
+ * WHY IT EXISTS. On 2026-11-24 no answer engine named us for any of ten buyer
+ * questions (docs/research/marketing-engine-2026-11), and what Bing's index
+ * holds of us could not be established — its public search answers an
+ * automated `site:` query with unrelated pages. Bing's index is also what
  * Microsoft Copilot reads, and OpenAI says ChatGPT search draws on partner
  * search providers besides its own crawler — so a page Bing has never seen is
  * a page those assistants cannot quote. IndexNow is the one push channel the

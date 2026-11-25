@@ -2,12 +2,37 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getResourceGuide } from '@/lib/marketing/resources'
 import { GuideShell, GuideH2, GuideP, GuideList, GuideNote, ScriptCard } from '../guide-ui'
+import { MARKETING, TRIAL, usd } from '@/lib/marketing/site'
 import { pageMetadata } from '@/lib/marketing/seo'
+import { getQuotedPlan } from '@/lib/stripe-config'
 
 const guide = getResourceGuide('dental-recall-scripts')
 
+/** Ours, resolved rather than typed — the same read the shell makes. */
+const PLAN = getQuotedPlan()
+
+/**
+ * WHO SENDS WHAT, SAID ON THE PAGE.
+ *
+ * This guide used to close on the shell's default — "everything in this guide
+ * is a job the software does" — and open by calling every script one "our own
+ * platform sends". Both were written when the page held an email and were
+ * never true of the phone scripts; the text scripts made them a claim the
+ * product cannot back (texting is not available today — `listing-kit.ts`
+ * says so in those words), and the letter, added 2026-11-25 because Search
+ * Console was showing this page for "dental patient recall letter template",
+ * made them plainly false. So the page says which one the software sends, and
+ * leaves the rest with the practice. `tests/marketing/resources.test.tsx`
+ * holds both sentences out.
+ *
+ * The close is worded off `lib/services/retention-automation.ts`, not off the
+ * old line: reactivation is OPT-IN ("flips on once") and goes to patients as
+ * they pass the practice's own recall interval — so "switch it on once", and
+ * "as patients pass your recall interval", and nothing about a patient being
+ * emailed the day they come due.
+ */
 export const metadata = pageMetadata({
-  title: 'Dental recall scripts: email, text & phone templates that work',
+  title: 'Dental recall scripts: email, text, letter & phone templates',
   description: guide?.description ?? '',
   path: '/resources/dental-recall-scripts',
 })
@@ -15,13 +40,28 @@ export const metadata = pageMetadata({
 export default function RecallScriptsGuide() {
   if (!guide) notFound()
   return (
-    <GuideShell guide={guide}>
+    <GuideShell
+      guide={guide}
+      close={{
+        eyebrow: 'Want the email to send itself?',
+        title: 'The recall email is a job the software does',
+        body: (
+          <>
+            Switch it on once and {MARKETING.productName} sends the recall email as patients pass your recall
+            interval, then reports who booked back. The text, the letter and the phone call stay with your team: it
+            does not send text messages today, and it does not print or mail letters. {usd(PLAN.price)}/mo, flat,
+            after {TRIAL.days} days free.
+          </>
+        ),
+      }}
+    >
       <GuideP>
         Most recall messages fail for the same reason: they read like a billing notice.
         “Our records indicate you are overdue for your prophylaxis appointment” makes a
         patient feel audited, and audited people don’t book — they archive. The scripts
-        below are the ones our own platform sends for real practices, and they follow
-        three rules you can steal even if you never use our software.
+        below follow three rules you can steal even if you never use our software. The
+        email is the template that ships inside our own platform; the text, the letter
+        and the phone scripts are written to the same rules.
       </GuideP>
 
       <GuideH2>The three voice rules</GuideH2>
@@ -94,12 +134,56 @@ If mornings, evenings, or a certain day works best, just reply to this email and
         schedule?” (a yes/no question that invites no) with a choice between two yeses.
       </GuideP>
 
+      <GuideH2>The recall letter template (for patients email can’t reach)</GuideH2>
+      <GuideP>
+        Some overdue patients have no email on file, a number that changed, or an inbox
+        that swallowed everything above. A letter still arrives. Keep it to one page, sign it
+        by hand if you can, and give two ways to book: a web address short enough to
+        type, and the phone number.
+      </GuideP>
+      <ScriptCard label="Letter · one page, signed">
+        {`Dear {first name},
+
+It’s been a while since we last saw you, and we’d love to have you back. A cleaning and a quick look now is the easiest way to keep small things small.
+
+Booking takes about a minute:
+
+Online, any time: {booking link}
+By phone: {phone} — we’ll find a time that suits you
+
+If anything has changed since your last visit — your schedule, your insurance — tell us and we’ll work around it.
+
+Warmly,
+
+{dentist name}
+and the team at {practice name}`}
+      </ScriptCard>
+      <ScriptCard label="Postcard · the short version">
+        {`{first name}, it’s been a while — we’d love to see you.
+
+Book a visit in about a minute at {booking link}, or call {phone}.
+
+— The team at {practice name}`}
+      </ScriptCard>
+      <GuideNote>
+        A postcard can be read by anyone who picks up the mail. Keep it to the
+        invitation: no treatment, no balance, nothing clinical. If it needs to say more
+        than “come back in”, it belongs in an envelope.
+      </GuideNote>
+      <GuideP>
+        Why it works: it is the email’s shape on paper — no blame in the first line, one
+        ask, two easy ways to say yes. The line about what has changed earns its place
+        here more than anywhere else, because the patients a letter reaches are often
+        the ones who drifted when something did.
+      </GuideP>
+
       <GuideH2>The cadence</GuideH2>
       <GuideList
         items={[
           <><strong>Due date + 2 weeks:</strong> the recall email. Most rebooks happen here.</>,
           <><strong>+3 weeks:</strong> the text (if you have consent), or a second email with a different subject.</>,
           <><strong>+6 weeks:</strong> the phone call for high-value or long-overdue patients. A person calling is your most expensive channel — spend it where the email and text already failed.</>,
+          <><strong>+8 weeks:</strong> the letter, for patients with no email on file and the ones who stayed quiet everywhere else. It costs a stamp and a signature, so it goes last.</>,
           <><strong>Every 6 months after:</strong> stay in the cycle quietly. A patient who ignores three asks isn’t gone; they’re busy. The practices that win recall are simply still asking in month nine.</>,
         ]}
       />
