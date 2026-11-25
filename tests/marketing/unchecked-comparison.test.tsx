@@ -62,6 +62,26 @@ describe('a comparison nobody has re-read', () => {
     expect(screen.getByText(/pricing last checked/i)).toBeInTheDocument()
   })
 
+  it('its page data and its head claim no review day either — neither invents one', async () => {
+    // Two more places learned to speak the dated check on 2026-11-25: the
+    // `lastReviewed` field in the page's data, and "(checked …)" in its meta
+    // description. Both must say nothing here, not today's date.
+    const { container, unmount } = render(await ComparePage({ params: Promise.resolve({ vendor: 'unread-vendor' }) }))
+    const nodes = Array.from(container.querySelectorAll('script[type="application/ld+json"]')).map((el) =>
+      JSON.parse(el.textContent ?? '{}'),
+    )
+    const page = nodes.find((n) => n['@type'] === 'WebPage')
+    expect(page, 'the page still describes itself').toBeTruthy()
+    expect('lastReviewed' in page).toBe(false)
+    unmount()
+
+    const { generateMetadata } = await import('@/app/(marketing)/compare/[vendor]/page')
+    const unread = (await generateMetadata({ params: Promise.resolve({ vendor: 'unread-vendor' }) })) as { description?: string }
+    expect(unread.description).not.toMatch(/checked/i)
+    const read = (await generateMetadata({ params: Promise.resolve({ vendor: 'weave' }) })) as { description?: string }
+    expect(read.description).toMatch(/\(checked [A-Z][a-z]+ \d{1,2}, \d{4}\)/)
+  })
+
   it('the sitemap lists it with no date', async () => {
     const entry = (await sitemap()).find((e) => new URL(e.url).pathname === '/compare/unread-vendor')
     expect(entry, 'the page is still listed').toBeTruthy()

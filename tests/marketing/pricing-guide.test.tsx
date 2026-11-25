@@ -31,6 +31,7 @@ import {
   formatCheckedOn,
   latestPricingCheck,
   publishesPrice,
+  searchName,
 } from '@/lib/marketing/comparisons'
 import { publicPages } from '@/lib/marketing/public-pages'
 import { getResourceGuide } from '@/lib/marketing/resources'
@@ -58,7 +59,10 @@ describe('the registry’s readers the guide is built on', () => {
   })
 
   it('"publishes a price" is exactly the entries whose line opens "Published"', () => {
-    expect(COMPARISONS.filter(publishesPrice).map((c) => c.slug).sort()).toEqual(['solutionreach', 'weave'])
+    // Four of eight since the browser re-read of 2026-11-25; the read of the day
+    // before had it as two, and was wrong about Podium and Tebra
+    // (tests/marketing/comparison-pricing-check.test.tsx has the account).
+    expect(COMPARISONS.filter(publishesPrice).map((c) => c.slug).sort()).toEqual(['patientpop', 'podium', 'solutionreach', 'weave'])
     // The premise both branches of the page rest on.
     expect(COMPARISONS.some(publishesPrice)).toBe(true)
     expect(COMPARISONS.some((c) => !publishesPrice(c))).toBe(true)
@@ -106,7 +110,13 @@ describe('1 — it has no words of its own about a competitor', () => {
         'href',
         `/compare/${c.slug}`,
       )
+      // An entry whose fees and terms were read out in full is linked straight
+      // to that section; one that was not has no such link to follow nowhere.
+      const deep = within(row).queryByRole('link', { name: `${searchName(c)} pricing, line by line` })
+      if (c.pricingDetail) expect(deep, c.slug).toHaveAttribute('href', `/compare/${c.slug}#pricing`)
+      else expect(deep, c.slug).toBeNull()
     })
+    expect(read.some((c) => c.pricingDetail)).toBe(true)
   })
 
   it('each contract line is the registry’s own row', () => {
@@ -124,23 +134,28 @@ describe('1 — it has no words of its own about a competitor', () => {
 describe('2 — it never puts a number in a vendor’s mouth', () => {
   it('names who publishes a price and who does not, and the two lists are everyone exactly once', () => {
     render(<PricingGuide />)
-    const yes = screen.getByText('A price on their own site:').closest('p')!.textContent!
-    const no = screen.getByText('No price on their own site:').closest('p')!.textContent!
+    // "On their pricing page", not "on their own site": Adit's site carries a
+    // figure in structured data and RevenueWell's in an offer headline, and a
+    // heading that said neither site states a price would be untrue of both.
+    const yes = screen.getByText('A price on their pricing page:').closest('p')!.textContent!
+    const no = screen.getByText('No price on their pricing page:').closest('p')!.textContent!
     for (const c of read) {
       const inYes = yes.includes(c.name)
       const inNo = no.includes(c.name)
       expect(inYes !== inNo, `${c.name} is in ${inYes && inNo ? 'both lists' : 'neither list'}`).toBe(true)
       expect(inYes, c.name).toBe(publishesPrice(c))
     }
-    // And the sentence that stops a reader taking a reviewer's figure for the vendor's.
-    expect(no).toMatch(/It is not the vendor’s number\./)
+    // And the sentence that stops a reader taking a reviewer's figure for a
+    // price the vendor quotes.
+    expect(no).toMatch(/says where it came from/)
+    expect(no).toMatch(/not a price the vendor’s pricing page gives a buyer\./)
   })
 
   it('the count in the opening sentence is computed from those same lists', () => {
     render(<PricingGuide />)
     const silent = read.filter((c) => !publishesPrice(c)).length
     expect(
-      screen.getByText((_, el) => el?.tagName === 'P' && el.textContent?.includes(`Of the ${read.length} vendors below, ${silent} publish no price at all.`) === true),
+      screen.getByText((_, el) => el?.tagName === 'P' && el.textContent?.includes(`Of the ${read.length} vendors below, ${silent} show no price on their pricing page.`) === true),
     ).toBeInTheDocument()
   })
 

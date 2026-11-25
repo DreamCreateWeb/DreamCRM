@@ -45,9 +45,97 @@ import { TRIAL } from '@/lib/marketing/site'
 const RATE_MONTHLY = usd(getQuotedPlan().price)
 
 
+/**
+ * WHERE A PRICING FACT WAS READ. `readOn` is the day WE read the page;
+ * `pageSays` is the page's own date for itself, verbatim, when it gives one —
+ * two different facts, and a reader deciding how far to trust a line wants
+ * both.
+ */
+export interface PricingSourceRef {
+  /** How the page is named in a sentence: "Tebra’s pricing policy". */
+  label: string
+  url: string
+  /** ISO day. */
+  readOn: string
+  pageSays?: string
+}
+
+export interface PricingDetailLine {
+  label: string
+  value: string
+}
+
+/**
+ * One heading's worth of pricing facts, ALL FROM ONE PAGE — so every line
+ * under a heading shares one citation and a reader can check the whole group
+ * with a single click. A fact from a second page goes in a second group.
+ */
+export interface PricingDetailGroup {
+  /** Stable key; also the anchor. */
+  id: string
+  title: string
+  lines: PricingDetailLine[]
+  source: PricingSourceRef
+  /**
+   * A buyer's question this group answers and the answer in a sentence or
+   * two — both or neither. `buildComparisonFaq` emits them, so the answer is
+   * on the page and in its FAQPage twin. The answer is a second wording of
+   * the lines, never a new fact: `tests/marketing/pricing-detail.test.tsx`
+   * holds that it states no figure the detail's lines do not.
+   */
+  question?: string
+  answer?: string
+}
+
+/** What a named third party reports — never merged with another's, never ours. */
+export interface PricingReport {
+  who: string
+  says: string
+  /** The reporter's own qualification of its figure, or what it measured. */
+  caveat: string
+  source: PricingSourceRef
+}
+
+/**
+ * THE PRICING, LINE BY LINE — for a comparison page that a "{vendor} pricing"
+ * search lands on.
+ *
+ * Added 2026-11-25. Search Console showed the Tebra (PatientPop) page for
+ * "patientpop pricing" more than for anything else (240 showings in three
+ * months) and the owner found it near the bottom of the second results page,
+ * under Tebra itself and the review directories. What those results do not
+ * have is the vendor's own fee schedule and contract terms read out plainly —
+ * they have a star rating and a "starting at". So that is what this is: the
+ * vendor's own pages, a line per fact, each group under the page it came
+ * from, with the day it was read.
+ *
+ * THE RULES ARE THE REGISTRY'S, TIGHTER. Every line is the vendor's own
+ * statement from the page its group cites. A third party's figure lives in
+ * `reported`, under that party's name, with that party's own caveat. Sources
+ * that refused to be read are NAMED in `notRead`, so their absence is not
+ * taken for agreement. And `versusUs` must say where the vendor's price is
+ * LOWER than ours when it is.
+ */
+export interface PricingDetail {
+  intro: string
+  groups: PricingDetailGroup[]
+  reported: PricingReport[]
+  notRead: string[]
+  versusUs: string
+}
+
 export interface VendorComparison {
   slug: string
   name: string
+  /**
+   * THE NAME BUYERS STILL TYPE, when it is not how `name` begins. Tebra's
+   * entry is named "Tebra (PatientPop)" because that is what the product is
+   * today — and of the searches that showed its page, five in six typed
+   * "patientpop" and never "tebra" (Search Console, read 2026-11-25). So the
+   * title, the pricing heading and the pricing questions lead with the old
+   * name and say the new one beside it. Absent for everyone else.
+   */
+  searchedAs?: { name: string; now: string }
   /** One-line category description of the vendor. */
   category: string
   /**
@@ -108,6 +196,8 @@ export interface VendorComparison {
   ourStrengths: Array<{ glyph: ToneTileGlyph; title: string; body: string }>
   matrix: MatrixRow[]
   bottomLine: string
+  /** Present only on an entry whose pricing somebody read out in full. */
+  pricingDetail?: PricingDetail
 }
 
 const INSURANCE_UNVERIFIED: [MatrixValue, string] = ['partial', 'Not verified here: ask them what is included']
@@ -157,7 +247,7 @@ export const COMPARISONS: VendorComparison[] = [
       'Weave is a patient communication platform built around the phone: VoIP calling that shows the caller’s details when the phone rings, two-way texting with an automatic text after a missed call, and payments by card terminal or by text.',
     reportedPricing:
       'Published at $199/mo for the base plan (calls, two-way texting, text-to-pay); online scheduling, digital forms, reminders and recall are a $149/mo bundle on top, and reviews plus email marketing a second $149/mo bundle, while its Pro, Elite and Ultimate tiers stay quote-only',
-    pricingChecked: { on: '2026-11-23', source: 'Weave’s own plans and pricing pages', url: 'https://www.getweave.com/plans/' },
+    pricingChecked: { on: '2026-11-25', source: 'Weave’s own plans and pricing pages', url: 'https://www.getweave.com/plans/' },
     summary:
       'Weave is the category leader in dental phone systems — VoIP with caller-context screen pops, texting, and payments. It is genuinely excellent at the phone, and it publishes a starting price and says it requires no long-term contract. But it has no practice website and no patient portal, its online scheduling, digital forms and recall are a paid bundle on top of the base plan, and it offers no free trial of the full platform. DreamCRM starts where the phone call ends: the website that wins the patient, the portal they come back to, and one inbox for everything they send you.',
     theirStrengths: [
@@ -198,7 +288,7 @@ export const COMPARISONS: VendorComparison[] = [
       'NexHealth is a patient booking and sync platform. Its synchronizer connects to Dentrix, Eaglesoft and most other practice management systems, and it sells online booking, forms, reminders and payments on top of that connection, along with a public API.',
     reportedPricing:
       'Custom quote only — its own pricing page shows no price and asks for your details; third-party reviews report ~$300+/mo per location (2025–2026)',
-    pricingChecked: { on: '2026-11-23', source: 'NexHealth’s own pricing page', url: 'https://www.nexhealth.com/pricing' },
+    pricingChecked: { on: '2026-11-25', source: 'NexHealth’s own pricing page', url: 'https://www.nexhealth.com/pricing' },
     summary:
       'NexHealth built an impressive real-time synchronizer across many PMSs and sells booking, forms, reminders, and payments on top of it. Its breadth of PMS coverage is real, and the sync infrastructure is genuinely strong engineering. The trade-offs are scope and terms: no practice website, no clinic-branded portal, no shop or memberships, and custom pricing. DreamCRM is the whole patient-facing stack — website through recall — on one published price.',
     theirStrengths: [
@@ -237,8 +327,8 @@ export const COMPARISONS: VendorComparison[] = [
     whatItIs:
       'RevenueWell is a dental marketing and communication suite: campaigns, reminders, two-way texting, phones and a patient portal. It also has an in-house marketing team that runs SEO, paid ads, social media and website design for a practice.',
     reportedPricing:
-      'No price published — its own Plans page shows none and says to talk to its team for a package; third-party reviews report ~$349/mo for a single location, with add-ons priced separately (2025–2026)',
-    pricingChecked: { on: '2026-11-24', source: 'RevenueWell’s own Plans page', url: 'https://www.revenuewell.com/plans' },
+      'No price published on its Plans page — it says to talk to its team to create a package; elsewhere on its own site an offer page for WinOMS practices is headlined with a free introductory period and “$199/Month” for its Marketing Platform, and third-party reviews report ~$349/mo for a single location, with add-ons priced separately (2025–2026)',
+    pricingChecked: { on: '2026-11-25', source: 'RevenueWell’s own Plans page', url: 'https://www.revenuewell.com/plans' },
     summary:
       'RevenueWell is a mature dental marketing suite — campaigns, reminders, two-way texting, phones, and a patient portal — with a done-for-you marketing team behind it. It earned its install base, and its own site says it offers monthly as well as annual contracts, and free trials. But it publishes no price, website design is sold as a separate service, and its help center describes a portal toggle that turns a function off while leaving the link in place. DreamCRM ships the same patient-facing jobs as one product at a published price, with toggles that fully remove what you turn off.',
     theirStrengths: [
@@ -278,7 +368,7 @@ export const COMPARISONS: VendorComparison[] = [
       'Solutionreach is patient reminder and engagement software. It has sent automated appointment reminders by text and email for about twenty years, and it includes patient satisfaction surveys.',
     reportedPricing:
       'Published as “pricing starts at $199” for its entry package, with every package priced by quote and yearly contract options; setup fees reported by reviewers (2025–2026)',
-    pricingChecked: { on: '2026-11-23', source: 'Solutionreach’s own pricing page', url: 'https://www.solutionreach.com/pricing' },
+    pricingChecked: { on: '2026-11-25', source: 'Solutionreach’s own pricing page', url: 'https://www.solutionreach.com/pricing' },
     summary:
       'Solutionreach effectively invented automated patient reminders and still runs reliable SMS at serious scale. Twenty years in, the product is deep on messaging and surveys but dated around it: no website product, a legacy portal, and reviewer complaints about contracts and sync misfires. DreamCRM is the modern stack around the same jobs — with the website and portal included and month-to-month terms.',
     theirStrengths: [
@@ -317,8 +407,8 @@ export const COMPARISONS: VendorComparison[] = [
     whatItIs:
       'Adit is practice communications and analytics software sold as one bundle: VoIP phones with call tracking, texting, forms, and Adit Pulse, which reports on production numbers from the practice management system.',
     reportedPricing:
-      'No price published — its own pricing page lists no subscription price and asks you to schedule a demo; third-party reviews report ~$399/mo bundles per location (2025–2026)',
-    pricingChecked: { on: '2026-11-24', source: 'Adit’s own pricing page', url: 'https://adit.com/pricing' },
+      'No price published on the page a buyer reads — its pricing page asks you to schedule a demo; the same page’s structured data, the part written for search engines, lists a price of $399 with no period stated, and third-party reviews report ~$399/mo bundles per location (2025–2026)',
+    pricingChecked: { on: '2026-11-25', source: 'Adit’s own pricing page', url: 'https://adit.com/pricing' },
     summary:
       'Adit pitches the same consolidation story we do — replace your stack, save thousands a year — and bundles VoIP, texting, forms, analytics, and call tracking. The difference is which half of the practice each of us consolidates. Adit consolidates the phone room: calls, call tracking, internal chat. DreamCRM consolidates the patient-facing storefront: website, booking, portal, reviews, shop. Adit lists no patient portal on its site and treats websites as an agency service; its pricing page says its software packages carry no binding contract.',
     theirStrengths: [
@@ -358,7 +448,7 @@ export const COMPARISONS: VendorComparison[] = [
       'Dental Intelligence is practice analytics and patient engagement software. It is known for morning-huddle dashboards and production numbers read from the practice management system, and its acquisition of Modento added a patient app for forms, reminders and payments.',
     reportedPricing:
       'No price published that we could find — its own home page shows none and asks you to get a demo; third-party reviews report ~$300–$600+/mo per location depending on the analytics + engagement bundle (2025–2026)',
-    pricingChecked: { on: '2026-11-24', source: 'Dental Intelligence’s own home page', url: 'https://www.dentalintel.com/' },
+    pricingChecked: { on: '2026-11-25', source: 'Dental Intelligence’s own home page', url: 'https://www.dentalintel.com/' },
     summary:
       'Dental Intelligence is the analytics leader in the category — morning-huddle dashboards and production KPIs pulled straight from the PMS — and its acquisition of Modento added a patient app for forms, reminders, and payments. Its site now lists VoIP phones, an AI receptionist and insurance verification as well. If deep production analytics is what you want, DI is genuinely ahead of us there. What it isn’t is a storefront: its site lists no practice website and no online store, and does not say whether its patient portal wears the practice’s own brand. DreamCRM is the patient-facing half — the site that wins the patient and the portal they return to — with honest, booked-visit-level reporting rather than deep clinical production metrics.',
     theirStrengths: [
@@ -398,8 +488,8 @@ export const COMPARISONS: VendorComparison[] = [
     whatItIs:
       'Podium is a reviews, webchat and texting tool for local businesses of every kind, not a dental product. It asks customers for Google reviews by text, turns website chats into text conversations, and takes payments over text.',
     reportedPricing:
-      'No price published — its own pricing page shows none and says to talk to its sales team; third-party reviews report ~$399–$599+/mo depending on tier and messaging volume (2025–2026)',
-    pricingChecked: { on: '2026-11-24', source: 'Podium’s own pricing page', url: 'https://www.podium.com/pricing' },
+      'Published at $399/mo for its Core plan and $599/mo for Pro, with a Signature plan priced by quote; every plan is bought through its sales team, and its pricing page sends HVAC businesses to sales for their own pricing',
+    pricingChecked: { on: '2026-11-25', source: 'Podium’s own pricing page', url: 'https://www.podium.com/pricing' },
     summary:
       'Podium built the review-generation and business-texting category — it’s excellent at turning a happy customer into a Google review over text, and its webchat-to-text and Payments products are mature. But Podium is a general local-business tool, not a dental product: no practice website, no patient portal, no PMS sync, no dental-specific recall or intake. DreamCRM is dentistry-native and ships the whole patient-facing stack; where Podium leads today is live two-way SMS, which is still on our roadmap.',
     theirStrengths: [
@@ -411,7 +501,7 @@ export const COMPARISONS: VendorComparison[] = [
       { glyph: 'tooth', title: 'Dentistry-native, not generic', body: 'Visit-type booking rules, dental intake with insurance-card OCR, recall on PMS due dates, an OD chart mirror — none of which a general local-business tool models.' },
       { glyph: 'globe', title: 'The website + portal Podium has neither of', body: 'A real practice site with an edit-in-place studio and a clinic-branded patient portal — Podium ships no website and no portal.' },
       { glyph: 'star', title: 'FTC-clean reviews', body: 'Same ask to every patient, no rating-gating — clean under the FTC fake-reviews rule, and the results feed your own site’s testimonials.' },
-      { glyph: 'tag', title: 'One flat dental price', body: `${RATE_MONTHLY}/mo for the whole stack versus a messaging platform fee plus volume-based add-ons.` },
+      { glyph: 'tag', title: 'One flat dental price', body: `${RATE_MONTHLY}/mo for the whole stack, against $399 a month for Podium’s Core plan and $599 for Pro on its own pricing page.` },
     ],
     matrix: baseMatrix({
       website: ['no'],
@@ -434,14 +524,15 @@ export const COMPARISONS: VendorComparison[] = [
   {
     slug: 'patientpop',
     name: 'Tebra (PatientPop)',
+    searchedAs: { name: 'PatientPop', now: 'Tebra' },
     category: 'Healthcare practice-growth: websites, SEO & reputation',
     whatItIs:
       'PatientPop is practice-growth software for healthcare practices: practice websites, SEO, online scheduling and reputation management. It merged with Kareo and is now part of Tebra, which sells it alongside its own EHR and billing.',
     reportedPricing:
-      'No subscription price published — its own pricing page says the price varies with the number of providers and asks you to request a quote; third-party reviews report ~$300–$700+/mo for the practice-growth suite (2025–2026)',
-    pricingChecked: { on: '2026-11-24', source: 'Tebra’s own pricing page', url: 'https://www.tebra.com/pricing' },
+      'Published from $49 per provider per month — the non-physician starting price for Patient Experience + Marketing, the package with online scheduling, reviews, 80+ web profiles and Google Business Profile; a physician starts at $99, and both are starter prices for practices submitting fewer than 100 claims a month. Its main pricing page shows no number and asks for your details: the figures are on its pricing overview page',
+    pricingChecked: { on: '2026-11-25', source: 'Tebra’s own pricing overview page', url: 'https://www.tebra.com/pricing/overview' },
     summary:
-      'PatientPop — now part of Tebra after merging with Kareo — is the closest thing to a direct overlap: it sells healthcare practice websites, SEO, online scheduling, and reputation as a growth suite, alongside Tebra’s EHR and billing. It’s a capable, established product for medical private practices. The differences are focus and terms: Tebra’s home and pricing pages do not mention dentistry at all, it publishes no subscription price, reviewers report annual contracts, and it lists no online store, memberships, or dental PMS sync. DreamCRM is dental-native, self-serve, edit-it-yourself, and month-to-month.',
+      'PatientPop — now part of Tebra after merging with Kareo — is the closest thing to a direct overlap: it sells healthcare practice websites, SEO, online scheduling, and reputation as a growth suite, alongside Tebra’s EHR and billing. It’s a capable, established product for medical private practices. The differences are focus and terms: Tebra’s home and pricing pages do not mention dentistry at all; it prices per provider and bills website hosting as its own line; its agreements renew automatically for the same term unless you give sixty days’ notice, with no early cancellation; and it lists no online store, memberships, or dental PMS sync. DreamCRM is dental-native, self-serve, edit-it-yourself, one flat price, and month-to-month.',
     theirStrengths: [
       { title: 'Established healthcare SEO', body: 'Years of healthcare SEO and directory-listing management across specialties — its pricing page lists 80+ web profiles and Google Business tools.' },
       { title: 'Reputation + scheduling suite', body: 'Reviews with AI-written replies, online scheduling, and provider profiles bundled with the site.' },
@@ -451,7 +542,7 @@ export const COMPARISONS: VendorComparison[] = [
       { glyph: 'tooth', title: 'Dental-native, not multi-specialty', body: 'A curated dental services library, visit-type booking rules, dental intake, and PMS recall — versus a generic healthcare template.' },
       { glyph: 'pencil', title: 'Edit it yourself, no agency queue', body: 'The Website Studio changes your live site by clicking it. Tebra describes a custom website built to reflect your brand; ask how a change gets made after launch.' },
       { glyph: 'cart', title: 'Store, memberships, and dental PMS sync', body: 'An online shop, in-house membership plans, and two-way dental PMS sync through the NexHealth bridge — none of which Tebra lists.' },
-      { glyph: 'calendar', title: 'Month-to-month, published price', body: `${RATE_MONTHLY}/mo on the page with no annual contract, versus a quote-only price and the annual agreements reviewers report.` },
+      { glyph: 'calendar', title: 'One flat price, month-to-month', body: `${RATE_MONTHLY}/mo for the whole practice, website included, and you can stop any month. Tebra prices per provider, bills website hosting as its own line, and renews automatically unless you give sixty days’ notice.` },
     ],
     matrix: baseMatrix({
       website: ['yes', 'Custom practice websites, part of its marketing suite'],
@@ -466,10 +557,102 @@ export const COMPARISONS: VendorComparison[] = [
       pms: ['partial', 'Its own EHR and practice management; no dental PMS sync listed'],
       phones: ['no', 'None listed on its site'],
       sms: ['yes'],
-      contract: ['partial', 'Terms not stated on its site; reviewers report annual contracts'],
+      contract: ['partial', 'Its terms describe both: agreements that renew automatically for the same term unless you give 60 days’ notice, with no early cancellation, and month-to-month agreements'],
     }),
     bottomLine:
-      'If you run a medical practice and want websites, reputation and an EHR from one established vendor, Tebra is credible. If you run a dental practice and want a platform built for it — one you edit yourself, with a store, memberships, and dental PMS sync, month-to-month at a published price — that’s DreamCRM.',
+      'If you run a medical practice and want websites, reputation and an EHR from one established vendor, Tebra is credible. If you run a dental practice and want a platform built for it — one you edit yourself, with a store, memberships, and dental PMS sync, month-to-month at one flat price — that’s DreamCRM.',
+    // Every line below was read on 2026-11-25, in a browser, from the page
+    // its group cites. Tebra's main pricing page is a form; these are the
+    // other pages of its own site, which is why nobody quotes them.
+    pricingDetail: {
+      intro:
+        'PatientPop’s tools are sold today inside Tebra: patientpop.com forwards to tebra.com, and Tebra’s pricing policy maps the old “Practice Growth” name to “Patient Experience”. Tebra’s main pricing page shows a form in place of a number. The prices, the fees and the contract terms are on other pages of its own site, and this is what each of them said on the day it was read.',
+      groups: [
+        {
+          id: 'published-prices',
+          title: 'The prices Tebra publishes',
+          source: { label: 'Tebra’s pricing overview page', url: 'https://www.tebra.com/pricing/overview', readOn: '2026-11-25' },
+          lines: [
+            { label: 'Patient Experience + Marketing, per non-physician provider', value: 'Starting at $49 a month' },
+            { label: 'Patient Experience + Marketing, per physician', value: 'Starting at $99 a month' },
+            { label: 'The asterisk on both', value: 'Starter pricing applies to practices submitting fewer than 100 claims per month' },
+            { label: 'Practice Automation — its EHR, billing and telehealth plus the Patient Experience tools — per physician', value: '$799 a month; low volume starting at $399' },
+            { label: 'Practice Automation, per non-physician provider', value: '$449 a month; low volume starting at $249' },
+            { label: 'Practice Automation, per therapist', value: '$299 a month' },
+            { label: 'The whole range Tebra gives', value: '$49 to $799 per provider, per month' },
+          ],
+        },
+        {
+          id: 'whats-included',
+          title: 'What the marketing package includes',
+          source: { label: 'Tebra’s main pricing page', url: 'https://www.tebra.com/pricing', readOn: '2026-11-25' },
+          lines: [
+            { label: 'Included in Patient Experience + Marketing', value: 'Patient online scheduling, custom appointment reminders, patient feedback and reviews, patient broadcast, 80+ web profiles and Google Business Profile — with a dedicated onboarding manager, on-demand training, and in-app and phone support' },
+            { label: 'Marked as not included', value: 'Patient portal, provider calendar and scheduling, basic appointment reminders, message center, digital patient intake, telehealth, charting and billing' },
+            { label: 'A website', value: 'Not a line in the package comparison' },
+            { label: 'How the price is asked for', value: 'A two-step form — name, company, email and phone — in place of a number' },
+          ],
+        },
+        {
+          id: 'other-fees',
+          title: 'Fees outside the subscription',
+          source: { label: 'Tebra’s pricing policy', url: 'https://www.tebra.com/tebra-pricing-policy', readOn: '2026-11-25', pageSays: 'Last updated effective July 1, 2026' },
+          question: 'Is there a setup fee for PatientPop?',
+          answer:
+            'Tebra’s pricing policy lists a one-time onboarding fee, billed at sign-up, and does not state the amount. It also bills website hosting as its own monthly line, and charges Practice Growth customers a telecom messaging compliance fee of $84.87 per location a year.',
+          lines: [
+            { label: 'Onboarding fee', value: 'One-time, billed at sign-up; the policy states no amount' },
+            { label: 'Website hosting', value: 'Its own line, billed monthly in advance; the policy states no amount' },
+            { label: 'Telecom messaging compliance fee', value: '$84.87 per location, billed annually, for Practice Growth customers' },
+            { label: 'Website export, if you leave', value: '$1,000 for the text and overall structure of the site; appointment widgets and other dynamic features are not included' },
+            { label: 'Blog and social media work', value: 'Listed among professional services, charged outside the subscription' },
+            { label: 'Price increases', value: 'Up to 4.9% at a time, no more than once in 12 months, on 30 days’ notice' },
+            { label: 'Dropping part of a discounted bundle', value: 'The remaining products revert to full price' },
+            { label: 'Removing a provider', value: 'Charged for the last full month and, at Tebra’s discretion, an early termination fee for the rest of the term' },
+            { label: 'Paying Tebra’s invoice by credit card', value: 'A 2% processing fee' },
+            { label: 'Refunds', value: 'None — “All fees are nonrefundable and non-cancellable”' },
+          ],
+        },
+        {
+          id: 'the-contract',
+          title: 'The contract',
+          source: { label: 'Tebra’s terms of service', url: 'https://www.tebra.com/tebra-terms-of-service', readOn: '2026-11-25', pageSays: 'Updated effective July 1, 2026' },
+          question: 'Does PatientPop require a contract?',
+          answer:
+            'Tebra’s terms of service say an agreement runs for the length it specifies and then renews automatically for another term of the same length, unless written notice is received at least 60 days before it ends. They allow no early cancellation and give no refund. They also mention month-to-month agreements, on which every fee can change with 60 days’ notice.',
+          lines: [
+            { label: 'Length', value: 'Whatever your agreement specifies; the terms name no standard length' },
+            { label: 'Renewal', value: 'Automatic, for another term of the same length' },
+            { label: 'To stop a renewal', value: 'Written notice received at least 60 days before the term ends; any later and it renews' },
+            { label: 'Cancelling early', value: 'Not allowed, and no refund if you stop using the service' },
+            { label: 'Month-to-month agreements', value: 'They exist; on one, every fee can change with 60 days’ notice' },
+          ],
+        },
+        {
+          id: 'if-you-leave',
+          title: 'If you leave',
+          source: { label: 'Tebra’s terms of service', url: 'https://www.tebra.com/tebra-terms-of-service', readOn: '2026-11-25', pageSays: 'Updated effective July 1, 2026' },
+          question: 'What happens to my website if I leave PatientPop?',
+          answer:
+            'Tebra’s terms let you export the text and overall structure of the site, and its pricing policy sets that export at $1,000. Tebra’s templates and anything that is not your own content stay with Tebra, the licences for images it supplied end, and a domain name Tebra registered is to be assigned to you.',
+          lines: [
+            { label: 'Your website', value: 'You may export its text and overall structure, at the fee in the pricing policy; Tebra’s templates and everything that is not your own content stay Tebra’s' },
+            { label: 'Images Tebra licensed for the site', value: 'The licences end; to keep using them you license them yourself' },
+            { label: 'Your domain name', value: 'If Tebra registered it, Tebra “will take reasonable measures to assign its rights” to you; if you supplied it, you keep it' },
+          ],
+        },
+      ],
+      reported: [
+        {
+          who: 'CostBench',
+          says: 'puts the median Tebra contract at $3,588 a year, from seven third-party buyer reports, and estimates the PatientPop marketing modules at roughly $200–$400 a month when priced separately',
+          caveat: 'CostBench’s own words for the figure: “Indicative market pricing — not official vendor pricing or contract-grade data.” Its page also still says Tebra publishes no prices',
+          source: { label: 'CostBench’s Tebra pricing page', url: 'https://www.costbench.com/software/ehr-emr/tebra/', readOn: '2026-11-25', pageSays: 'Last verified: June 14, 2026' },
+        },
+      ],
+      notRead: ['G2', 'Capterra', 'Software Advice', 'GetApp', 'TrustRadius', 'ITQlick'],
+      versusUs: `For one provider buying only the marketing package, Tebra’s starting price is lower than ours. ${RATE_MONTHLY}/mo here covers the whole practice rather than each provider, with the website included, no setup fee and no term.`,
+    },
   },
 ]
 
@@ -525,6 +708,16 @@ export function pricingHeadline(c: VendorComparison): string {
   return (cut === -1 ? c.reportedPricing : c.reportedPricing.slice(0, cut)).trim()
 }
 
+/** The vendor as a searcher names it — the old name, where that is what they type. */
+export function searchName(c: VendorComparison): string {
+  return c.searchedAs?.name ?? c.name
+}
+
+/** `searchName`, with today's name beside it when the two differ: "PatientPop (now Tebra)". */
+export function searchNameWithNow(c: VendorComparison): string {
+  return c.searchedAs ? `${c.searchedAs.name} (now ${c.searchedAs.now})` : c.name
+}
+
 /** The vendor's answer on the "Month-to-month, no contract" row. */
 export function contractAnswer(c: VendorComparison): { value: MatrixValue; note: string } {
   const row = c.matrix.find((r) => r.feature.startsWith('Month-to-month'))
@@ -574,6 +767,16 @@ export function buildComparisonFaq(c: VendorComparison): Array<{ q: string; a: s
       q: `Can I switch from ${c.name} to DreamCRM?`,
       a: `Yes. DreamCRM is month-to-month with a ${TRIAL.name}, so you can run it alongside ${c.name} before deciding. Patients import via CSV, PMS sync connects through the NexHealth bridge, and you keep your existing phone system — and if you ever leave, your content exports with you.`,
     },
+    // The pricing questions, where an entry's pricing was read out in full.
+    // Each answer is its group's own, and ends with the page it came from and
+    // the day it was read — an answer lifted out of this page by a search
+    // engine or an assistant carries its citation with it.
+    ...(c.pricingDetail?.groups ?? [])
+      .filter((g) => g.question && g.answer)
+      .map((g) => ({
+        q: g.question as string,
+        a: `${g.answer} (${g.source.label}, read ${formatCheckedOn(g.source.readOn)}.)`,
+      })),
   ]
 }
 

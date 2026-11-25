@@ -160,6 +160,24 @@ export function articleLd(input: {
   }
 }
 
+/**
+ * A page whose facts were checked against their source on a stated day.
+ * `lastReviewed` is schema.org's own word for that — "date on which the
+ * content on this web page was last reviewed for accuracy" — which is exactly
+ * what a comparison page's `pricingChecked.on` is, and NOT what `dateModified`
+ * would be: a copy edit modifies a page without anybody re-reading a vendor's
+ * site. Omitted when there is no such day, never defaulted.
+ */
+export function webPageLd(input: { name: string; path: string; lastReviewed?: string }) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    name: input.name,
+    url: `${SITE_URL}${input.path}`,
+    ...(input.lastReviewed ? { lastReviewed: input.lastReviewed } : {}),
+  }
+}
+
 export function breadcrumbLd(items: ReadonlyArray<{ name: string; path: string }>) {
   return {
     '@context': 'https://schema.org',

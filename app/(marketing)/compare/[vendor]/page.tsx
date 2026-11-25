@@ -7,6 +7,10 @@ import {
   formatCheckedOn,
   getComparison,
   pricingHeadline,
+  searchName,
+  searchNameWithNow,
+  type PricingSourceRef,
+  type VendorComparison,
 } from '@/lib/marketing/comparisons'
 import {
   PageHero,
@@ -21,7 +25,7 @@ import {
 } from '@/components/marketing/ui'
 import { DEMO_URL, MARKETING, usd, TRIAL } from '@/lib/marketing/site'
 import { getQuotedPlan } from '@/lib/stripe-config'
-import { JsonLd, breadcrumbLd, faqPageLd, pageMetadata } from '@/lib/marketing/seo'
+import { JsonLd, breadcrumbLd, faqPageLd, pageMetadata, webPageLd } from '@/lib/marketing/seo'
 
 /**
  * THE VENDOR COMPARISON — `BRAND.md` Part 8 move 6, page 2.
@@ -173,11 +177,132 @@ export async function generateMetadata({ params }: Props) {
   const headline = pricingHeadline(c)
   const answer = headline.charAt(0).toLowerCase() + headline.slice(1)
   const checked = c.pricingChecked ? ` (checked ${formatCheckedOn(c.pricingChecked.on)})` : ''
+  // …and it is the name THEY typed. Tebra's entry is searched as "patientpop"
+  // five times in six, so its head opens "PatientPop pricing (now Tebra)".
+  const renamed = c.searchedAs ? ` (now ${c.searchedAs.now})` : ''
   return pageMetadata({
-    title: `${c.name} pricing & alternatives, compared with ${MARKETING.productName}`,
-    description: `${c.name} pricing: ${answer}${checked}. Compared with ${MARKETING.productName}: ${usd(PLAN.price)}/mo flat for dental practices, month-to-month.`,
+    title: `${searchName(c)} pricing${renamed} & alternatives, compared with ${MARKETING.productName}`,
+    description: `${searchNameWithNow(c)} pricing: ${answer}${checked}. Compared with ${MARKETING.productName}: ${usd(PLAN.price)}/mo flat for dental practices, month-to-month.`,
     path: `/compare/${c.slug}`,
   })
+}
+
+/** "Read {day} on {page}", with the page's own date for itself when it gives one. */
+function SourceLine({ source }: { source: PricingSourceRef }) {
+  return (
+    <p className="mt-4 border-t pt-3 text-[0.8rem] leading-relaxed text-gray-600" style={{ borderColor: DAY_WIRE }}>
+      Read {formatCheckedOn(source.readOn)} on{' '}
+      <a
+        href={source.url}
+        rel="nofollow noopener noreferrer"
+        className="font-medium text-teal-700 underline underline-offset-2 hover:text-teal-800"
+      >
+        {source.label}
+      </a>
+      {source.pageSays ? <>, which says “{source.pageSays}”</> : null}.
+    </p>
+  )
+}
+
+/**
+ * THE PRICING, LINE BY LINE — rendered only for an entry whose pricing
+ * somebody read out in full (`pricingDetail` in the registry, which has the
+ * reason it exists and the rules it keeps).
+ *
+ * IT SITS DIRECTLY UNDER THE HERO because of who arrives. The searches that
+ * show this page are "{vendor} pricing" far more than "{vendor} vs anything",
+ * so the first thing under the summary is the answer to the question that
+ * brought them, and the comparison follows it.
+ *
+ * NO TABLE, ON PURPOSE. A fee schedule wants to be one, and this file's
+ * header is the record of what a wide table did to this page at 390px. Each
+ * group is a card holding a definition list — label above, value below — so
+ * the longest value wraps inside its own card at any width and nothing
+ * scrolls sideways. Two columns from `lg`, one below it.
+ *
+ * EVERY CARD ENDS WITH ITS SOURCE: the page the group was read from, the day
+ * we read it, and the page's own date for itself when it states one. The
+ * links are `nofollow` — citations, not endorsements.
+ */
+function PricingDetailSection({ c }: { c: VendorComparison }) {
+  const d = c.pricingDetail
+  if (!d) return null
+  return (
+    <section id="pricing" className="scroll-mt-24 border-y bg-[#F8FAFF]" style={{ borderColor: DAY_WIRE }}>
+      <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
+        <SectionOpener eyebrow="Pricing" title={`${searchName(c)} pricing, line by line`} lede={d.intro} />
+
+        <div className="grid gap-5 lg:grid-cols-2">
+          {d.groups.map((g) => (
+            <div
+              key={g.id}
+              id={`pricing-${g.id}`}
+              className="scroll-mt-24 rounded-[14px] border bg-white p-5"
+              style={{ borderColor: DAY_WIRE }}
+            >
+              <h3 className="text-[1rem] font-bold text-gray-950">{g.title}</h3>
+              <dl className="mt-4 space-y-3">
+                {g.lines.map((line) => (
+                  <div
+                    key={line.label}
+                    className="border-t pt-3 first:border-t-0 first:pt-0"
+                    style={{ borderColor: DAY_WIRE }}
+                  >
+                    <dt className="text-[0.8rem] leading-snug text-gray-600">{line.label}</dt>
+                    <dd className="mt-1 text-[0.92rem] leading-relaxed text-gray-950">{line.value}</dd>
+                  </div>
+                ))}
+              </dl>
+              <SourceLine source={g.source} />
+            </div>
+          ))}
+        </div>
+
+        {/* WHAT OTHERS REPORT — kept apart from the vendor's own pages, under
+            each reporter's name, with that reporter's own caveat. A figure
+            from a review site must never read as the vendor's. */}
+        {d.reported.length > 0 && (
+          <div className="mt-5 rounded-[14px] border bg-white p-5" style={{ borderColor: DAY_WIRE }}>
+            <h3 className="text-[1rem] font-bold text-gray-950">What others report</h3>
+            <p className="mt-1.5 text-[0.85rem] leading-relaxed text-gray-600">
+              Not {c.name}’s numbers. A third party’s, under its own name.
+            </p>
+            <ul className="mt-4 space-y-4">
+              {d.reported.map((r) => (
+                <li key={r.who}>
+                  <p className="text-[0.92rem] leading-relaxed text-gray-950">
+                    <strong>{r.who}</strong> {r.says}.
+                  </p>
+                  <p className="mt-1.5 text-[0.85rem] leading-relaxed text-gray-600">{r.caveat}.</p>
+                  <SourceLine source={r.source} />
+                </li>
+              ))}
+            </ul>
+            {d.notRead.length > 0 && (
+              <p className="mt-4 text-[0.8rem] leading-relaxed text-gray-600">
+                Not read: {d.notRead.join(', ')}. Each refuses an automated visit, so nothing on this page is taken
+                from them.
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* AND OURS, BESIDE IT — including where theirs is the lower number. */}
+        <div
+          className="mt-5 rounded-[14px] border bg-white p-5 shadow-[0_1px_4px_-2px_rgb(58_103_217/0.14),0_18px_44px_-34px_rgb(58_103_217/0.45)]"
+          style={{ borderColor: DAY_WIRE }}
+        >
+          <h3 className={`text-teal-700 ${MONO_LABEL}`}>{MARKETING.productName}, beside it</h3>
+          <p className="mt-3 max-w-3xl text-[0.95rem] leading-relaxed text-gray-800">{d.versusUs}</p>
+          <p className="mt-3 text-[0.85rem]">
+            <Link href="/pricing" className="font-semibold text-teal-700 underline underline-offset-2 hover:text-teal-800">
+              Our price, on one page
+            </Link>
+          </p>
+        </div>
+      </div>
+    </section>
+  )
 }
 
 export default async function ComparePage({ params }: Props) {
@@ -199,6 +324,13 @@ export default async function ComparePage({ params }: Props) {
             { name: `DreamCRM vs ${c.name}`, path: `/compare/${c.slug}` },
           ]),
           faqPageLd(faq),
+          // The day the vendor's own pages were last read, in the one field
+          // schema.org has for it. Absent on an entry nobody has read.
+          webPageLd({
+            name: `${searchNameWithNow(c)} pricing, compared with ${MARKETING.productName}`,
+            path: `/compare/${c.slug}`,
+            lastReviewed: c.pricingChecked?.on,
+          }),
         ]}
       />
 
@@ -284,8 +416,21 @@ export default async function ComparePage({ params }: Props) {
               .
             </p>
           )}
+          {c.pricingDetail && (
+            <p className="mt-2 text-[0.85rem] leading-relaxed">
+              <a href="#pricing" className="font-semibold text-teal-700 underline underline-offset-2 hover:text-teal-800">
+                {searchName(c)} pricing, line by line
+              </a>
+              <span aria-hidden="true" className="text-teal-700">
+                {' '}
+                ↓
+              </span>
+            </p>
+          )}
         </div>
       </PageHero>
+
+      <PricingDetailSection c={c} />
 
       {/* ── WHAT THEY DO WELL, AND WHERE WE WIN ──────────────────────────
              Both columns are TIER A (`BRAND.md` Part 3): every line is a
@@ -567,6 +712,23 @@ export default async function ComparePage({ params }: Props) {
               </Link>
             </p>
           </div>
+          {/* THE OTHERS, BY NAME. The header menu already links every
+              comparison from every page; this says it in the body, in the
+              words a buyer searches each one by — "{vendor} pricing" was the
+              commonest shape of search behind these pages (Search Console,
+              2026-11-25). Derived from the registry, so a ninth vendor is
+              here the day it is added and this page never links to itself. */}
+          <p className="mt-4 text-[0.88rem] leading-relaxed text-gray-600" data-also-compared>
+            The others we have read:{' '}
+            {COMPARISONS.filter((o) => o.slug !== c.slug).map((o, i) => (
+              <span key={o.slug}>
+                {i > 0 ? ' · ' : ''}
+                <Link href={`/compare/${o.slug}`} className="font-semibold text-teal-700 hover:underline">
+                  {searchName(o)} pricing
+                </Link>
+              </span>
+            ))}
+          </p>
         </div>
       </section>
     </>

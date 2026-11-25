@@ -75,7 +75,11 @@ describe('the comparison FAQ (slice 4a — derived, honest, schema-twinned)', ()
   it('every vendor gets the five buyer questions, derived from its own registry entry', () => {
     for (const c of COMPARISONS) {
       const faq = buildComparisonFaq(c)
-      expect(faq).toHaveLength(5)
+      // Five for everyone, then one per pricing question on an entry whose
+      // pricing was read out in full (`tests/marketing/pricing-detail.test.tsx`
+      // holds what those may say).
+      const pricingQuestions = (c.pricingDetail?.groups ?? []).filter((g) => g.question).length
+      expect(faq).toHaveLength(5 + pricingQuestions)
       // "What is {vendor}" comes FIRST. On 2026-11-25 Search Console showed
       // the Tebra (PatientPop) page for "what is patientpop" — 150 showings
       // across two spellings, more than any question the page then answered
@@ -95,7 +99,7 @@ describe('the comparison FAQ (slice 4a — derived, honest, schema-twinned)', ()
       // honesty bar, machine-checkable.
       expect(faq[3].a.toLowerCase()).toContain(c.theirStrengths[0].title.toLowerCase())
       // Every answer survives the FAQPage builder.
-      expect(faqPageLd(faq).mainEntity).toHaveLength(5)
+      expect(faqPageLd(faq).mainEntity).toHaveLength(5 + pricingQuestions)
     }
   })
 
