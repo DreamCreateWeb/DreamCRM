@@ -50,6 +50,28 @@ export interface VendorComparison {
   name: string
   /** One-line category description of the vendor. */
   category: string
+  /**
+   * WHAT THE VENDOR IS, in a sentence or two a reader could lift out and trust
+   * on its own — the answer to "what is {name}?", which is the first question
+   * `buildComparisonFaq` emits.
+   *
+   * It exists because of what the pages were SHOWN for. On 2026-11-25 Search
+   * Console listed the Tebra (PatientPop) page for "what is patientpop" under
+   * two spellings, 150 showings between them, and nothing on the page said
+   * what PatientPop is without also arguing with it: `summary` opens every
+   * entry by placing the vendor against us ("the closest thing to a direct
+   * overlap", "pitches the same consolidation story we do"), which is the
+   * right way to open a comparison and the wrong way to answer a definition.
+   *
+   * THE RULE: it may state only what this entry already states elsewhere —
+   * `summary`, `theirStrengths`, the matrix. It is a second wording of facts
+   * that were read from the vendor’s own site, never a place for a new one.
+   * And it is about THEM: no price (the dated `reportedPricing` line carries
+   * that, with its source), nothing about us, no superlative. Required, so a
+   * ninth vendor cannot compile without one; `tests/marketing/seo.test.ts`
+   * holds the rest.
+   */
+  whatItIs: string
   /** Reported pricing band with sourcing hedge. */
   reportedPricing: string
   /**
@@ -131,6 +153,8 @@ export const COMPARISONS: VendorComparison[] = [
     slug: 'weave',
     name: 'Weave',
     category: 'Phones-first patient communication platform',
+    whatItIs:
+      'Weave is a patient communication platform built around the phone: VoIP calling that shows the caller’s details when the phone rings, two-way texting with an automatic text after a missed call, and payments by card terminal or by text.',
     reportedPricing:
       'Published at $199/mo for the base plan (calls, two-way texting, text-to-pay); online scheduling, digital forms, reminders and recall are a $149/mo bundle on top, and reviews plus email marketing a second $149/mo bundle, while its Pro, Elite and Ultimate tiers stay quote-only',
     pricingChecked: { on: '2026-11-23', source: 'Weave’s own plans and pricing pages', url: 'https://www.getweave.com/plans/' },
@@ -170,6 +194,8 @@ export const COMPARISONS: VendorComparison[] = [
     slug: 'nexhealth',
     name: 'NexHealth',
     category: 'Patient booking & sync platform',
+    whatItIs:
+      'NexHealth is a patient booking and sync platform. Its synchronizer connects to Dentrix, Eaglesoft and most other practice management systems, and it sells online booking, forms, reminders and payments on top of that connection, along with a public API.',
     reportedPricing:
       'Custom quote only — its own pricing page shows no price and asks for your details; third-party reviews report ~$300+/mo per location (2025–2026)',
     pricingChecked: { on: '2026-11-23', source: 'NexHealth’s own pricing page', url: 'https://www.nexhealth.com/pricing' },
@@ -208,6 +234,8 @@ export const COMPARISONS: VendorComparison[] = [
     slug: 'revenuewell',
     name: 'RevenueWell',
     category: 'Dental marketing & communication suite',
+    whatItIs:
+      'RevenueWell is a dental marketing and communication suite: campaigns, reminders, two-way texting, phones and a patient portal. It also has an in-house marketing team that runs SEO, paid ads, social media and website design for a practice.',
     reportedPricing:
       'No price published — its own Plans page shows none and says to talk to its team for a package; third-party reviews report ~$349/mo for a single location, with add-ons priced separately (2025–2026)',
     pricingChecked: { on: '2026-11-24', source: 'RevenueWell’s own Plans page', url: 'https://www.revenuewell.com/plans' },
@@ -246,6 +274,8 @@ export const COMPARISONS: VendorComparison[] = [
     slug: 'solutionreach',
     name: 'Solutionreach',
     category: 'Patient reminders & engagement (the category veteran)',
+    whatItIs:
+      'Solutionreach is patient reminder and engagement software. It has sent automated appointment reminders by text and email for about twenty years, and it includes patient satisfaction surveys.',
     reportedPricing:
       'Published as “pricing starts at $199” for its entry package, with every package priced by quote and yearly contract options; setup fees reported by reviewers (2025–2026)',
     pricingChecked: { on: '2026-11-23', source: 'Solutionreach’s own pricing page', url: 'https://www.solutionreach.com/pricing' },
@@ -284,6 +314,8 @@ export const COMPARISONS: VendorComparison[] = [
     slug: 'adit',
     name: 'Adit',
     category: 'All-in-one practice communications & analytics',
+    whatItIs:
+      'Adit is practice communications and analytics software sold as one bundle: VoIP phones with call tracking, texting, forms, and Adit Pulse, which reports on production numbers from the practice management system.',
     reportedPricing:
       'No price published — its own pricing page lists no subscription price and asks you to schedule a demo; third-party reviews report ~$399/mo bundles per location (2025–2026)',
     pricingChecked: { on: '2026-11-24', source: 'Adit’s own pricing page', url: 'https://adit.com/pricing' },
@@ -322,6 +354,8 @@ export const COMPARISONS: VendorComparison[] = [
     slug: 'dental-intelligence',
     name: 'Dental Intelligence',
     category: 'Practice analytics + patient engagement',
+    whatItIs:
+      'Dental Intelligence is practice analytics and patient engagement software. It is known for morning-huddle dashboards and production numbers read from the practice management system, and its acquisition of Modento added a patient app for forms, reminders and payments.',
     reportedPricing:
       'No price published that we could find — its own home page shows none and asks you to get a demo; third-party reviews report ~$300–$600+/mo per location depending on the analytics + engagement bundle (2025–2026)',
     pricingChecked: { on: '2026-11-24', source: 'Dental Intelligence’s own home page', url: 'https://www.dentalintel.com/' },
@@ -361,6 +395,8 @@ export const COMPARISONS: VendorComparison[] = [
     slug: 'podium',
     name: 'Podium',
     category: 'Reviews, webchat & texting for local business',
+    whatItIs:
+      'Podium is a reviews, webchat and texting tool for local businesses of every kind, not a dental product. It asks customers for Google reviews by text, turns website chats into text conversations, and takes payments over text.',
     reportedPricing:
       'No price published — its own pricing page shows none and says to talk to its sales team; third-party reviews report ~$399–$599+/mo depending on tier and messaging volume (2025–2026)',
     pricingChecked: { on: '2026-11-24', source: 'Podium’s own pricing page', url: 'https://www.podium.com/pricing' },
@@ -399,6 +435,8 @@ export const COMPARISONS: VendorComparison[] = [
     slug: 'patientpop',
     name: 'Tebra (PatientPop)',
     category: 'Healthcare practice-growth: websites, SEO & reputation',
+    whatItIs:
+      'PatientPop is practice-growth software for healthcare practices: practice websites, SEO, online scheduling and reputation management. It merged with Kareo and is now part of Tebra, which sells it alongside its own EHR and billing.',
     reportedPricing:
       'No subscription price published — its own pricing page says the price varies with the number of providers and asks you to request a quote; third-party reviews report ~$300–$700+/mo for the practice-growth suite (2025–2026)',
     pricingChecked: { on: '2026-11-24', source: 'Tebra’s own pricing page', url: 'https://www.tebra.com/pricing' },
@@ -469,6 +507,24 @@ export function publishesPrice(c: VendorComparison): boolean {
   return /^Published\b/.test(c.reportedPricing)
 }
 
+/**
+ * THE OPENING CLAUSE OF THE DATED PRICING LINE — "No price published",
+ * "Custom quote only", "Published at $199/mo for the base plan" — for the one
+ * place with room for a clause and not the whole line: the page's meta
+ * description, which is what a searcher reads before deciding to click.
+ *
+ * A PREFIX, NEVER A PARAPHRASE. The pricing line is the only sentence in an
+ * entry that was written from the vendor's own page on a stated day, and a
+ * second, shorter wording of it would be a second thing to keep true. So this
+ * cuts the line at the first punctuation the line itself carries and returns
+ * what came before, unchanged; `tests/marketing/page-head.test.ts` holds that
+ * the result is the line's own opening, for every entry.
+ */
+export function pricingHeadline(c: VendorComparison): string {
+  const cut = c.reportedPricing.search(/ — |;| \(|,/)
+  return (cut === -1 ? c.reportedPricing : c.reportedPricing.slice(0, cut)).trim()
+}
+
 /** The vendor's answer on the "Month-to-month, no contract" row. */
 export function contractAnswer(c: VendorComparison): { value: MatrixValue; note: string } {
   const row = c.matrix.find((r) => r.feature.startsWith('Month-to-month'))
@@ -487,8 +543,8 @@ export function latestPricingCheck(comparisons: readonly VendorComparison[] = CO
 
 /**
  * The per-vendor FAQ (slice 4a, docs/marketing-engine.md Part 5): the
- * questions buyers actually type — "{vendor} pricing", "{vendor}
- * alternatives" — and the ones AI assistants extract answers from. DERIVED
+ * questions buyers actually type — "what is {vendor}", "{vendor} pricing",
+ * "{vendor} alternatives" — and the ones AI assistants extract answers from. DERIVED
  * from the same registry fields the page renders, so the FAQ (and its
  * FAQPage JSON-LD twin) can never drift from the comparison itself, and no
  * answer can carry a fact the honesty bar above didn't already admit.
@@ -496,6 +552,12 @@ export function latestPricingCheck(comparisons: readonly VendorComparison[] = CO
 export function buildComparisonFaq(c: VendorComparison): Array<{ q: string; a: string }> {
   const leadTitles = c.theirStrengths.map((s) => s.title.toLowerCase()).join(', ')
   return [
+    {
+      // First, and the only answer with nothing about us in it: a reader who
+      // asked what the product IS gets that, and the page below is the rest.
+      q: `What is ${c.name}?`,
+      a: c.whatItIs,
+    },
     {
       q: `How much does ${c.name} cost?`,
       a: `${c.reportedPricing}. By comparison, DreamCRM is ${RATE_MONTHLY}/mo published (founding practice rate), month-to-month, with a ${TRIAL.name}: a card starts it, and it is not charged until the trial ends.`,

@@ -37,7 +37,7 @@ vi.mock('next/navigation', () => ({
 
 import { MARKETING, MARKETING_PUBLIC_PATHS, usd } from '@/lib/marketing/site'
 import { getQuotedPlan } from '@/lib/stripe-config'
-import { COMPARISONS } from '@/lib/marketing/comparisons'
+import { COMPARISONS, formatCheckedOn, pricingHeadline } from '@/lib/marketing/comparisons'
 import { DOCS } from '@/lib/marketing/docs'
 import { RESOURCE_GUIDES } from '@/lib/marketing/resources'
 import { pageMetadata } from '@/lib/marketing/seo'
@@ -183,6 +183,55 @@ describe('the registry-driven pages carry one too', () => {
       // The queries the page exists for stay in the title.
       expect(String(meta.title)).toContain(c.name)
       expect(String(meta.title)).toMatch(/pricing/i)
+    }
+  })
+
+  /**
+   * THE VENDOR LEADS, BECAUSE THE SEARCH DOES.
+   *
+   * Three months of Search Console (the owner's export, read 2026-11-25)
+   * showed these pages for about fifty different searches, and every one of
+   * them named a vendor — "patientpop pricing", "tebra alternatives",
+   * "what is patientpop", "nexhealth alternatives", "weave pricing". Not one
+   * named us. Every title opened "DreamCRM vs", and the best
+   * position any of them held — sixth on average for "patientpop pricing",
+   * 240 showings — earned no clicks at all. A searcher scans a result page
+   * for the name they typed; ours is the one word on the line they have never
+   * heard.
+   *
+   * So the title opens with the vendor, and the description opens with the
+   * ANSWER: the opening of the dated pricing line and the day it was read.
+   * Nothing new is said about a competitor here — `pricingHeadline` is a
+   * prefix of the registry's own line, held below, so the head cannot say
+   * what the page does not.
+   */
+  it('a comparison page’s head leads with the vendor and answers the price question first', async () => {
+    const { generateMetadata } = await import('@/app/(marketing)/compare/[vendor]/page')
+    for (const c of COMPARISONS) {
+      const meta = (await generateMetadata({ params: Promise.resolve({ vendor: c.slug }) })) as Metadata
+      const title = String(meta.title)
+      const description = String(meta.description)
+
+      expect(title.startsWith(c.name), `${c.slug}: "${title}"`).toBe(true)
+      expect(title, c.slug).toMatch(/alternatives/i)
+      // It is still OUR comparison, and says so.
+      expect(title, `${c.slug}: does not say whose comparison it is`).toContain(MARKETING.productName)
+      expect(title.length, `${c.slug}: "${title}"`).toBeGreaterThanOrEqual(30)
+      expect(title.length, `${c.slug}: "${title}"`).toBeLessThanOrEqual(75)
+
+      const headline = pricingHeadline(c)
+      expect(c.reportedPricing.startsWith(headline), `${c.slug}: not the line’s own opening`).toBe(true)
+      expect(headline.length, `${c.slug}: "${headline}"`).toBeGreaterThan(10)
+      expect(headline.length, `${c.slug}: "${headline}"`).toBeLessThanOrEqual(70)
+      // A clause, not a cut-off: it stops at punctuation the line itself has.
+      expect(headline, `${c.slug}: "${headline}"`).not.toMatch(/[—;,(]\s*$|\s$/)
+
+      expect(description.startsWith(`${c.name} pricing: `), `${c.slug}: "${description}"`).toBe(true)
+      expect(description.toLowerCase(), c.slug).toContain(headline.toLowerCase())
+      // A dated line carries its date to where the searcher reads it.
+      if (c.pricingChecked) expect(description, c.slug).toContain(formatCheckedOn(c.pricingChecked.on))
+      // Ours is resolved, never typed.
+      expect(description, c.slug).toContain(`${usd(getQuotedPlan().price)}/mo`)
     }
   })
 

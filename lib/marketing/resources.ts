@@ -61,9 +61,9 @@ export interface ResourceGuide {
 export const RESOURCE_GUIDES: ResourceGuide[] = [
   {
     slug: 'dental-recall-scripts',
-    title: 'Dental recall scripts that get patients back (email, text & phone)',
+    title: 'Dental recall scripts that get patients back (email, text, letter & phone)',
     description:
-      'Copy-paste recall scripts for overdue dental patients — the email, text, and phone-call versions, with the timing cadence and the voice rules that make them work.',
+      'Copy-paste recall scripts for overdue dental patients — the email, text, mailed-letter and phone versions, with the timing and the voice rules behind them.',
     // `chat` — brand. The guide is about the MESSAGES a practice sends, which
     // is what the product is, not what it earns.
     glyph: 'chat',
@@ -71,10 +71,14 @@ export const RESOURCE_GUIDES: ResourceGuide[] = [
       'The recall email, subject line and body',
       'Text templates carrying the STOP line',
       'The phone and voicemail scripts',
+      'The mailed letter and the postcard',
       'The cadence, week by week',
     ],
     readMinutes: 9,
-    datePublished: '2026-09-08',
+    // Revised 2026-11-25: the letter and the postcard, added because Search
+    // Console was showing the guide for "dental patient recall letter
+    // template" and it had none.
+    datePublished: '2026-11-25',
   },
   {
     slug: 'dental-membership-plan-pricing',
