@@ -764,8 +764,15 @@ export function MarketingFooter() {
         className="h-[3px] w-full bg-gradient-to-r from-teal-400 via-violet-500 to-fuchsia-500"
         aria-hidden="true"
       />
-      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 md:grid-cols-[1.2fr_repeat(4,1fr)]">
-        <div>
+      {/* The brand block plus FIVE link columns since the guides got their
+          own (2026-11-26). The old template put the brand block and four
+          columns in one row; a fifth column in that row leaves each about
+          146px at full width and 125px at 1024, where nearly every guide
+          label wraps. So from `lg` the brand block takes a row of its own and
+          the five columns share the next at about 189px; at `md` the six
+          cells make two rows of three; below that, one column. */}
+      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 md:grid-cols-3 lg:grid-cols-5">
+        <div className="lg:col-span-5">
           {/* Footer sits on gray-950 in both themes — force the wordmark to white ink. */}
           <DreamCreateLogo size={28} wordmarkClassName="text-white [--brand-ink:#fff]" />
           <p className="mt-3 max-w-[16rem] text-[0.82rem] leading-relaxed">

@@ -602,6 +602,10 @@ ready to copy — not an article about it.
     against the library's own content law. They carry figures with no source;
     each is sourced, softened or cut. Found while building item 3.
     **Done 2026-11-26** (`docs/marketing-engine.md`, Part 12 slice 11).
+14. The footer links every guide from every page, by itself. Each new guide
+    was being typed into the footer by hand; the list reached fourteen links.
+    **Done 2026-11-26** (`docs/marketing-engine.md`, Part 12 slice 13): the
+    guides have their own column, built from the guide registry.
 
 A text template is content a practice may use anywhere; it is never a
 statement that this product sends texts (the recall guide's closing block is

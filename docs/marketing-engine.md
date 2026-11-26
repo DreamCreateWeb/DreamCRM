@@ -2533,3 +2533,35 @@ change: `subscription_status` is free text, and the new state is a value.
   caveat said twice, the third time that shape has been missed, and now named
   as a shape in the test).
 
+**Part 12 slice 13 — the footer's Guides column (2026-11-26, no migration).**
+
+- **What changed.** The footer's hand-kept "Resources" list took six new
+  guide links in a day and reached fourteen, each typed twice (the registry
+  and `site.ts`). The guides now have their own column, DERIVED from
+  `RESOURCE_GUIDES` the way Compare is derived from the comparison registry.
+  "Resources" keeps the tools and the hub (`All guides` is new). Every page of
+  the site links every guide by name, and a new guide is in the footer the
+  moment it is registered.
+- **The name is not a field on the guide, and the first draft got that
+  wrong.** It put `shortTitle` on each registry entry. A guide's entry is what
+  its page's search-notice key is computed from (`public-pages.ts`), so that
+  draft moved the key of all nine guides and would have told the engines nine
+  pages had changed when only the site's footer had. Caught before commit.
+  The names live beside the registry in `GUIDE_SHORT_TITLES`, keyed by slug;
+  `GuideSlug` is derived from its keys, so a guide with no name does not
+  compile. All 63 public pages' keys were dumped before and after the change:
+  none moved.
+- **The layout.** The old grid put the brand block and four columns in one
+  row. A sixth track in that row leaves a column about 146px at full width
+  and 125px at 1024, where nearly every guide label wraps. So from `lg` the
+  brand block takes a row of its own and the five columns share the next
+  (189px at full width, 163px at 1024); at `md` the six cells make two rows of
+  three; one column below. Measured in a browser at 1440, 1280, 1024, 834, 768
+  and 390: no sideways scroll, no label past two lines.
+- **Tests.** `tests/marketing/footer-guides.test.tsx` (nine): the column
+  equals the registry in order; every guide has a name and no name is left
+  over; a name is short, plain and one of a kind; Resources holds no single
+  guide; the rendered footer has five named column landmarks plus Legal, links
+  no page twice, and gives the columns their own row; a guide's entry carries
+  only content fields; and renaming every label moves no page's key.
+  Twenty-five mutations, all caught.
