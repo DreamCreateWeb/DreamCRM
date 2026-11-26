@@ -535,6 +535,10 @@ anything sent to customers, external communications).
   copy by script before the entry is written. A sitemap is not the whole
   site either: a vendor's legal index links documents its sitemap leaves out
   (Weave's links eight). Read both, and a help centre's own sitemap too.
+  Two more things the RevenueWell read met: a help centre may answer only a
+  real browser, and a fee schedule may be a picture inside a PDF. Read the
+  first rendered; read the second by eye and pin every figure in a test,
+  because no script can check it.
 - **A new comparison is added without a read** → it shows no date, gets no ad,
   and is still listed. `tests/marketing/unchecked-comparison.test.tsx` holds
   that on a planted entry.
@@ -615,9 +619,11 @@ ready to copy — not an article about it.
     reminder services, membership-plan software).
     **Solutionreach built 2026-11-26:** `/compare/solutionreach#pricing`
     (`docs/marketing-engine.md`, Part 12 slice 18), and its whole entry
-    corrected against its own site. Still to do: RevenueWell, Adit, Dental
-    Intelligence, Podium. Their sites were downloaded on 2026-11-26 for the
-    read; RevenueWell's prints prices on pages our entry does not cite.
+    corrected against its own site.
+    **RevenueWell built 2026-11-26:** `/compare/revenuewell#pricing`
+    (`docs/marketing-engine.md`, Part 12 slice 20). Still to do: Adit,
+    Dental Intelligence, Podium. Their sites were downloaded on 2026-11-26
+    for the read.
 12. The search scoreboard: the app saves what Search Console reports each
     week, so results can be read without an export.
 13. Re-read the two September guides (patient growth, membership pricing)

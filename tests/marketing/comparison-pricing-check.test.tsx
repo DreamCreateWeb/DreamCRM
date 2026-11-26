@@ -151,7 +151,7 @@ describe('all eight entries, each re-read in a browser on the day it says', () =
   const ALL: Array<[slug: string, host: string, readOn: string]> = [
     ['weave', 'getweave.com', '2026-11-26'],
     ['nexhealth', 'nexhealth.com', '2026-11-26'],
-    ['revenuewell', 'revenuewell.com', '2026-11-25'],
+    ['revenuewell', 'revenuewell.com', '2026-11-26'],
     ['solutionreach', 'solutionreach.com', '2026-11-26'],
     ['adit', 'adit.com', '2026-11-25'],
     ['dental-intelligence', 'dentalintel.com', '2026-11-25'],
@@ -233,9 +233,14 @@ describe('all eight entries, each re-read in a browser on the day it says', () =
   })
 
   it('every contract answer is the vendor’s own where the vendor states one, and says so', () => {
-    // RevenueWell's site: "Monthly and annual contracts available".
-    expect(contract('revenuewell').vendor).toBe('yes')
-    expect(contract('revenuewell').vendorNote).toMatch(/Monthly and annual contracts, per its own site/)
+    // RevenueWell's site says two things. Its home page: "RevenueWell offers
+    // both monthly and annual contracts". Its plans-comparison page, found
+    // when its sitemap was read on 2026-11-26: "Annual contract required for
+    // Starter, Professional, or Premium plans". The row was a plain yes on
+    // the first alone; it carries both now, and is "partial".
+    expect(contract('revenuewell').vendor).toBe('partial')
+    expect(contract('revenuewell').vendorNote).toMatch(/“RevenueWell offers both monthly and annual contracts”/)
+    expect(contract('revenuewell').vendorNote).toMatch(/“Annual contract required for Starter, Professional, or Premium plans”/)
     // Adit's pricing FAQ: no binding contract on the software; the marketing
     // program is a one-year commitment. Both halves stay on the line.
     expect(contract('adit').vendor).toBe('yes')
@@ -270,9 +275,13 @@ describe('all eight entries, each re-read in a browser on the day it says', () =
 
   it('the claims the reads could NOT confirm are gone, not restated with more confidence', () => {
     const text = (slug: string) => JSON.stringify(entry(slug))
-    // A product name that is not on RevenueWell's site today, an adjective
-    // nobody re-verified, and a channel its pages no longer mention.
-    expect(text('revenuewell')).not.toMatch(/PatientConnect365|vendor-branded|postcard/i)
+    // An adjective nobody re-verified. (This line also banned
+    // "PatientConnect365" and "postcard", as a product name not on its site
+    // and a channel its pages no longer mention. The read of 2026-11-26 found
+    // both on pages of its own: its help centre documents PatientConnect365
+    // today, and its fee schedule, effective June 2026, prices post cards.
+    // The read of the 25th had not opened either.)
+    expect(text('revenuewell')).not.toMatch(/vendor-branded/i)
     // "Runs under its own brand" was asserted of an app the vendor's home
     // page no longer names.
     expect(text('dental-intelligence')).not.toMatch(/runs under its own brand|not clinic-branded/i)
