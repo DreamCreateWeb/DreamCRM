@@ -6,8 +6,8 @@ import type { ToneTileGlyph } from '@/lib/marketing/tone-tiles'
  * vendor blogs provably win — each carrying ORIGINAL material (the scripts
  * and numbers our own product actually uses), which is what survives
  * helpful-content updates. Registry is the single source for the hub,
- * the sitemap, and each page's Article JSON-LD; the page bodies stay
- * bespoke TSX under app/(marketing)/resources/.
+ * the sitemap, the footer's Guides column and each page's Article JSON-LD;
+ * the page bodies stay bespoke TSX under app/(marketing)/resources/.
  *
  * Content laws: hand-written, hedged where third-party, no invented
  * statistics, and every template shown is real product copy or derived
@@ -35,8 +35,47 @@ import type { ToneTileGlyph } from '@/lib/marketing/tone-tiles'
  * number, compute it from the page rather than typing it here.
  */
 
+/**
+ * WHAT EACH GUIDE IS CALLED IN THE FOOTER — and why this is not a field on
+ * the guide.
+ *
+ * The footer's Guides column is derived from the registry below, so a new
+ * guide cannot be missing from it (`tests/marketing/footer-guides.test.tsx`).
+ * The obvious home for the label is a `shortTitle` on the guide's entry, and
+ * that was the first draft. It would have re-announced nine unchanged pages
+ * to the search engines: a guide's ENTRY is what its page's search-notice key
+ * is computed from (`lib/marketing/public-pages.ts`), so a field added to the
+ * entry moves the key — and that key may move only when the page's own
+ * content does. A footer label is chrome on every page of the site; renaming
+ * one changes no page's content.
+ *
+ * So the labels live here, keyed by slug, and `GuideSlug` is derived from the
+ * keys: a guide whose slug is not in this map does not compile. That is the
+ * "required" a field would have given — a guide nobody has named in four
+ * words has not been thought about yet.
+ *
+ * Plain names, 32 characters at most. Measured on 2026-11-26: a footer column
+ * is 189px at full width and 163px at 1024, where a label that long takes two
+ * lines. They are also the words every page of the site links the guide
+ * with, so each names the guide the way somebody would search for it.
+ */
+export const GUIDE_SHORT_TITLES = {
+  'dental-recall-scripts': 'Dental recall scripts',
+  'dental-appointment-reminder-templates': 'Appointment reminder templates',
+  'dental-cancellation-no-show-policy': 'Cancellation & no-show policy',
+  'dental-review-request-templates': 'Review request templates',
+  'dental-new-patient-welcome-letter': 'New patient welcome letter',
+  'dental-past-due-balance-letters': 'Past-due balance letters',
+  'dental-membership-plan-pricing': 'Membership plan pricing',
+  'how-to-get-more-dental-patients': 'Get more dental patients',
+  'dental-software-pricing': 'Dental software pricing',
+} as const satisfies Record<string, string>
+
+export type GuideSlug = keyof typeof GUIDE_SHORT_TITLES
+
 export interface ResourceGuide {
-  slug: string
+  /** A key of `GUIDE_SHORT_TITLES`: a guide cannot exist without its name. */
+  slug: GuideSlug
   /** The query-shaped title. */
   title: string
   /** Card + meta description. */

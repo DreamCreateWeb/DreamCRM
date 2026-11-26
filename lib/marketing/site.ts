@@ -5,6 +5,7 @@
 // Create accent), Inter, dense and concrete.
 
 import { TRIAL_DAYS } from '@/lib/trial'
+import { GUIDE_SHORT_TITLES, RESOURCE_GUIDES } from '@/lib/marketing/resources'
 
 export const MARKETING = {
   productName: 'DreamCRM',
@@ -159,7 +160,7 @@ export const FOOTER_COLUMNS: Array<{ title: string; links: Array<{ label: string
       { label: 'Platform tour', href: '/product' },
       { label: 'Why DreamCRM', href: '/why' },
       { label: 'About DreamCRM', href: '/about' },
-  { label: 'Pricing', href: '/pricing' },
+      { label: 'Pricing', href: '/pricing' },
       { label: 'Live demo practice', href: DEMO_URL, external: true },
       { label: 'Patient portal', href: '/product#portal' },
       { label: 'PMS sync', href: '/product#integrations' },
@@ -176,19 +177,20 @@ export const FOOTER_COLUMNS: Array<{ title: string; links: Array<{ label: string
     ],
   },
   {
+    // DERIVED from the guide registry, the way the footer derives Compare
+    // from the comparison registry: a hand-kept list of guides inside
+    // "Resources" took six new links on 2026-11-26 and reached fourteen, each
+    // typed twice. A guide's line in `GUIDE_SHORT_TITLES` (without which it
+    // does not compile) is now the whole of adding it here.
+    title: 'Guides',
+    links: RESOURCE_GUIDES.map((g) => ({ label: GUIDE_SHORT_TITLES[g.slug], href: `/resources/${g.slug}` })),
+  },
+  {
     title: 'Resources',
     links: [
       { label: 'Grade your practice', href: '/grade' },
       { label: 'Recall ROI calculator', href: '/roi' },
-      { label: 'Dental recall scripts', href: '/resources/dental-recall-scripts' },
-      { label: 'Appointment reminder templates', href: '/resources/dental-appointment-reminder-templates' },
-      { label: 'Cancellation & no-show policy', href: '/resources/dental-cancellation-no-show-policy' },
-      { label: 'Review request templates', href: '/resources/dental-review-request-templates' },
-      { label: 'New patient welcome letter', href: '/resources/dental-new-patient-welcome-letter' },
-      { label: 'Past-due balance letters', href: '/resources/dental-past-due-balance-letters' },
-      { label: 'Membership plan pricing', href: '/resources/dental-membership-plan-pricing' },
-      { label: 'Get more dental patients', href: '/resources/how-to-get-more-dental-patients' },
-      { label: 'Dental software pricing', href: '/resources/dental-software-pricing' },
+      { label: 'All guides', href: '/resources' },
       { label: 'Help docs', href: '/docs' },
       { label: 'Blog', href: '/blog' },
       { label: 'Changelog', href: '/changelog' },
