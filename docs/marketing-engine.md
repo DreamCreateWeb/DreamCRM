@@ -2768,3 +2768,59 @@ change: `subscription_status` is free text, and the new state is a value.
   all caught.
 - **Dated.** The offer ends 2026-12-18. The page says so and stays true as a
   record, but the offer-terms page may change or go: Part 10, item 16.
+
+**Part 12 slice 19 — the three published entries, re-read from their sitemaps (2026-11-26, no migration).**
+
+Slice 18 found that a "line by line" read which starts at a vendor's menu
+misses pages. This is the same sweep, owed to the three entries already
+live (`docs/organic-go-live.md` Part 10, item 15).
+
+- **Weave: nothing missing.** 1,841 pages listed, 1,833 read, plus eight
+  legal documents its legal index links and its sitemap omits. Its own
+  prices are on two pages, both already cited. No change.
+- **NexHealth: the page was incomplete, in NexHealth's favour.** It said
+  "a month-to-month option" and "no cancellation fees", from the pricing
+  page. Its help centre (141 articles) and its service agreement say what
+  that option comes with: "a minimum commitment of your first 3 billing
+  cycles", thirty days' written notice, and an annual term that renews
+  itself for twelve months. Three groups were added, each from one page of
+  its own: what it deducts from a patient's payment by method, how to stop a
+  subscription, and the agreement's clauses on renewal, refunds, an invoice
+  paid by card and late interest. The comparison now says our month-to-month
+  has neither a minimum nor a notice period, and a test reads that from our
+  own Terms.
+- **Its table, corrected both ways.** "Month-to-month, no contract" was a
+  plain yes and is now "partial", with the minimum in the note. The portal
+  row called its patient pages a partial portal; its own site says
+  "NexHealth doesn't have a patient portal", and the row quotes it. The
+  phones row said no; it has a page for a phone product, and the row quotes
+  what that page lists.
+- **Tebra: two pages added, and its figures pinned for the first time.** Its
+  payment-processing rates (labelled a separate service) and its FAQ on
+  getting records back after leaving. It was the first entry read out in
+  full and the only one whose figures no test named; they are named now.
+  Every figure and quotation in the groups read on the 25th was compared by
+  script with today's copy of the page it cites before the entry's date
+  moved.
+- **Payment fees are printed and are nobody's search answer.** The same rule
+  as slice 18, now on all three pages that print a competitor's card fees,
+  and for the same reason (`docs/organic-go-live.md` Part 8, row 7). The
+  NexHealth overage answer had mentioned its payment fee in passing; that
+  sentence left the answer and stayed on the page.
+- **The pricing guide had one word for two different things.** "Not clear"
+  was its label for every partial contract row. That is true of a vendor
+  whose pages do not state its terms and false of one whose pages are plain
+  about a minimum and a notice period. Those now read "With conditions", the
+  page says what each word means, and the test names each partial vendor's
+  word so a new one is a decision.
+- **The method, amended.** A sitemap is not the whole site either: Weave's
+  legal index links eight documents its sitemap leaves out. Read both.
+- **Tests.** `pricing-detail.test.tsx` (the NexHealth block, a new Tebra
+  block), `comparison-pricing-check.test.tsx`, `pricing-guide.test.tsx`.
+  Sixty-seven quotations checked by script against the saved pages (49
+  NexHealth, 18 Tebra); forty-one mutations, all caught.
+- **Seen on the way, for the next reads** (Part 10, item 11): RevenueWell's
+  own site prints prices on pages our entry does not cite (a virtual-office
+  product, two dated offers); Adit's has a payments-terms page and a price
+  in its structured data on several product pages.
+

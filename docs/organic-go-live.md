@@ -532,7 +532,9 @@ anything sent to customers, external communications).
   word is written. Solutionreach's menu led to one pricing page; its sitemap
   listed 86 pages, and four of them print prices (2026-11-26). Each page is
   saved as it was read, and every quotation is checked against the saved
-  copy by script before the entry is written.
+  copy by script before the entry is written. A sitemap is not the whole
+  site either: a vendor's legal index links documents its sitemap leaves out
+  (Weave's links eight). Read both, and a help centre's own sitemap too.
 - **A new comparison is added without a read** → it shows no date, gets no ad,
   and is still listed. `tests/marketing/unchecked-comparison.test.tsx` holds
   that on a planted entry.
@@ -614,7 +616,8 @@ ready to copy — not an article about it.
     **Solutionreach built 2026-11-26:** `/compare/solutionreach#pricing`
     (`docs/marketing-engine.md`, Part 12 slice 18), and its whole entry
     corrected against its own site. Still to do: RevenueWell, Adit, Dental
-    Intelligence, Podium.
+    Intelligence, Podium. Their sites were downloaded on 2026-11-26 for the
+    read; RevenueWell's prints prices on pages our entry does not cite.
 12. The search scoreboard: the app saves what Search Console reports each
     week, so results can be read without an export.
 13. Re-read the two September guides (patient growth, membership pricing)
@@ -631,6 +634,10 @@ ready to copy — not an article about it.
     Solutionreach read was done the same way at first, and its sitemap then
     turned up two more pages that print prices. The same sweep is owed to
     the three entries already published. Before item 11's next vendor.
+    **Done 2026-11-26** (`docs/marketing-engine.md`, Part 12 slice 19):
+    Weave had nothing missing; NexHealth's page left out the minimum term
+    and the notice period on its month-to-month option, and three groups
+    were added; Tebra gained two pages and its first pinned test.
 16. After 2026-12-18, re-read Solutionreach's offer terms
     (`/practice-complete-offer-terms`). Its Practice Complete offer ends that
     day; our page gives the date and stays true as a record, but the source
