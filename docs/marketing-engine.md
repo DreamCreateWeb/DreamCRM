@@ -2865,3 +2865,48 @@ live (`docs/organic-go-live.md` Part 10, item 15).
   `comparison-pricing-check.test.tsx`, `pricing-guide.test.tsx`. Forty-four
   mutations, all caught.
 
+**Part 12 slice 21 — Adit, line by line; and a claim that we were cheaper, withdrawn (2026-11-26, no migration).**
+
+- **What was wrong.** The Adit page said DreamCRM was the cheaper of the
+  two, twice: a strength titled "Lower flat price" ("versus reported ~$399
+  bundles") and a bottom line ending "at half the reported price". Both
+  rested on a figure no one could name the source of. Adit's own FAQ page,
+  found when the 938 pages its sitemap lists were read, says "We offer a
+  technology bundle that starts at $99 per month, per location". That is
+  below our price. Both claims are gone; the page now says theirs starts
+  lower, in the comparison, in a strength of theirs and in the bottom line.
+- **A vendor can state a price without publishing one on its pricing page.**
+  Adit's pricing page still shows none, so the entry still opens "No price
+  published". The rule for such entries forbade the comparison from saying
+  "lower than ours" (it exists to stop a number being conjured). The
+  registry now has `startsAt` for a starting price stated elsewhere on the
+  vendor's own site: the test requires the named group to print it, forbids
+  that group from being the pricing page's, requires "lower than ours" when
+  it is, and fails any entry whose lines state a starting price it does not
+  declare.
+- **Six groups, three pages of its own.** The pricing page (no price in its
+  text; a figure in its structured data); the FAQ page (the starting price,
+  its words on contracts); and its terms and payments terms (what each
+  bundle includes and what more costs, refunds, late payment, how the
+  agreement renews and ends, and its card rates). Twenty-seven quotations,
+  each checked by script against the saved page.
+- **What else the entry stopped saying.** "Adit Pulse", a product name not
+  on its site today. "Memberships" as something only we ship: its own pages
+  list in-house membership plans. "Sanctioned paths", of our PMS sync: a
+  claim about a third party that is not ours to make
+  (`docs/organic-go-live.md` Part 8, row 2). And a social-posting tick its
+  module list does not support.
+- **Not printed, on purpose.** The banner across its site that day (a
+  percentage off the first year, a gift card for a demo): its small print
+  ends it within the week. And its answer that no card is needed to sign
+  up: in this tree a "no card" sentence reads as a claim about our own
+  trial, which requires one. The trial guard caught it; so did the
+  superlative guard, on a question that said "cheapest".
+- **A hole in an existing rule, found by mutation.** "An answer states no
+  figure the lines do not" compared by substring, so "$75" in an answer
+  passed because a line elsewhere said "$750". It compares whole figures
+  now, on every entry.
+- **Tests.** `pricing-detail.test.tsx` (an Adit block, the `startsAt` rule,
+  the whole-figure rule), `comparison-pricing-check.test.tsx`. Thirty-nine
+  mutations, all caught after that fix.
+

@@ -516,6 +516,95 @@ describe('the registry', () => {
   })
 
   /**
+   * ADIT, PINNED. Read on 2026-11-26 from the pages its own sitemap lists
+   * (938). Its pricing page shows no price in its text. Its FAQ page states
+   * one, and it is LOWER than ours: the entry had said the opposite, twice,
+   * on the strength of a figure no one could name the source of.
+   */
+  it('Adit: no price on its pricing page, a starting price on its FAQ page, and the fees in its terms', () => {
+    const adit = COMPARISONS.find((c) => c.slug === 'adit')!
+    const d = adit.pricingDetail!
+    const line = (group: string, label: string) =>
+      d.groups.find((g) => g.id === group)!.lines.find((l) => l.label === label)!.value
+
+    // The pricing page: no number a reader sees.
+    expect(publishesPrice(adit)).toBe(false)
+    expect(line('the-pricing-page', 'The price')).toMatch(/^None in the text of the page/)
+    expect(line('the-pricing-page', 'Contracts')).toBe('“No Contracts”, in the line under its heading')
+    expect(JSON.stringify(d.groups[0]!.lines)).not.toMatch(/\$\d/)
+
+    // The FAQ page: its own starting price, and its own words on contracts.
+    expect(line('faq', 'The starting price')).toBe('“We offer a technology bundle that starts at $99 per month, per location.”')
+    expect(line('faq', 'Contracts')).toBe(
+      '“Our tech packages do not have any binding contracts so you can cancel your subscription any time. However, our marketing agreements are locked into a 1 year contract with a Patient Booking Guarantee.”',
+    )
+    expect(d.startsAt).toEqual({ perMonth: 99, groupId: 'faq' })
+
+    // Its terms: what usage beyond a bundle costs, under its own bundle names.
+    expect(line('usage-fees', 'Tech & Analytics Bundle: what is unlimited')).toBe(
+      '“Unlimited VoIP minutes”, “Unlimited one-to-one text messaging” and “Unlimited emails”',
+    )
+    expect(line('usage-fees', 'Mass texts')).toBe('“$0.01 per text for all mass text campaigns sent”')
+    expect(line('usage-fees', 'Tracked call minutes')).toBe('“500 tracking minutes per location, $0.03 per minutes charges”')
+    expect(line('usage-fees', 'Phone numbers')).toBe('“2 numbers per location. $2 per extra numbers”')
+    expect(line('usage-fees', 'Freemium: texts')).toBe('“500 text messages per location, $0.03 per additional message”')
+    expect(line('usage-fees', 'Freemium: emails')).toBe('“5,000 emails free per location. $5 per 1,000 additional emails sent”')
+
+    // Refunds and late payment, in its terms' own words.
+    expect(line('billing-and-refunds', 'Refunds')).toBe(
+      '“All sales pursuant to the Invoice are Final, and there are no refunds for contracted services for any reason.”',
+    )
+    expect(line('billing-and-refunds', 'Late payment')).toBe(
+      '“Adit has the right to charge 15% penalty for payments received after 5 days of expected billing date.”',
+    )
+    expect(line('billing-and-refunds', 'A year paid up front: the first year')).toMatch(
+      /“subject to a three percent \(3%\) processing fee and a penalty of fifty dollars \(\$50\) per month of service deducted from the refund amount”/,
+    )
+    expect(line('the-contract', 'To end it')).toBe(
+      '“This Agreement may be terminated at any time by either party upon receipt of 30-day written notice via email”',
+    )
+
+    // Its payment fees: printed, and nobody's search answer.
+    const pay = d.groups.find((g) => g.id === 'adit-pay')!
+    expect(pay.lines.slice(0, 2).map((l) => l.value)).toEqual([
+      '“Card Present Transactions: 2.25% + $0.20 per transaction.”',
+      '“Card Not Present Transactions: 2.90% + $0.30 per transaction.”',
+    ])
+    expect(pay.question).toBeUndefined()
+    expect(d.versusUs).not.toMatch(/payment|processing|card fee|surcharg/i)
+
+    // Three pages, all its own; the two legal ones carry the date they state.
+    expect(d.groups.map((g) => [g.id, new URL(g.source.url).hostname + new URL(g.source.url).pathname, g.source.pageSays ?? null])).toEqual([
+      ['the-pricing-page', 'adit.com/pricing', null],
+      ['faq', 'adit.com/faqs', null],
+      ['usage-fees', 'adit.com/terms', 'Last Updated: November 26, 2026'],
+      ['adit-pay', 'adit.com/adit-pay-terms', 'Last Updated: November 26, 2026'],
+      ['billing-and-refunds', 'adit.com/terms', 'Last Updated: November 26, 2026'],
+      ['the-contract', 'adit.com/terms', 'Last Updated: November 26, 2026'],
+    ])
+
+    // WHAT THE ENTRY SAID AND NO LONGER MAY. "Lower flat price", "at half the
+    // reported price" and "reported ~$399 bundles": the vendor's own page
+    // states a starting price below ours. "Adit Pulse": a product name not on
+    // its site. "Sanctioned paths": a claim about a third party that is not
+    // ours to make. And memberships, which its own pages list.
+    const text = JSON.stringify(adit)
+    expect(text).not.toMatch(/Lower flat price|half the reported price|reported ~\$399|third-party reviews report/)
+    expect(text).not.toMatch(/Adit Pulse|sanctioned/i)
+    expect(adit.ourStrengths.map((s) => `${s.title} ${s.body}`).join(' ')).not.toMatch(/memberships/i)
+    expect(d.reported).toEqual([])
+    // And the comparison says theirs is lower.
+    expect(d.versusUs).toMatch(/starts at \$99 per month, per location, which is lower than ours/)
+    expect(d.versusUs).toMatch(/in Adit’s favour/)
+    expect(adit.bottomLine).not.toMatch(/price/)
+
+    const row = (starts: string) => adit.matrix.find((r) => r.feature.startsWith(starts))!
+    expect(row('Insurance eligibility').vendor).toBe('yes')
+    expect(row('Insurance eligibility').vendorNote).toContain('“Insurance Verifications”')
+    expect(row('Google Business').vendor).toBe('partial')
+  })
+
+  /**
    * TEBRA, PINNED. It was the first entry read out in full (2026-11-25) and
    * the only one whose figures no test named: the generic rules hold an
    * entry's shape, and a shape-correct line that misstates a price passes
@@ -688,7 +777,33 @@ describe('the registry', () => {
         // a number of theirs to be lower or higher than.
         expect(theirs, `${c.slug}: the registry says its page shows no price, and the first group prints one`).toEqual([])
         expect(d.versusUs, c.slug).toMatch(/shows no subscription price/)
-        expect(d.versusUs, c.slug).not.toMatch(/lower than ours|higher than ours|cheaper|costs more/)
+        // A line that says "starts at $N per month" is a starting price of
+        // the vendor's own, and the entry must declare it: otherwise the
+        // rule below would forbid the page from saying theirs is lower.
+        const said = d.groups
+          .flatMap((g) => g.lines)
+          .map((l) => /starts at \$(\d[\d,]*) per month/.exec(l.value)?.[1])
+          .find(Boolean)
+        expect(d.startsAt?.perMonth, `${c.slug}: a line states a starting price and the entry does not declare it`).toBe(
+          said ? Number(said.replace(/,/g, '')) : undefined,
+        )
+        if (d.startsAt) {
+          // ITS SITE STATES A STARTING PRICE SOMEWHERE OTHER THAN ITS PRICING
+          // PAGE (Adit: its FAQ page). The figure is the vendor's own, the
+          // group named prints it, that group is not the pricing page's, and
+          // where it is lower than ours the comparison says so — exactly as
+          // for a vendor that publishes.
+          const group = d.groups.find((g) => g.id === d.startsAt!.groupId)!
+          expect(group, `${c.slug}: startsAt names a group that is not there`).toBeTruthy()
+          expect(group, c.slug).not.toBe(d.groups[0])
+          expect(group.lines.map((l) => l.value).join(' '), c.slug).toContain(`$${d.startsAt.perMonth} per month`)
+          if (d.startsAt.perMonth < ours) {
+            expect(d.versusUs, `${c.slug}: its stated starting price is lower and the page does not say so`).toMatch(/lower than ours/)
+          }
+          expect(d.versusUs, c.slug).not.toMatch(/higher than ours|cheaper|costs more/)
+        } else {
+          expect(d.versusUs, c.slug).not.toMatch(/lower than ours|higher than ours|cheaper|costs more/)
+        }
         continue
       }
       expect(theirs.length, `${c.slug}: the first group lists no price`).toBeGreaterThan(0)
@@ -712,7 +827,11 @@ describe('the registry', () => {
         // The question is asked in the name a searcher types.
         expect(g.question, where).toContain(searchName(c))
         for (const figure of figures(g.answer)) {
-          expect(allLines, `${where}: the answer says ${figure} and no line does`).toContain(figure)
+          // As a WHOLE figure. A plain substring test let "$75" in an answer
+          // pass because a line elsewhere said "$750": found by mutation on
+          // 2026-11-26, on the Adit entry.
+          const whole = new RegExp(`(?<![\\d.])${figure.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?!\\d|[.,]\\d)`)
+          expect(whole.test(allLines), `${where}: the answer says ${figure} and no line does`).toBe(true)
         }
       }
       expect(asked, `${c.slug}: no pricing question at all`).toBeGreaterThan(0)
