@@ -118,6 +118,17 @@ export interface PricingReport {
  */
 export interface PricingDetail {
   intro: string
+  /**
+   * A STARTING PRICE THE VENDOR STATES SOMEWHERE OTHER THAN ITS PRICING PAGE.
+   * Adit's pricing page shows none; its FAQ page says its technology bundle
+   * "starts at $99 per month, per location". Such an entry still opens "No
+   * price published" (the pricing page is where a buyer is sent), but a
+   * figure of the vendor's own exists, so `versusUs` owes the reader the
+   * comparison: `tests/marketing/pricing-detail.test.tsx` requires "lower
+   * than ours" when it is, requires the named group to print the figure, and
+   * fails an entry whose lines state a starting price it does not declare.
+   */
+  startsAt?: { perMonth: number; groupId: string }
   groups: PricingDetailGroup[]
   reported: PricingReport[]
   notRead: string[]
@@ -966,22 +977,132 @@ export const COMPARISONS: VendorComparison[] = [
     name: 'Adit',
     category: 'All-in-one practice communications & analytics',
     whatItIs:
-      'Adit is practice communications and analytics software sold as one bundle: VoIP phones with call tracking, texting, forms, and Adit Pulse, which reports on production numbers from the practice management system.',
+      'Adit is practice communications and analytics software sold as a bundle: VoIP phones with call tracking, texting, email, online scheduling, digital forms, payments and practice analytics, with an AI agent that answers calls.',
+    // The line ended "third-party reviews report ~$399/mo bundles per location"
+    // until 2026-11-26: a figure nobody could name the source of, and the
+    // basis for two claims that DreamCRM was the cheaper of the two. Its own
+    // FAQ page, found when the pages its sitemap lists were read (938), states
+    // a starting price below ours. The claims went; the price is quoted.
+    //
+    // NOT PRINTED, on purpose: the banner across its site that day (a
+    // percentage off the first year and a gift card for taking a demo). Its
+    // small print ends the offer on November 29 and 30, 2026; a line about it
+    // would be out of date within the week.
     reportedPricing:
-      'No price published on the page a buyer reads — its pricing page asks you to schedule a demo; the same page’s structured data, the part written for search engines, lists a price of $399 with no period stated, and third-party reviews report ~$399/mo bundles per location (2025–2026)',
-    pricingChecked: { on: '2026-11-25', source: 'Adit’s own pricing page', url: 'https://adit.com/pricing' },
+      'No price published on the page a buyer reads — its pricing page asks you to schedule a demo; its FAQ page says “We offer a technology bundle that starts at $99 per month, per location”; the pricing page’s structured data, the part written for search engines, lists a price of $399 with no period stated; and its terms publish what usage beyond a bundle costs',
+    pricingChecked: { on: '2026-11-26', source: 'Adit’s own pricing page', url: 'https://adit.com/pricing' },
+    pricingDetail: {
+      intro:
+        'Adit’s pricing page shows no price in its text: it lists modules and asks you to book a demo. Three other pages of its own do state figures. Its FAQ page gives a starting price for its technology bundle. Its terms list what each bundle includes and what usage beyond that costs, along with its rules on refunds and ending the agreement. And its payments terms give what it charges on a patient’s payment. This is what each page said on the day it was read.',
+      startsAt: { perMonth: 99, groupId: 'faq' },
+      groups: [
+        {
+          id: 'the-pricing-page',
+          title: 'The subscription, as its pricing page describes it',
+          source: { label: 'Adit’s pricing page', url: 'https://adit.com/pricing', readOn: '2026-11-26' },
+          question: 'Does Adit list its prices online?',
+          answer:
+            'Adit’s pricing page shows no price in its text and asks you to book a demo. Its FAQ page says its technology bundle starts at $99 per month, per location, and its terms list what usage beyond a bundle costs.',
+          lines: [
+            { label: 'The price', value: 'None in the text of the page: it lists modules and asks you to book a demo' },
+            { label: 'Contracts', value: '“No Contracts”, in the line under its heading' },
+            { label: 'In the page’s structured data', value: 'A price of 399 US dollars, with no period stated: the part of a page written for search engines, not shown to a reader' },
+            { label: 'The modules it lists', value: 'Adit Voice, Texting, Email, Internal Chat, eFax, Mobile App, Digital Forms, Online Scheduling, Reminders, Insurance Verifications, Reviews, Tasks, Practice Analytics, Treatment Plans, CareCredit, Patient Recall, Adit Pay, AI Call Intelligence and AI Front Desk' },
+          ],
+        },
+        {
+          id: 'faq',
+          title: 'Its FAQ page: a starting price, and its words on contracts',
+          source: { label: 'Adit’s FAQ page', url: 'https://adit.com/faqs', readOn: '2026-11-26' },
+          question: 'How much is Adit’s technology bundle?',
+          answer:
+            'Adit’s FAQ page says “We offer a technology bundle that starts at $99 per month, per location.” The same page says its tech packages have no binding contract, and that its marketing agreements are locked into a 1 year contract.',
+          lines: [
+            { label: 'The starting price', value: '“We offer a technology bundle that starts at $99 per month, per location.”' },
+            { label: 'Contracts', value: '“Our tech packages do not have any binding contracts so you can cancel your subscription any time. However, our marketing agreements are locked into a 1 year contract with a Patient Booking Guarantee.”' },
+            { label: 'Emails and texts', value: '“All plans include a significant amount of emails and texts per month that will be sufficient for most practices. However, for larger practices that mass-communicate with their patients, additional fees may apply.”' },
+            // Its answer about needing a card to sign up is left out: a
+            // sentence saying a card is not required reads, in this tree, as a
+            // claim about OUR trial (`tests/marketing/trial-copy.test.ts`),
+            // and ours requires one.
+          ],
+        },
+        {
+          id: 'usage-fees',
+          title: 'What each bundle includes and what more costs, from its terms',
+          source: { label: 'Adit’s terms', url: 'https://adit.com/terms', readOn: '2026-11-26', pageSays: 'Last Updated: November 26, 2026' },
+          question: 'Does Adit charge overage fees?',
+          answer:
+            'Its terms list them by bundle. On its Tech & Analytics Bundle, calls, one-to-one texts and emails are unlimited; mass text campaigns are $0.01 per text, tracked call minutes beyond 500 per location are $0.03 a minute, and a phone number beyond the two included is $2.',
+          lines: [
+            { label: 'Tech & Analytics Bundle: what is unlimited', value: '“Unlimited VoIP minutes”, “Unlimited one-to-one text messaging” and “Unlimited emails”' },
+            { label: 'Mass texts', value: '“$0.01 per text for all mass text campaigns sent”' },
+            { label: 'Tracked call minutes', value: '“500 tracking minutes per location, $0.03 per minutes charges”' },
+            { label: 'Phone numbers', value: '“2 numbers per location. $2 per extra numbers”' },
+            { label: 'Video', value: '“100 video minutes free per location”' },
+            { label: 'Freemium: texts', value: '“500 text messages per location, $0.03 per additional message”' },
+            { label: 'Freemium: emails', value: '“5,000 emails free per location. $5 per 1,000 additional emails sent”' },
+            { label: 'Freemium: phone numbers', value: '“1 number per location. $2 per extra number”' },
+          ],
+        },
+        // Printed and not made a question, as on every page that prints a
+        // competitor's card fees: this site does not yet state what a
+        // patient's payment costs on its own product
+        // (docs/organic-go-live.md Part 8, row 7).
+        {
+          id: 'adit-pay',
+          title: 'What it charges on a patient’s payment (Adit Pay)',
+          source: { label: 'Adit’s payments terms', url: 'https://adit.com/adit-pay-terms', readOn: '2026-11-26', pageSays: 'Last Updated: November 26, 2026' },
+          lines: [
+            { label: 'A card read by the terminal', value: '“Card Present Transactions: 2.25% + $0.20 per transaction.”' },
+            { label: 'A card entered by hand or charged online', value: '“Card Not Present Transactions: 2.90% + $0.30 per transaction.”' },
+          ],
+        },
+        {
+          id: 'billing-and-refunds',
+          title: 'Refunds and late payment',
+          source: { label: 'Adit’s terms', url: 'https://adit.com/terms', readOn: '2026-11-26', pageSays: 'Last Updated: November 26, 2026' },
+          question: 'Does Adit give refunds?',
+          answer:
+            'Its terms say all sales under an invoice are final, with no refunds for contracted services. For a year paid up front, a prorated refund may be issued in the first year, less a 3% processing fee and $50 for each month of service; after the first year there are none.',
+          lines: [
+            { label: 'Refunds', value: '“All sales pursuant to the Invoice are Final, and there are no refunds for contracted services for any reason.”' },
+            { label: 'A year paid up front: the first year', value: 'A prorated refund may be issued, “subject to a three percent (3%) processing fee and a penalty of fifty dollars ($50) per month of service deducted from the refund amount”' },
+            { label: 'A year paid up front: later years', value: '“After completion of the first year, no refunds will be offered for annual upfront payments under any circumstances.”' },
+            { label: 'Late payment', value: '“Adit has the right to charge 15% penalty for payments received after 5 days of expected billing date.”' },
+            { label: 'Late interest', value: '“Late payments may incur interest at the rate of 1.5% per month or the maximum allowed by law.”' },
+          ],
+        },
+        {
+          id: 'the-contract',
+          title: 'The contract',
+          source: { label: 'Adit’s terms', url: 'https://adit.com/terms', readOn: '2026-11-26', pageSays: 'Last Updated: November 26, 2026' },
+          question: 'Does Adit require a contract?',
+          answer:
+            'Its FAQ page says its tech packages have no binding contract and its marketing agreements are locked into a 1 year contract. Its terms say the agreement renews automatically until either side ends it, on 30-day written notice by email.',
+          lines: [
+            { label: 'Renewal', value: '“The Term shall be automatically renewed for successive periods until it is terminated by either party via email”' },
+            { label: 'To end it', value: '“This Agreement may be terminated at any time by either party upon receipt of 30-day written notice via email”' },
+            { label: 'Ad spend on a marketing agreement', value: '“Client will be responsible for spending an additional $750 USD or $1,000 CAD per month for ad expenditure on Google Ads.”' },
+          ],
+        },
+      ],
+      reported: [],
+      notRead: ['G2', 'Capterra', 'Software Advice', 'GetApp', 'TrustRadius'],
+      versusUs: `Adit’s pricing page shows no subscription price. Its FAQ page says its technology bundle starts at $99 per month, per location, which is lower than ours: ${RATE_MONTHLY}/mo, flat, month-to-month, with the website, the patient portal and online booking included. Two more things are in Adit’s favour: it sends texts, which DreamCRM does not do today, and it sells a phone system with call tracking, which we do not sell.`,
+    },
     summary:
       'Adit pitches the same consolidation story we do — replace your stack, save thousands a year — and bundles VoIP, texting, forms, analytics, and call tracking. The difference is which half of the practice each of us consolidates. Adit consolidates the phone room: calls, call tracking, internal chat. DreamCRM consolidates the patient-facing storefront: website, booking, portal, reviews, shop. Adit lists no patient portal on its site and treats websites as an agency service; its pricing page says its software packages carry no binding contract.',
     theirStrengths: [
       { title: 'Phones + call tracking', body: 'VoIP with marketing call attribution is Adit’s core, now with an AI agent that takes after-hours and missed calls; we deliberately don’t do phones.' },
-      { title: 'Practice analytics depth', body: 'Adit Pulse digs into PMS production metrics; our analytics intentionally stop where the PMS’s clinical numbers begin.' },
-      { title: 'Aggressive bundling', body: 'A lot of modules per dollar if you adopt the full Adit stack including phones.' },
+      { title: 'Practice analytics depth', body: 'Its Practice Analytics module digs into PMS production metrics; our analytics intentionally stop where the PMS’s clinical numbers begin.' },
+      { title: 'A low starting price', body: 'Its FAQ page starts its technology bundle at $99 per month, per location. That is below our price.' },
     ],
     ourStrengths: [
-      { glyph: 'people', title: 'The patient-facing half', body: 'A real website product with edit-in-place studio, a clinic-branded portal, online store, memberships, careers — none of which Adit ships as product.' },
+      { glyph: 'people', title: 'The patient-facing half', body: 'A website you edit by clicking it, a clinic-branded patient portal, an online store and a careers page. Adit’s pricing page lists its modules, and none of those is among them; it sells websites as a marketing service.' },
       { glyph: 'bolt', title: 'Self-serve everything', body: 'Sign up, your site and dashboard exist in minutes, and every word of your site is yours to edit — no agency queue.' },
-      { glyph: 'sync', title: 'Official-path PMS sync', body: 'Open Dental, Dentrix + more through one bridge — sanctioned paths, every write in your audit trail.' },
-      { glyph: 'tag', title: 'Lower flat price', body: `${RATE_MONTHLY}/mo versus reported ~$399 bundles — because we don’t carry a phone network.` },
+      { glyph: 'sync', title: 'PMS sync through one bridge', body: 'Dentrix, Eaglesoft, Open Dental and more through one bridge, with every write in your audit trail.' },
+      { glyph: 'tag', title: 'One flat price, with the website in it', body: `${RATE_MONTHLY}/mo covers the website, the portal, booking, reviews and the shop. Adit’s FAQ page starts its technology bundle lower; a website from Adit is a separate marketing service.` },
     ],
     matrix: baseMatrix({
       website: ['partial', 'Agency-built sites as a service'],
@@ -990,16 +1111,17 @@ export const COMPARISONS: VendorComparison[] = [
       inbox: ['partial', 'Calls + SMS centric'],
       reviews: ['yes'],
       recall: ['yes'],
-      social: ['yes', 'Social + reviews in-suite'],
+      social: ['partial', 'Reviews are a module on its pricing page; social posting is not among the modules it lists'],
       shop: ['no'],
       careers: ['no'],
       pms: ['yes'],
+      insurance: ['yes', 'Listed on its pricing page: “Insurance Verifications”'],
       phones: ['yes', 'Core product'],
       sms: ['yes'],
       contract: ['yes', 'No binding contract on its software packages, per its pricing page; its marketing program is a one-year commitment'],
     }),
     bottomLine:
-      'If the phone room is your bottleneck, Adit consolidates it well. If the patient-facing storefront is what needs fixing — the website, the booking, the portal patients keep using — that’s the half DreamCRM owns, at half the reported price.',
+      'If the phone room is your bottleneck, Adit consolidates it well, and starts lower than we do. If the patient-facing storefront is what needs fixing — the website, the booking, the portal patients keep using — that’s the half DreamCRM owns.',
   },
   {
     slug: 'dental-intelligence',

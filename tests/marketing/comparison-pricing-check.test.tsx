@@ -153,7 +153,7 @@ describe('all eight entries, each re-read in a browser on the day it says', () =
     ['nexhealth', 'nexhealth.com', '2026-11-26'],
     ['revenuewell', 'revenuewell.com', '2026-11-26'],
     ['solutionreach', 'solutionreach.com', '2026-11-26'],
-    ['adit', 'adit.com', '2026-11-25'],
+    ['adit', 'adit.com', '2026-11-26'],
     ['dental-intelligence', 'dentalintel.com', '2026-11-25'],
     ['podium', 'podium.com', '2026-11-25'],
     ['patientpop', 'tebra.com', '2026-11-26'],
@@ -218,6 +218,9 @@ describe('all eight entries, each re-read in a browser on the day it says', () =
     const line = entry('adit').reportedPricing
     expect(line).toMatch(/^No price published on the page a buyer reads/)
     expect(line).toMatch(/structured data[^;]*lists a price of \$399 with no period stated/)
+    // And a third place, found when its sitemap was read on 2026-11-26: its
+    // FAQ page states a starting price in so many words. The line quotes it.
+    expect(line).toMatch(/its FAQ page says “We offer a technology bundle that starts at \$99 per month, per location”/)
   })
 
   it('RevenueWell: none on its Plans page, one in an offer headline elsewhere on its site — both on the line', () => {
