@@ -151,6 +151,33 @@ describe('gradeOnlinePresence', () => {
     expect(g.axes.reviews.wins.join(' ')).toContain('4.9')
   })
 
+  /**
+   * THE REVIEW REMEDIES PROMISE NO GATING (2026-11-26). The line beside a low
+   * rating read "Unhappy patients get caught privately before they post —
+   * escalations route to you, not to Google." Google's policy does not allow
+   * a business to "Discourage or prohibit negative reviews, or selectively
+   * solicit positive reviews from customers", and the product does not do
+   * what the line said: every patient is sent the same page, a Google button
+   * with a private note beside it (`show_private_feedback` on,
+   * `star_gate_enabled` off, by default). The thin-reviews finding said
+   * "every happy patient you don't ask", which is the same selection in four
+   * words. Both now say what happens: everybody is asked.
+   */
+  it('a low rating and thin reviews are answered by asking everyone, never by catching the unhappy', () => {
+    const g = gradeOnlinePresence(
+      inputs({ place: { ...inputs().place!, ratingTenths: 39, reviewCount: 12 } }),
+    )
+    const said = `${ftext(g.axes.reviews)} ${aftext(g.axes.reviews)}`
+    // Both findings fired, so both remedies are under test.
+    expect(ftext(g.axes.reviews)).toContain('Your rating sits at 3.9')
+    expect(ftext(g.axes.reviews)).toContain('12 reviews')
+    expect(said).not.toMatch(/before they post|not to Google|caught privately|unhappy patients? get/i)
+    expect(said).not.toMatch(/happy patient/i)
+    expect(aftext(g.axes.reviews)).toMatch(/Every patient/)
+    expect(aftext(g.axes.reviews)).toMatch(/“tell us privately”/)
+    expect(ftext(g.axes.reviews)).toMatch(/Every patient you don’t ask is a review you don’t get\./)
+  })
+
   it('a page with NO nameable findings floors at a solid score — the report never implies a gap it cannot name', () => {
     // Live-run finding: heuristicVerdict scored a clean template page 50
     // while the report listed only wins. Clean findings ⇒ floor at 80.

@@ -10,6 +10,7 @@ import {
   NO_SHOW_SOURCES,
   PRIVACY_NOTICE_RULE,
   REMINDER_RULE,
+  REVIEW_LINK_HELP,
   REVIEW_RULES,
   TREATMENT_FOLLOWUP,
 } from '@/lib/marketing/guide-sources'
@@ -23,6 +24,7 @@ import {
 } from '@/lib/marketing/guide-templates'
 import { MARKETING_PUBLIC_PATHS, TRIAL } from '@/lib/marketing/site'
 import { WEBSITE_COST_REFERENCES, WEBSITE_SELLERS, ourWebsiteAnswers } from '@/lib/marketing/website-costs'
+import { REVIEW_CARD_BODY, REVIEW_CARD_FORMATS, REVIEW_CARD_HEADLINES } from '@/lib/review-card'
 import { contentKey } from '@/lib/indexnow'
 import { getQuotedPlan } from '@/lib/stripe-config'
 
@@ -174,6 +176,18 @@ function staticPageKey(path: string, posts: readonly PublicPost[]): string {
       return contentKey(RESOURCE_GUIDES.map((g) => [g.slug, g.title, g.datePublished]))
     case '/changelog':
       return contentKey(CHANGELOG_ENTRIES)
+    // The card maker is the card's wording and Google's own lines about the
+    // link. It moves when either does, and a change of headline is exactly
+    // the kind of change a search engine should be told about.
+    case '/google-review-card':
+      return contentKey([
+        REVIEW_CARD_HEADLINES,
+        REVIEW_CARD_BODY,
+        REVIEW_CARD_FORMATS,
+        REVIEW_LINK_HELP,
+        REVIEW_RULES.googlePolicy.says.gating,
+        REVIEW_RULES.googlePolicy.says.pressure,
+      ])
     case '/blog':
       return contentKey(
         posts.map((p) => [p.slug, p.title ?? null, p.excerpt ?? null, p.publishedAt?.toISOString() ?? null]),

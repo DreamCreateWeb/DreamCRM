@@ -216,7 +216,7 @@ We fix exactly that, automatically. ${MARKETING_SITE}`,
         subject: 'Reviews on autopilot',
         body: `Hi {{firstName}},
 
-How it works with us: a patient finishes a visit, they get one friendly text or email, happy patients land on Google. No front-desk scripts, no chasing.
+How it works with us: a patient finishes a visit and gets one friendly email asking how it went, with a button to your Google reviews. No front-desk scripts, no chasing.
 
 Practices running this loop add fresh reviews every week without thinking about it.`,
       },

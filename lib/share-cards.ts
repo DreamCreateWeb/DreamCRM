@@ -2,6 +2,8 @@
 // no server imports — so the card list is unit-testable and the page stays a
 // thin QR-rendering shell around it.
 
+import { REVIEW_CARD_BODY, REVIEW_CARD_HEADLINES, REVIEW_CARD_PLACEMENT } from '@/lib/review-card'
+
 export interface ShareCard {
   key: string
   /** Big line on the printed card — what the patient is being invited to do. */
@@ -44,12 +46,18 @@ export function buildShareCards(opts: {
     placement: 'Waiting room · brochures · community boards',
   })
   if (opts.googleReviewUrl) {
+    // THE REVIEW CARD'S WORDING IS NOT THIS FILE'S. It read "Loved your visit?
+    // Tell Google.", to be handed over "the moment after a great visit" — an
+    // ask addressed to the patients who loved it, which is the selective
+    // solicitation Google's policy names. `lib/review-card.ts` holds the one
+    // wording every printed review card uses, and the tests that keep it an
+    // ask a disappointed patient can answer too.
     cards.push({
       key: 'review',
-      title: 'Loved your visit? Tell Google.',
-      subtitle: 'Scan to leave us a review — it takes less than a minute and means the world.',
+      title: REVIEW_CARD_HEADLINES[0],
+      subtitle: REVIEW_CARD_BODY,
       url: opts.googleReviewUrl,
-      placement: 'Checkout counter — the moment after a great visit',
+      placement: REVIEW_CARD_PLACEMENT,
     })
   }
   cards.push({

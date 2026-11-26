@@ -96,7 +96,7 @@ export const ACTIVATION_TASK_DEFS: ActivationTaskDef[] = [
   {
     id: 'reviews_setup',
     label: 'Turn on review collection',
-    body: 'Add your Google link once — happy patients become public reviews from then on.',
+    body: 'Add your Google link once — every patient is asked for a review from then on.',
     href: '/growth/reviews',
   },
   {

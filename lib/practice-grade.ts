@@ -239,7 +239,13 @@ const AFTER = {
   listing: 'DreamCRM helps you claim your listing, links it to your site, and then WATCHES it — mismatches get caught and fixed.',
   listingLink: 'The listing’s website link is monitored — if it drifts, DreamCRM catches it and proposes the fix.',
   reviews: 'Review asks send themselves after every completed visit — Google-first, automatically.',
-  reviewsRating: 'Unhappy patients get caught privately before they post — escalations route to you, not to Google.',
+  // NOT "unhappy patients get caught privately before they post … not to
+  // Google", which this said until 2026-11-26: that is a promise to gate
+  // reviews, which Google's policy forbids, and it is not what the product
+  // does. By default every patient is sent the same page — the Google button
+  // with a private note beside it (`show_private_feedback` on,
+  // `star_gate_enabled` off). The remedy for a low rating is to ask everyone.
+  reviewsRating: 'Every patient is asked the same way after every completed visit — and a “tell us privately” option beside the Google button means a complaint reaches you too.',
   search: 'A fast, structured, locally-tuned site is how you climb this list — DreamCRM ships all of it, and your listing + reviews feed the map pack.',
 } as const
 
@@ -448,7 +454,7 @@ function gradeReviews(input: GradeInputs): AxisGrade {
   else if (rating < 4.3) findings.push(f(`Your rating sits at ${rating.toFixed(1)} — under the 4.5 bar many patients filter by.`, AFTER.reviewsRating))
   if (count < 50) {
     findings.push(
-      f(`${count} review${count === 1 ? '' : 's'} so far — the practices winning the map pack usually carry 100+. Every happy patient you don’t ask is a review you don’t get.`, AFTER.reviews),
+      f(`${count} review${count === 1 ? '' : 's'} so far — the practices winning the map pack usually carry 100+. Every patient you don’t ask is a review you don’t get.`, AFTER.reviews),
     )
   } else if (count >= 100) {
     wins.push(`${count} reviews — real social proof.`)

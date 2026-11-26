@@ -1039,7 +1039,7 @@ export function clinicNote(state: EngineState, s: EngineSignals): string | null 
     if (!s.remindersOn) {
       return 'Appointment reminders are switched off right now, so I can’t send any. Turn them back on whenever you’re ready.'
     }
-    return 'Automatic review requests are switched off right now, so I can’t ask happy patients for reviews. Turn them back on whenever you’re ready.'
+    return 'Automatic review requests are switched off right now, so I can’t ask patients for reviews. Turn them back on whenever you’re ready.'
   }
   // stalled. No offer of anything that isn't already wired: the recall
   // engine files its own card when there are patients due, so promising one

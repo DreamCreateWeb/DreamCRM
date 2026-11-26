@@ -35,7 +35,10 @@ const CATEGORY_LABELS: Record<EmailCategory, { title: string; blurb: string }> =
   forms: { title: 'Forms & intake', blurb: 'The paperwork you send before a visit.' },
   billing: { title: 'Billing', blurb: 'Balance emails with a secure pay link, and the note a patient gets when a plan payment is declined.' },
   portal: { title: 'Patient portal', blurb: 'Invites to your online patient portal.' },
-  reviews: { title: 'Reviews', blurb: 'Asking happy patients to leave a review.' },
+  // "Every patient", because that is who is asked: the request goes out after
+  // each completed visit, to everyone. It read "happy patients", which is not
+  // what the sender does and is the selection Google's review policy forbids.
+  reviews: { title: 'Reviews', blurb: 'Asking every patient for a review after their visit.' },
   website: { title: 'Website', blurb: 'Replies to people who message you from your site.' },
   shop: { title: 'Shop', blurb: 'Telling a patient their order is ready or on its way.' },
 }

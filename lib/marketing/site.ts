@@ -81,7 +81,7 @@ const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.co
  * makes it public + indexed in one move (a page that exists in nav but is
  * auth-walled has shipped twice before; see middleware.ts history).
  */
-export const MARKETING_PUBLIC_PATHS = ['/product', '/why', '/about', '/pricing', '/compare', '/docs', '/blog', '/grade', '/resources', '/roi', '/partner-program', '/changelog', '/privacy', '/terms'] as const
+export const MARKETING_PUBLIC_PATHS = ['/product', '/why', '/about', '/pricing', '/compare', '/docs', '/blog', '/grade', '/resources', '/roi', '/google-review-card', '/partner-program', '/changelog', '/privacy', '/terms'] as const
 export const DEMO_URL = `https://acme-dental-demo.${SITE_DOMAIN}`
 
 /**
@@ -142,6 +142,7 @@ export const MARKETING_NAV: MarketingNavItem[] = [
     children: [
       { label: 'Grade your practice', href: '/grade', description: 'Free — your site, listing & reviews, scored' },
       { label: 'Recall ROI calculator', href: '/roi', description: 'What missed hygiene visits cost you' },
+      { label: 'Google review card maker', href: '/google-review-card', description: 'A printable QR sign for your front desk' },
       { label: 'Practice growth library', href: '/resources', description: 'Scripts, letters and policies to copy' },
       { label: 'Help docs', href: '/docs', description: 'Setup guides in front-desk language' },
       { label: 'Blog', href: '/blog', description: 'Announcements & essays from the team' },
@@ -190,6 +191,7 @@ export const FOOTER_COLUMNS: Array<{ title: string; links: Array<{ label: string
     links: [
       { label: 'Grade your practice', href: '/grade' },
       { label: 'Recall ROI calculator', href: '/roi' },
+      { label: 'Google review card maker', href: '/google-review-card' },
       { label: 'All guides', href: '/resources' },
       { label: 'Help docs', href: '/docs' },
       { label: 'Blog', href: '/blog' },

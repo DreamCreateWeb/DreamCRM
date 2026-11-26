@@ -8,6 +8,7 @@ import { GuideShell, GuideH2, GuideP, GuideList, GuideNote, GuideSourceLink, Scr
 import { MARKETING, TRIAL, usd } from '@/lib/marketing/site'
 import { pageMetadata } from '@/lib/marketing/seo'
 import { getQuotedPlan } from '@/lib/stripe-config'
+import { REVIEW_CARD_BODY, REVIEW_CARD_HEADLINES } from '@/lib/review-card'
 
 const guide = getResourceGuide('dental-review-request-templates')
 
@@ -134,9 +135,9 @@ ${REQUEST.closing}`}
 
       <GuideH2>The card on the counter</GuideH2>
       <ScriptCard label="Card · beside the front desk, or on the back of the appointment card">
-        {`How did we do?
+        {`${REVIEW_CARD_HEADLINES[0]}
 
-Scan to tell people about your visit on Google. Your honest take helps other patients choose a dentist.
+${REVIEW_CARD_BODY}
 
 {QR code}
 
@@ -145,7 +146,11 @@ Scan to tell people about your visit on Google. Your honest take helps other pat
       <GuideP>
         Google’s own help page says “{TIPS.link}”, and your Business Profile gives you
         both. The card asks for an honest take, offers nothing in return, and names no
-        number of stars.
+        number of stars. To print it with your own code on it, paste your link into the{' '}
+        <Link href="/google-review-card" className="font-semibold text-teal-700 hover:underline">
+          review card maker
+        </Link>
+        : it runs in your browser.
       </GuideP>
 
       <GuideH2>What Google and the FTC do not allow</GuideH2>

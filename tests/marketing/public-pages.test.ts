@@ -110,7 +110,7 @@ describe('a content key moves exactly when the page’s content does', () => {
   })
 
   it('pricing, the legal pages, the changelog and the index pages are keyed on data, not typed', () => {
-    for (const path of ['/pricing', '/privacy', '/terms', '/compare', '/docs', '/resources', '/changelog', '/blog']) {
+    for (const path of ['/pricing', '/privacy', '/terms', '/compare', '/docs', '/resources', '/changelog', '/blog', '/google-review-card']) {
       expect(keyOf(path), path).not.toBe(HAND_WRITTEN_KEY)
     }
     expect(keyOf('/privacy')).toBe(`legal:${LEGAL_UPDATED}`)

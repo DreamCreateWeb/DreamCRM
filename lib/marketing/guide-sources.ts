@@ -179,6 +179,46 @@ export const REVIEW_RULES = {
  * (`docs/COMPLIANCE.md`), and a page that used the name beside our product
  * would invite exactly that reading.
  */
+/**
+ * GOOGLE'S OWN INSTRUCTIONS FOR THE REVIEW LINK AND ITS QR CODE — the page
+ * the review card maker (`/google-review-card`) rests on.
+ *
+ * It is its own export, not a key of `REVIEW_RULES`, because the
+ * review-request guide's test requires every line of `REVIEW_RULES` to be
+ * printed on THAT guide, and these lines are printed on the maker's page. The
+ * maker's test (`tests/marketing/review-card-page.test.tsx`) pins each one
+ * and requires it there.
+ *
+ * `readReviews`, `getMore` and `profile` are the LABELS of the steps, quoted
+ * as labels: between the first two the page shows an arrow image whose
+ * alternative text is "and then", so the sequence is written in our words
+ * around Google's.
+ *
+ * NOT HERE: the shape of the link itself. The product builds its own from a
+ * place ID (`lib/services/reviews.ts`), but no page of Google's that we read
+ * states that shape, so the maker builds no link: it prints the one Google
+ * hands the practice.
+ */
+export const REVIEW_LINK_HELP = {
+  source: {
+    label: 'Google Business Profile Help, “Create a Google link or QR code to request reviews”',
+    url: 'https://support.google.com/business/answer/16816815',
+    readOn: '2026-11-26',
+  } satisfies GuideSource,
+  says: {
+    purpose:
+      'To make it easier for customers to leave reviews on your Business Profile, you can create and share a link or QR code to request reviews.',
+    profile: 'Go to your Business Profile',
+    readReviews: 'Read Reviews',
+    getMore: 'Get more reviews',
+    copy: 'To copy the review link, select Copy',
+    desktopOnly: 'Currently, reviews QR codes can only be generated on a computer browser, not on mobile devices.',
+    display: 'Print and display the QR code in your store',
+    incentives:
+      'Offering incentives, like free or discounted goods or services, to customers in exchange for reviews is considered fake engagement and is strictly prohibited.',
+  },
+} as const
+
 export const PRIVACY_NOTICE_RULE = {
   source: {
     label: 'the federal privacy rule, 45 CFR 164.520(c)(2), as published by Cornell’s Legal Information Institute',

@@ -537,12 +537,12 @@ export function resolveReadiness(input: ReadinessInput): ReadinessReport {
   // ── Reviews, portal, team, shop ───────────────────────────────────────────
   facts.push(
     input.reviewsConfigured
-      ? fact('reviews', 'Review collection on', 'ready', 'Happy patients become public reviews on their own.', '/growth/reviews', true)
+      ? fact('reviews', 'Review collection on', 'ready', 'Every patient is asked for a review after their visit.', '/growth/reviews', true)
       : fact(
           'reviews',
           'Turn on review collection',
           'todo',
-          'Add your Google link once — happy patients become public reviews from then on.',
+          'Add your Google link once — every patient is asked for a review from then on.',
           '/growth/reviews',
           true,
         ),

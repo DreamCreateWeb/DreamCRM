@@ -33,7 +33,7 @@ export interface CapabilityDef {
 export const CAPABILITIES: readonly CapabilityDef[] = [
   // Already-autonomous today (they send on their own and log):
   { key: 'appointment_reminder', label: 'Send appointment reminders', defaultTrust: 'auto' },
-  { key: 'review_request', label: 'Ask happy patients for reviews', defaultTrust: 'auto' },
+  { key: 'review_request', label: 'Ask every patient for a review', defaultTrust: 'auto' },
   { key: 'campaign_send', label: 'Send scheduled campaigns', defaultTrust: 'auto' },
   { key: 'retention_automation', label: 'Send recall & win-back nudges', defaultTrust: 'auto' },
   { key: 'followup_rule', label: 'Open follow-ups from smart rules', defaultTrust: 'auto' },

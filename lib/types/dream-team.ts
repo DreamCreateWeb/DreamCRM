@@ -152,7 +152,10 @@ export const SPECIALISTS: readonly SpecialistDef[] = [
     id: 'reputation',
     name: 'Reputation',
     icon: '⭐',
-    blurb: 'Asks happy patients for reviews, drafts your replies, and keeps Google honest.',
+    // "Every patient": the request is sent after each completed visit, to
+    // everyone. "Happy patients" described a selection the sender does not
+    // make and Google's review policy does not allow.
+    blurb: 'Asks every patient for a review, drafts your replies, and keeps Google honest.',
     capabilities: [
       'review_request',
       'review_reply',
