@@ -550,7 +550,7 @@ export const COMPARISONS: VendorComparison[] = [
     ourStrengths: [
       { glyph: 'people', title: 'The modern patient surface', body: 'A warm, mobile-first portal with self-reschedule, forms, and online payments — versus a legacy portal experience.' },
       { glyph: 'globe', title: 'Website + SEO + careers + shop included', body: 'Solutionreach is comms-only; we replace the website vendor, the job board, and the storefront too.' },
-      { glyph: 'door', title: 'No contract', body: 'Solutionreach’s pricing page answers “What are your contract options?” with yearly contracts. DreamCRM is month-to-month; leave whenever, your content exports with you.' },
+      { glyph: 'door', title: 'No contract', body: 'Solutionreach’s pricing page answers “What are your contract options?” with yearly contracts. DreamCRM is month-to-month, and you can cancel whenever you like.' },
       { glyph: 'chat', title: 'One inbox', body: 'Portal messages and patient email merge per patient; reminders are one thread of a relationship, not the product.' },
     ],
     matrix: baseMatrix({
@@ -822,7 +822,7 @@ export const COMPARISONS: VendorComparison[] = [
         },
       ],
       notRead: ['G2', 'Capterra', 'Software Advice', 'GetApp', 'TrustRadius', 'ITQlick'],
-      versusUs: `For one provider buying only the marketing package, Tebra’s starting price is lower than ours. ${RATE_MONTHLY}/mo here covers the whole practice rather than each provider, with the website included, no setup fee and no term.`,
+      versusUs: `For one provider buying only the marketing package, Tebra’s starting price is lower than ours. ${RATE_MONTHLY}/mo here covers the whole practice rather than each provider, with the website included, no setup fee and no term. One thing is in Tebra’s favour if you leave: Tebra will export a site’s text and structure for a fee; DreamCRM has no export of the site itself today.`,
     },
   },
 ]
@@ -936,7 +936,7 @@ export function buildComparisonFaq(c: VendorComparison): Array<{ q: string; a: s
     },
     {
       q: `Can I switch from ${c.name} to DreamCRM?`,
-      a: `Yes. DreamCRM is month-to-month with a ${TRIAL.name}, so you can run it alongside ${c.name} before deciding. Patients import via CSV, PMS sync connects through the NexHealth bridge, and you keep your existing phone system — and if you ever leave, your content exports with you.`,
+      a: `Yes. DreamCRM is month-to-month with a ${TRIAL.name}, so you can run it alongside ${c.name} before deciding. Patients import via CSV, PMS sync connects through the NexHealth bridge, and you keep your existing phone system. If you ever leave, your patient list exports with you.`,
     },
     // The pricing questions, where an entry's pricing was read out in full.
     // Each answer is its group's own, and ends with the page it came from and

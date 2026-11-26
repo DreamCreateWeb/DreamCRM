@@ -2683,3 +2683,32 @@ change: `subscription_status` is free text, and the new state is a value.
   of its dated line. Renamed, and no page's FAQ may repeat a question.
 - **Tests.** One pinned block for NexHealth and the adapted shared rules in
   `pricing-detail.test.tsx`; twenty-seven mutations, all caught.
+
+**Part 12 slice 17 — "your website content exports with you", corrected everywhere (2026-11-26, no migration).**
+
+- **What was wrong.** The product has no export of a practice's website. The
+  site said it did in nine places: the home page and the why page ("Leaving
+  is allowed"), the pricing page three times (the price card, "Is there a
+  contract or setup fee?", "Is my data locked in?"), the Solutionreach entry,
+  the comparison FAQ on all eight pages, and two help articles.
+- **How seven survived the first correction.** Slice 15 fixed the two help
+  articles and called it done. The search behind that was for "export with
+  you"; every other instance read "exports with you". A grep for a phrase is
+  not a sweep of a claim.
+- **What each says now.** What is true: the patient list exports (the Terms
+  say so, and the route exists). The pricing page's "Is my data locked in?"
+  names the website as the one thing that does not travel, and no longer
+  says leaving is "not a migration project". The price card and the contract
+  answer simply stop at "cancel anytime".
+- **Tebra's page says what is in Tebra's favour.** It reports that Tebra
+  exports a site's text and structure for a fee. Beside that, ours now says
+  we have no export at all.
+- **The guard judges sentences, not phrases.**
+  `tests/marketing/no-website-export-claim.test.tsx` renders the home, why
+  and pricing pages and serialises the comparison data, the help articles,
+  the facts page and the listing kit; every sentence that mentions an export
+  must be one of the true ones, or a report of a named competitor's own
+  terms. It also fails the day a site export route exists, so the copy can
+  be given its line back. Sixteen mutations, all caught.
+- **For the owner** (`docs/organic-go-live.md` Part 8, row 8): the stronger
+  fix is to build the export. That is app work.

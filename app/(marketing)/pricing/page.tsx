@@ -161,8 +161,8 @@ const PRICING_FAQS: Array<{ q: string; a: string }> = [
   {
     q: 'Is there a contract or setup fee?',
     a:
-      'No. It’s month-to-month with no setup fee, and you can cancel anytime — your ' +
-      `website content exports with you. Prefer annual? Pay for 10 months, get 12: ${usd(PRICE.rateAnnual)}/year.`,
+      'No. It’s month-to-month with no setup fee, and you can cancel anytime. ' +
+      `Prefer annual? Pay for 10 months, get 12: ${usd(PRICE.rateAnnual)}/year.`,
   },
   {
     q: `Why is the price ${usd(PRICE.rateMonthly)} instead of ${usd(PRICE.listMonthly ?? PRICE.rateMonthly)}?`,
@@ -197,7 +197,12 @@ const PRICING_FAQS: Array<{ q: string; a: string }> = [
   },
   {
     q: 'Is my data locked in?',
-    a: 'No. Your PMS remains the system of record for clinical data, your website content is exportable, and leaving is a cancellation, not a migration project.',
+    // This said "your website content is exportable, and leaving is a
+    // cancellation, not a migration project" until 2026-11-26. The product has
+    // no export of a site, and a website that cannot be exported has to be
+    // rebuilt somewhere else — which is a migration. The answer says what
+    // travels and names the one thing that does not.
+    a: 'No. Your PMS remains the system of record for clinical data, and your patient list exports from the service whenever you want it. One thing does not travel: the website runs on our platform, and while the words and photos on it are yours, there is no export of the site itself today. Leaving is a cancellation, with no contract to wait out.',
   },
 ]
 
