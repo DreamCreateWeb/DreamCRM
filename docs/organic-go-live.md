@@ -516,6 +516,8 @@ anything sent to customers, external communications).
 | 7 | **The 1% the platform keeps of each patient payment** — say it in public, or stop taking it? | It has been taken on every payment through a practice's own Stripe account since 2026-07-03 (migration 0115, `shop_config.platform_fee_bps`, default 100): shop orders, memberships, balance payments, booking deposits, payment-plan installments. The pricing page answers "Do you take a cut of my shop or membership revenue?" with "your subscription covers the platform". The Terms do not mention it and no screen in the app shows it. Found 2026-11-26 while the website-cost guide was answering its own questions; **nothing was changed**, because what a surface quotes for the price is yours (rulebook §8, item 1). **If kept:** the pricing answer, the Terms (which promise an email before a significant change), the shop help article and the screen where a practice connects Stripe should all say it. **It now shows from the outside too:** the NexHealth and Solutionreach pages print what those vendors charge on a patient's payment, from their own fee schedules, and say nothing about ours — on purpose, and a test holds them silent — because there is no public sentence of ours to set beside theirs, from one number. **If dropped:** the default and the existing rows go to 0, and the pricing answer becomes true as written. Until you rule, the website-cost guide calls its own total "the subscription" and says nothing about what a payment costs |
 | 8 | **A website export** — build one? | The site promised "your website content exports with you" in nine places (home, why, pricing three times, a comparison entry, the comparison FAQ, two help articles). The product has no export of a site; what exports is the patient list, leads, appointments, orders and payments. On 2026-11-26 every one of those lines was corrected to say what is true, and the pricing page's "Is my data locked in?" now names the website as the one thing that does not travel. That is the honest version of today. The stronger answer to "Leaving is allowed" is to build the export (the site's text and images as a download), after which the old line would be true again. Yours to decide; it is app work, not marketing |
 | 9 | **A copy of the intake form in the PMS chart** — build it? | The product page, a comparison entry and a help article said a completed form is mirrored into the patient's chart. The write exists in the code, but the only PMS connection a practice can make today (NexHealth) refuses it, so it runs for no practice. On 2026-11-26 all three lines were corrected: the form stays on the patient's record in DreamCRM and is not copied to the PMS today. A test holds the claim at zero until the write works. Building it is app work; yours to decide |
+| 10 | **“Star triage” in the review settings, and the words “FTC-clean”** — keep, reword or remove? | The Reviews settings offer an option, off by default: ask “how was your visit?” first, and a 1–3 star tap “leads with the private note to your team”. Its help text says everyone gets the same public options and “that keeps it FTC-clean”. Two questions, both yours. The first is the option itself: Google's policy does not allow a business to “Discourage or prohibit negative reviews”, and whether leading a low rating with a private note does that is a question for a lawyer, not for me. The second is the phrase: a legal conclusion in the product's own copy, which the site's rule against compliance claims would not allow on a marketing page. Found 2026-11-26 while building the review card maker. **Nothing was changed.** What was changed the same day is narrower: nine sentences that described the ordinary request as going to “happy patients”, which is not what it does |
+| 11 | **A stored prospecting email still promises a text message** — edit it, or shall I? | Step 2 of the “Weak presence” sequence says “they get one friendly text or email, happy patients land on Google”. The product sends no text messages today. The sentence was corrected in the code on 2026-11-26, but the sequences are stored in the database the first time the engine runs and are never overwritten, so the copy the prospecting tool would send is still the old one. Two ways to fix it: edit that step on the Sequences screen (`/platform/prospecting/sequences`), which takes a minute; or say so and a one-time correction ships that changes the step only if it still reads exactly as seeded. It is an email sent in your name, so it was not changed without you. The corrected sentence: “a patient finishes a visit and gets one friendly email asking how it went, with a button to your Google reviews” |
 
 ---
 
@@ -623,6 +625,9 @@ ready to copy — not an article about it.
    (`docs/marketing-engine.md`, Part 12 slice 12).
 10. A free Google-review link and QR-card maker (a tool earns links that a
     page does not).
+    **Built 2026-11-26:** `/google-review-card`
+    (`docs/marketing-engine.md`, Part 12 slice 23). It makes the card, not
+    the link: Google hands a practice its link, and the maker prints it.
 11. The other five vendors' pricing, line by line; then comparisons for the
     vendors dentists search that we do not cover yet (website makers,
     reminder services, membership-plan software).
@@ -662,6 +667,19 @@ ready to copy — not an article about it.
     (`/practice-complete-offer-terms`). Its Practice Complete offer ends that
     day; our page gives the date and stays true as a record, but the source
     page may change or be taken down.
+17. Read the free grader's copy against the content law
+    (`lib/practice-grade.ts`). It is a public report and it carries figures
+    with no source: "the 4.5 bar many patients filter by", "the practices
+    winning the map pack usually carry 100+". Each is sourced, softened or
+    cut, as the two September guides were. Found while building item 10,
+    which corrected the grader's two lines about reviews.
+18. Read the prospecting email sequences against the content law
+    (`lib/services/prospect-outreach.ts`). One line promised a text message
+    and was corrected with item 10, in the seed only: the copy production
+    already stores is unchanged (Part 8, row 11). The rest promise outcomes
+    nobody measured ("practices running this loop add fresh reviews every
+    week"). These are emails sent in the company's name, so the rewrite is
+    shown to the owner before it ships.
 
 A text template is content a practice may use anywhere; it is never a
 statement that this product sends texts (the recall guide's closing block is

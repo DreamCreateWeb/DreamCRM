@@ -3003,3 +3003,110 @@ line by line from the vendor's own pages. Queue item 11's first half is done.
   reviewers, or some other corner of the vendor's own site". With every
   entry read out, no line carries a reviewer's figure. The sentence now
   reads its sources off the lines and names reviewers only while one does.
+
+**Part 12 slice 23 — a free Google review card maker; and the review ask, said one way everywhere (2026-11-26, no migration).**
+
+Queue item 10. The first TOOL on the queue: a page earns a reader, a tool
+earns the link a consultant or a dental blog gives when it says "use this".
+
+- **What it is.** `/google-review-card`. A practice pastes the review link
+  Google gives it, chooses one of three headlines, and prints a counter sign
+  (one to a page) or handout cards (four to a page, with cut lines), with a
+  QR code and its own name. The code can also be saved as a PNG or an SVG,
+  each with the white border a scanner needs, for a flyer of the practice's
+  own.
+- **What Google already gives, and what this adds.** Google's own help page
+  ("Create a Google link or QR code to request reviews", read 2026-11-26)
+  hands a practice the link and a bare QR image, and says its QR "can only
+  be generated on a computer browser, not on mobile devices". What a front
+  desk wants is the printed thing, in its name, with an ask that breaks no
+  rule. That is all this makes, and it works on a phone.
+- **It runs in the browser and sends nothing.** No lookup, no server action,
+  no request while typing (watched in a real browser: zero). So it costs
+  nothing to run, and a practice's review link, which a competitor would
+  like a list of, never reaches us. The code holds the practice's own link,
+  not a redirect of ours: a printed card outlives every promise about a
+  redirect. A test reads the component's source and fails on `fetch(` or a
+  server action.
+- **It builds no link.** The product builds its own review link from a place
+  ID (`lib/services/reviews.ts`), but no page of Google's that we read states
+  that shape, so the maker prints the link Google hands over and nothing
+  else. A link on any host but Google's is refused in words that name the
+  fix: a card that says "Google" over a code that opens elsewhere is a lie
+  handed to a patient.
+- **No free-text headline, on purpose.** The card says one of three vetted
+  lines. A text box would let our layout carry "5 stars gets you 10% off".
+- **The wording has one home.** `lib/review-card.ts`, shared by the maker,
+  the review-request guide's counter card, and the share cards a practice
+  prints inside the app. Three rules, each from a line of Google's quoted on
+  the page: nothing in return, the same card for everyone, a sign rather
+  than a request at the desk.
+- **What building it found: the product described its own ask wrongly, nine
+  times.** The app's printed review card read "Loved your visit? Tell
+  Google.", to be handed over "the moment after a great visit". Five places
+  in the dashboard called the request "asking happy patients" (email
+  settings, the Dream Team roster, the onboarding step, the readiness fact,
+  the autonomy label); the Guardian said it "can't ask happy patients". The
+  free grader promised that "unhappy patients get caught privately before
+  they post — escalations route to you, not to Google". And one prospecting
+  email said "they get one friendly text or email, happy patients land on
+  Google". None of it is what the sender does: by default every patient is
+  sent the same request after a completed visit, with a private note beside
+  the Google button, and the product sends no text messages today. All nine
+  now say that. The grader's line was the worst, because it was public and
+  it advertised the thing Google's policy forbids.
+- **Two of those corrections do not reach what is already stored.** The
+  prospecting sequences are SEEDS: they are inserted once, and a database
+  that already holds a step keeps its copy (`onConflictDoNothing`). So
+  production's stored step 2 of "Weak presence" still reads "one friendly
+  text or email, happy patients land on Google" until it is edited on the
+  Sequences screen (`/platform/prospecting/sequences`) or a one-time
+  correction is approved. It is an email sent in the company's name, so
+  that write was not made here (Part 8, row 11). And a grader report keeps
+  the text it was graded with: reports already sent still carry the old
+  line; new ones do not.
+- **Not changed, and written up for the owner** (`docs/organic-go-live.md`
+  Part 8, row 10): the review settings' "star triage" option and its help
+  text, which says the option "keeps it FTC-clean". It is off by default. A
+  legal conclusion in the product's own copy, about a feature that leads a
+  low rating with the private note, is his to rule on.
+- **Two audits this opened** (queue items 17 and 18): the grader's remaining
+  copy carries figures with no source ("the 4.5 bar many patients filter
+  by", "usually carry 100+"), and the prospecting sequences promise outcomes
+  nobody measured ("add fresh reviews every week"). Each is its own read.
+- **Printing.** A print stylesheet swaps the page for the sheet, and only
+  once there is a card: printing before a link is pasted prints the page,
+  not a blank sheet. Both layouts were printed to PDF from a real browser
+  (one letter page each), and the code on screen was decoded back to the
+  link that was typed.
+- **A form that does not scold.** The first version showed "that does not
+  look like a link" on the second keystroke of somebody typing "g.page/…".
+  The message now waits for a paste or for the field to be left, and is
+  announced politely rather than as an alert.
+- **Found in the browser, not by a test:** the dev server refuses its own
+  scripts to `127.0.0.1` (Next's cross-origin rule), so a page loaded that
+  way never hydrates and every earlier browser check here, which only read
+  text, could not have seen it. Interactive checks use `localhost`. The
+  browser suite now has a stop that types a link and waits for the code.
+- **Found by the full unit run, not by the page's own tests:** a new
+  top-level route has to be in `lib/known-routes.ts`, or the middleware
+  answers it as a route that does not exist. `tests/middleware.test.ts`
+  walks `app/` and said so.
+- **Found by mutation: a code belongs to the link it was drawn from.** The
+  first version cleared a drawn code only when the field was emptied, so a
+  link replaced by another wore the first link's code for the moment its own
+  was being drawn: a printable card that opens somebody else's reviews. What
+  is drawn now carries its link and is used only while it is the current
+  one. The same run found three tests that passed with their subject
+  deleted (a quotation also present elsewhere on the page, a button whose
+  link was also in a paragraph, a role query that could not see a dead
+  anchor); each now looks where the thing lives.
+- **Tests.** `review-card.test.ts` (the wording rules, the link check, the
+  nine named surfaces), `review-card-page.test.tsx` (the maker, the page,
+  every quotation pinned and dated, the claims about the product tied to
+  the settings' defaults and to the Share page's code),
+  `practice-grade.test.ts` (the grader's two remedies), and two browser
+  stops (`e2e/smoke.spec.ts`, `e2e/marketing-viewport.spec.ts`). The first
+  mutation run caught 82 of 86; after the fixes, ninety-one of ninety-one
+  (one more was an equivalent change, and the line it exposed as redundant
+  was removed).

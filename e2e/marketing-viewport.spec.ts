@@ -96,6 +96,9 @@ const PAGES: string[] = [
   '/docs',
   '/grade',
   '/roi',
+  // The review card maker (2026-11-26): a two-column form and a card that
+  // stack on a phone, with a long pasted link in a text field.
+  '/google-review-card',
   '/partner-program',
   // The two legal documents (2026-11-23): long single-column prose, which is
   // exactly where an over-long unbroken string (an email address, a URL)

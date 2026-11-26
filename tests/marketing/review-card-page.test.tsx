@@ -216,10 +216,15 @@ describe('the maker', () => {
 
   it('leaves the picture out where it cannot draw one, and loses nothing else', async () => {
     vi.spyOn(QRCode, 'toDataURL').mockRejectedValue(new Error('no canvas here'))
-    render(<ReviewCardMaker />)
+    const { container } = render(<ReviewCardMaker />)
     type('Your Google review link', LINK)
     await screen.findByRole('link', { name: 'Download the QR code (SVG)' })
     expect(screen.queryByRole('link', { name: 'Download the QR code (PNG)' })).toBeNull()
+    // By the element, not only by its role: an anchor with nothing to point
+    // at has no link role, so a role query alone passed with a dead
+    // "Download … (PNG)" on the page (mutation run, 2026-11-26).
+    expect(container.querySelector('a[download$=".png"]')).toBeNull()
+    expect(screen.queryByText('Download the QR code (PNG)')).toBeNull()
     expect(screen.getByRole('button', { name: 'Print the card' })).toBeEnabled()
   })
 

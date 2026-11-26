@@ -334,6 +334,34 @@ test.describe('the marketing site (the storefront)', () => {
   })
 
   /**
+   * THE REVIEW CARD MAKER — the fourth tool (2026-11-26), and its own stop
+   * for the reason the three above have one each: a different page with a
+   * different form.
+   *
+   * IT IS THE ONLY TOOL THAT DRAWS SOMETHING FROM WHAT IS TYPED, so this stop
+   * types. The unit suite renders the maker under happy-dom, where a
+   * component is "hydrated" by construction; here the page has to arrive as
+   * HTML, hydrate, take a link and draw a code from it, which is the path a
+   * practice is on. (The dev server once served this page to `127.0.0.1`
+   * without its scripts, and every text-only check passed on a form that did
+   * nothing.) The scan runs AFTER the code is drawn, so the card, the code's
+   * `role="img"` and the two download links are in the tree it grades.
+   */
+  test('the review card maker takes a link and draws its code', async ({ page }) => {
+    await page.goto('/google-review-card')
+    await expect(page.locator('h1').first()).toBeVisible()
+    await expect(page.locator('body')).toContainText('Nothing you type is sent')
+    await expect(page.getByRole('button', { name: 'Print the card' })).toBeDisabled()
+
+    await page.getByLabel('Practice name').fill('Maple Street Dental')
+    await page.getByLabel('Your Google review link').fill('https://g.page/r/CabcDEF123/review')
+    await expect(page.getByRole('img', { name: 'QR code for your Google review link' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Print the card' })).toBeEnabled()
+    await expect(page.getByRole('link', { name: 'Download the QR code (SVG)' })).toBeVisible()
+    await expectNoA11yViolations(page, 'marketing: review card')
+  })
+
+  /**
    * THE CHANGELOG AND THE HELP DOCS — the ninth, tenth and eleventh marketing
    * stops, added with the pages' Daylight Dream rebuild (Neon, DREAMCRM-80,
    * move 6 page 6b).

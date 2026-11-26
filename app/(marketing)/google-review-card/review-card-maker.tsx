@@ -88,10 +88,9 @@ export default function ReviewCardMaker() {
 
   useEffect(() => {
     let live = true
-    if (!url) {
-      setDrawn(null)
-      return
-    }
+    // Nothing to draw. What was drawn before is not cleared here and does not
+    // need to be: it is used only while it is the current link's (below).
+    if (!url) return
     // Level M keeps the code coarse enough to scan off a counter sign from
     // arm's length.
     const svg = (margin: number) =>

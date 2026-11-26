@@ -334,6 +334,12 @@ booking, intake, shop, the token landings. Brand-derived palette
   `lib/platform-clinic-status.ts` over `resolveTrialState`.
   `subscription_status` keeps 'trialing' after a trial runs out; reading the
   column alone counts a walled clinic as live.
+- **The review ask is the same for everyone, and its printed wording has ONE
+  home** — `lib/review-card.ts` (the public card maker, the guide's counter
+  card, the app's share cards). No surface describes the request as going
+  to "happy patients" or promises to keep a complaint off Google:
+  `tests/marketing/review-card.test.ts` holds the nine named surfaces, and a
+  new one that describes the ask joins that list.
 - **Every user-supplied value in an HTML email goes through `escapeHtml`.**
   `sendNotificationEmail` adds "Hi {first}," only when the body does not open
   with a greeting (`bodyOpensWithGreeting`).
