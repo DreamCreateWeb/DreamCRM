@@ -150,6 +150,14 @@ export default function ReviewCardPage() {
 
       <section className="mx-auto max-w-6xl px-4 pb-4 pt-2 sm:px-6">
         <ReviewCardMaker />
+        {/* IN PLAIN SIGHT, not only in an answer further down: an answer sits
+            inside a closed <details>, and a page with Google's name in its
+            title should say whose it is not without being asked. `no-print`
+            because it is page furniture and the section it sits in is the
+            one that prints. */}
+        <p className="no-print mt-6 max-w-2xl text-[0.8rem] leading-relaxed text-gray-600">
+          {MARKETING.productName} is not affiliated with Google. Google is a trademark of Google LLC.
+        </p>
       </section>
 
       {/* ── WHERE THE LINK IS — Google's steps, in Google's labels ── */}

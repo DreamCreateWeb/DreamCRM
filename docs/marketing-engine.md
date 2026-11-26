@@ -3088,6 +3088,11 @@ earns the link a consultant or a dental blog gives when it says "use this".
   way never hydrates and every earlier browser check here, which only read
   text, could not have seen it. Interactive checks use `localhost`. The
   browser suite now has a stop that types a link and waits for the code.
+- **Found on the production build, by reading what a browser renders:** the
+  page said "not affiliated with Google" only in an answer, and an answer
+  sits inside a closed `<details>`. The unit test read the page's text and
+  passed on words nobody could see. It is now a line under the maker, and
+  the test looks for it outside any `<details>`.
 - **Found by the full unit run, not by the page's own tests:** a new
   top-level route has to be in `lib/known-routes.ts`, or the middleware
   answers it as a route that does not exist. `tests/middleware.test.ts`
@@ -3107,6 +3112,6 @@ earns the link a consultant or a dental blog gives when it says "use this".
   the settings' defaults and to the Share page's code),
   `practice-grade.test.ts` (the grader's two remedies), and two browser
   stops (`e2e/smoke.spec.ts`, `e2e/marketing-viewport.spec.ts`). The first
-  mutation run caught 82 of 86; after the fixes, ninety-one of ninety-one
-  (one more was an equivalent change, and the line it exposed as redundant
-  was removed).
+  mutation run caught 82 of 86; after the fixes, ninety-three of
+  ninety-three (one more was an equivalent change, and the line it exposed
+  as redundant was removed).

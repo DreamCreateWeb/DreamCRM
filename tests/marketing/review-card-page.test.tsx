@@ -343,6 +343,22 @@ describe('the page', () => {
     expect(text).toMatch(/does not pass through us/)
   })
 
+  /**
+   * A page with Google's name in its title says whose it is NOT where a
+   * visitor reads it without opening anything. The first build said so only
+   * in an answer, and an answer is inside a closed `<details>`: the page's
+   * own text check passed on words nobody could see (found on the production
+   * build, 2026-11-26, where the browser reads what is rendered).
+   */
+  it('says it is not Google’s in plain sight, not only inside a closed answer', () => {
+    const { container } = renderPage()
+    const inSight = Array.from(container.querySelectorAll('p')).filter((p) => !p.closest('details'))
+    const line = inSight.find((p) => /is not affiliated with Google/.test(p.textContent ?? ''))
+    expect(line, 'no visible line says it').toBeTruthy()
+    // It is page furniture, so it steps aside when the cards print.
+    expect(line!.closest('.no-print')).toBeTruthy()
+  })
+
   it('answers the questions as structured data, and the same ones on the page', () => {
     const { container } = renderPage()
     const blocks = Array.from(container.querySelectorAll('script[type="application/ld+json"]')).map((s) =>
@@ -363,6 +379,12 @@ describe('the page', () => {
         expect(pinned, `${entry.name}: “${inner}” is quoted and pinned nowhere`).toContain(inner)
       }
     }
+    // The answer search engines are handed says it too, in so many words. The
+    // visible line under the maker satisfies a page-wide match on its own, so
+    // this answer could have been changed to "works with Google" unnoticed.
+    const made = faq.mainEntity.find((q: { name: string }) => q.name === 'Is this made by Google?')
+    expect(made, 'the question is gone').toBeTruthy()
+    expect(made.acceptedAnswer.text).toMatch(/^No\. \S+ is not affiliated with Google\./)
     expect(blocks.flat().some((b) => b['@type'] === 'BreadcrumbList')).toBe(true)
   })
 
