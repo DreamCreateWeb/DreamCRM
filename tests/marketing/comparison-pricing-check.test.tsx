@@ -154,8 +154,8 @@ describe('all eight entries, each re-read in a browser on the day it says', () =
     ['revenuewell', 'revenuewell.com', '2026-11-26'],
     ['solutionreach', 'solutionreach.com', '2026-11-26'],
     ['adit', 'adit.com', '2026-11-26'],
-    ['dental-intelligence', 'dentalintel.com', '2026-11-25'],
-    ['podium', 'podium.com', '2026-11-25'],
+    ['dental-intelligence', 'dentalintel.com', '2026-11-26'],
+    ['podium', 'podium.com', '2026-11-26'],
     ['patientpop', 'tebra.com', '2026-11-26'],
   ]
   const entry = (slug: string) => COMPARISONS.find((c) => c.slug === slug)!
@@ -249,11 +249,21 @@ describe('all eight entries, each re-read in a browser on the day it says', () =
     expect(contract('adit').vendor).toBe('yes')
     expect(contract('adit').vendorNote).toMatch(/No binding contract/)
     expect(contract('adit').vendorNote).toMatch(/one-year commitment/)
-    // The two whose pages state no terms are NOT upgraded to a flat "no":
-    // what reviewers report is said to be what reviewers report.
+    // These two were "partial", with "terms not stated" on the page that
+    // was read. On 2026-11-26 each site's own legal pages were read, and both
+    // state their terms: Dental Intelligence's cancellation policy (an
+    // agreement renews automatically, "typically annually"), and Podium's
+    // terms of service (a twelve-month term, "paid annually in advance").
+    // The answer is the vendor's own, quoted, and it is "no".
+    expect(contract('dental-intelligence').vendor).toBe('no')
+    expect(contract('dental-intelligence').vendorNote).toContain('“typically annually”')
+    expect(contract('podium').vendor).toBe('no')
+    expect(contract('podium').vendorNote).toContain('“paid annually in advance”')
+    // A default, in Podium's own words ("Unless otherwise stated in Client's
+    // Subscription Documentation"); the row says so before it says the term.
+    expect(contract('podium').vendorNote).toMatch(/^Unless the order says otherwise/)
     for (const slug of ['dental-intelligence', 'podium']) {
-      expect(contract(slug).vendor, slug).toBe('partial')
-      expect(contract(slug).vendorNote, slug).toMatch(/not stated/i)
+      expect(contract(slug).vendorNote, slug).not.toMatch(/not stated|commonly reported/i)
     }
     // Tebra's terms of service DO state them — the 24th's read said "not
     // stated on its site" because it did not open them. Both kinds of

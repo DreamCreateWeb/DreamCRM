@@ -88,7 +88,12 @@ describe('the registry', () => {
     // Solutionreach: read out on the day its "priced by quote" line turned
     // out to be wrong in its favour.
     expect(detailed.map((c) => c.slug)).toContain('solutionreach')
-    expect(plain.length).toBeGreaterThan(0)
+    // ALL EIGHT, as of 2026-11-26. "At least one entry has none" stood here
+    // while that was true, so that the page's other branch was a real entry.
+    // It is a planted one now (the last test in this file): an entry added
+    // tomorrow without a read still has to render without the section.
+    expect(plain).toEqual([])
+    expect(detailed).toHaveLength(COMPARISONS.length)
   })
 
   /**
@@ -516,8 +521,8 @@ describe('the registry', () => {
   })
 
   /**
-   * ADIT, PINNED. Read on 2026-11-26 from the pages its own sitemap lists
-   * (938). Its pricing page shows no price in its text. Its FAQ page states
+   * ADIT, PINNED. Read on 2026-11-26 from its own sitemap (938 pages
+   * listed, 913 read). Its pricing page shows no price in its text. Its FAQ page states
    * one, and it is LOWER than ours: the entry had said the opposite, twice,
    * on the strength of a figure no one could name the source of.
    */
@@ -602,6 +607,176 @@ describe('the registry', () => {
     expect(row('Insurance eligibility').vendor).toBe('yes')
     expect(row('Insurance eligibility').vendorNote).toContain('“Insurance Verifications”')
     expect(row('Google Business').vendor).toBe('partial')
+  })
+
+  /**
+   * DENTAL INTELLIGENCE, PINNED. Read on 2026-11-26 from its own sitemap
+   * (1,227 pages listed; the 419 that are not blog, podcast, webinar, ebook
+   * or case-study content read). It publishes no subscription price: no
+   * pricing page, no pricing link in its menu, none in structured data. Its
+   * terms hub publishes the rest, and the entry had said its terms were "not
+   * stated" while linking the policy that states them.
+   */
+  it('Dental Intelligence: no price anywhere on its site, and the terms its own hub publishes', () => {
+    const di = COMPARISONS.find((c) => c.slug === 'dental-intelligence')!
+    const d = di.pricingDetail!
+    const line = (group: string, label: string) =>
+      d.groups.find((g) => g.id === group)!.lines.find((l) => l.label === label)!.value
+
+    expect(publishesPrice(di)).toBe(false)
+    expect(d.startsAt).toBeUndefined()
+    expect(line('the-home-page', 'The price')).toBe('None: the page asks you to “Get a Demo”')
+    expect(line('the-home-page', 'A pricing page')).toBe('None in its menu, and none among the pages its sitemap lists')
+    expect(JSON.stringify(d.groups[0]!.lines)).not.toMatch(/\$\d/)
+
+    // Renewal: five percent, automatically, in its own sentence.
+    expect(line('renewal-and-price-changes', 'At each renewal')).toBe(
+      '“On each renewal of Subscription Services, the Fees for such Subscription Services will automatically increase by five percent (5%) over the Fees in effect immediately prior to the renewal, unless otherwise expressly set forth in the Order or a written amendment signed by the parties.”',
+    )
+    expect(line('renewal-and-price-changes', 'Refunds')).toBe('“All payments are non-refundable, other than as expressly set forth in these Terms.”')
+    // The contract, from the policy the entry used to say did not state it.
+    expect(line('the-contract', 'The term')).toBe(
+      '“An agreement with Dental Intelligence renews automatically for the agreed-upon term, typically annually.”',
+    )
+    expect(line('the-contract', 'Cancelling mid-term')).toBe(
+      '“the agreement will not renew but you will still owe the remaining contracted payments for the then-current term”',
+    )
+    // Texts and call minutes.
+    expect(line('texts', 'Beyond that')).toBe('“billed to the Customer at $0.04 per SMS Segment in the next billing cycle”')
+    expect(line('texts', 'Buying more ahead')).toBe('“a Customer can add blocks of 2,500 SMS Segments for $50.00 per block per month”')
+    expect(line('voice', 'Call minutes')).toBe(
+      '“Usage of over 2,000 minutes per VOIP User per month is subject to a $0.02 per minute charge for such excess minutes.”',
+    )
+
+    expect(d.groups.map((g) => [g.id, new URL(g.source.url).pathname, g.source.pageSays ?? null])).toEqual([
+      ['the-home-page', '/', null],
+      ['renewal-and-price-changes', '/terms/TOS', 'Effective Date: November 5, 2026'],
+      ['the-contract', '/terms/cancellation', 'Effective date: June 1, 2024'],
+      ['texts', '/terms/sms', 'Effective Date: November 5, 2026'],
+      ['voice', '/terms/voice', 'Effective Date: November 5, 2026'],
+    ])
+    for (const g of d.groups) expect(new URL(g.source.url).hostname).toBe('www.dentalintel.com')
+
+    expect(d.reported).toEqual([])
+    expect(di.reportedPricing).not.toMatch(/third-party|reviews report/)
+    expect(d.versusUs).toMatch(/shows no subscription price/)
+    expect(d.versusUs).toMatch(/in its favour/)
+    expect(d.versusUs).not.toMatch(/payment|processing|card fee|surcharg/i)
+
+    const row = (starts: string) => di.matrix.find((r) => r.feature.startsWith(starts))!
+    expect(row('Month-to-month').vendor).toBe('no')
+    expect(row('Month-to-month').vendorNote).toContain('“typically annually”')
+    expect(row('Month-to-month').vendorNote).not.toMatch(/not stated/i)
+
+    // THE ROWS THIS READ CORRECTED IN ITS FAVOUR. Each had understated what
+    // its own pages list: one thread for text, email and the app (the row
+    // said "patient chat + reminders"); its own "Online Reviews" beside the
+    // Swell partnership (the row named only the partner); social media
+    // templates and a "Book Now" button on a Google Business Profile (the
+    // row said "none listed on its site").
+    expect(row('Unified patient inbox').vendor).toBe('yes')
+    expect(row('Unified patient inbox').vendorNote).toContain('“across text, email, and the app, all in one consolidated thread”')
+    expect(row('Review collection').vendor).toBe('yes')
+    expect(row('Review collection').vendorNote).toContain('“Online Reviews”')
+    expect(row('Review collection').vendorNote).toContain('“via our third-party partner Swellcx.com”')
+    expect(row('Recall').vendorNote).toContain('“Automated Recalls”')
+    expect(row('Google Business').vendor).toBe('partial')
+    expect(row('Google Business').vendorNote).toContain('“social media templates”')
+    expect(row('Google Business').vendorNote).toContain('“Book Now”')
+    expect(row('Google Business').vendorNote).not.toMatch(/None listed/)
+
+    // Nothing on this page is counted or ranked by us. "Many practices run
+    // one for the numbers and the other for the front door" named no
+    // practice; "the analytics leader in the category" named no measure; and
+    // its own About page says Modento joined it, not what it paid for.
+    const text = JSON.stringify(di)
+    expect(text).not.toMatch(/Many practices|is the leader|analytics leader|deepest production analytics/)
+    expect(text).not.toMatch(/acquisition/i)
+    expect(text).not.toMatch(/it’s excellent|Strong reactivation tooling/)
+  })
+
+  /**
+   * PODIUM, PINNED. Read on 2026-11-26 from its own sitemap (2,312 pages
+   * listed; 528 read, the rest being articles, webinars, ebooks and
+   * customer stories). It publishes two plan prices and its add-ons on one
+   * page. Its terms state a twelve-month term paid annually in advance; the
+   * entry had said its terms were "not stated", with "annual terms commonly
+   * reported" beside it, which named nobody.
+   *
+   * Both halves are DEFAULTS. The terms open each with "Unless otherwise
+   * stated in Client's Subscription Documentation" (the term) and "Unless
+   * otherwise specified in the applicable Subscription Documentation" (when
+   * fees are paid). A default printed as a rule is not what the page says,
+   * so the qualifier rides on every surface that repeats either half: the
+   * two lines, the answer, the comparison sentence and the matrix row.
+   */
+  it('Podium: the two prices and the add-ons on its pricing page, and the term its own terms state', () => {
+    const podium = COMPARISONS.find((c) => c.slug === 'podium')!
+    const d = podium.pricingDetail!
+    const line = (group: string, label: string) =>
+      d.groups.find((g) => g.id === group)!.lines.find((l) => l.label === label)!.value
+
+    expect(publishesPrice(podium)).toBe(true)
+    expect(line('published-prices', 'Core')).toBe('“$399 USD per month”')
+    expect(line('published-prices', 'Pro')).toBe('“$599 USD per month”')
+    expect(line('published-prices', 'Signature')).toBe('“Custom pricing”')
+    expect(line('add-ons', 'Podium Phones')).toBe('“$30 per user/mo (1-4 users)” or “$25 per user/mo (5+ users)”')
+    expect(line('add-ons', 'Setting up phones')).toBe('“There is a $500 network optimization fee per location. Usage rates apply”')
+    expect(line('add-ons', 'A carrier fee')).toBe('“A base 10DLC fee of $5/month is charged for all US locations.”')
+    expect(line('the-contract', 'The term')).toBe(
+      '“the initial term for any Subscription to the Services is twelve (12) months”, unless the order says otherwise',
+    )
+    expect(line('the-contract', 'When fees are paid')).toBe(
+      '“Subscription Fees will be paid annually in advance”, unless the order says otherwise',
+    )
+    expect(d.groups.find((g) => g.id === 'the-contract')!.answer).toMatch(/unless the order says otherwise/)
+    expect(line('fees-and-price-changes', 'Price changes')).toBe(
+      '“Podium may increase Fees applicable to you upon forty-five (45) days’ prior written notice, effective on the start date of your subsequent Subscription Term”',
+    )
+
+    // Its pricing page and its legal centre, both its own; the terms carry their date.
+    expect(d.groups.map((g) => [g.id, new URL(g.source.url).hostname + new URL(g.source.url).pathname, g.source.pageSays ?? null])).toEqual([
+      ['published-prices', 'www.podium.com/pricing', null],
+      ['add-ons', 'www.podium.com/pricing', null],
+      ['the-contract', 'legal.podium.com/', 'Effective: October 15, 2026'],
+      ['fees-and-price-changes', 'legal.podium.com/', 'Effective: October 15, 2026'],
+    ])
+
+    expect(d.reported).toEqual([])
+    const text = JSON.stringify(podium)
+    expect(text).not.toMatch(/commonly reported|not stated on its pricing page/)
+    // A legal conclusion about our own product is not a feature.
+    expect(text).not.toMatch(/FTC-clean|clean under the FTC/)
+    expect(d.versusUs).toMatch(/Unless the order says otherwise, its terms set a twelve-month term paid annually in advance/)
+    expect(d.versusUs).toMatch(/in Podium’s favour/)
+    expect(d.versusUs).not.toMatch(/payment|processing|card fee|surcharg/i)
+
+    const row = (starts: string) => podium.matrix.find((r) => r.feature.startsWith(starts))!
+
+    // THE ROWS THIS READ CORRECTED. Its inbox row said "no portal/email
+    // patient threads"; its pricing page lists email in the inbox, in the
+    // sentence quoted here. Its insurance row said "not verified here"; its
+    // pricing page lists every feature by plan and none is an insurance
+    // check, so the row now says what was read. And one of its guides names
+    // a dental practice-management system, which the row had not said.
+    expect(row('Unified patient inbox').vendor).toBe('yes')
+    expect(row('Unified patient inbox').vendorNote).toContain(
+      '“Manage all your customer conversations across texts, calls, emails, social media, and more.”',
+    )
+    expect(row('Unified patient inbox').vendorNote).not.toMatch(/no portal\/email/)
+    expect(row('Insurance eligibility').vendor).toBe('no')
+    expect(row('Insurance eligibility').vendorNote).not.toMatch(/Not verified here/)
+    expect(row('PMS sync').vendorNote).toContain('“Dentrix Enterprise”')
+    expect(row('Online booking').vendorNote).toContain('“AI Scheduler”')
+    expect(row('Recall').vendorNote).toContain('“Appointment Confirmations and Reminders”')
+    expect(row('Google Business').vendorNote).toContain('“Instagram Messaging”')
+    expect(row('Review collection').vendorNote).toContain('“Review Management with AI Responses”')
+    // Praise is not a reading either: no rank we did not measure.
+    expect(text).not.toMatch(/best-in-class|built the review-generation|excellent/)
+
+    expect(row('Month-to-month').vendor).toBe('no')
+    expect(row('Month-to-month').vendorNote).toContain('“paid annually in advance”')
+    expect(row('Month-to-month').vendorNote).toMatch(/^Unless the order says otherwise/)
   })
 
   /**
@@ -992,11 +1167,23 @@ describe('the page', () => {
   })
 
   it('an entry nobody read out in full renders no pricing section, no jump link and no pricing question', async () => {
-    const c = plain[0]!
-    const { container, unmount } = await renderPage(c.slug)
-    expect(container.querySelector('section#pricing')).toBeNull()
-    expect(container.querySelector('a[href="#pricing"]')).toBeNull()
-    expect(buildComparisonFaq(c)).toHaveLength(5)
-    unmount()
+    // Every real entry has been read out, so the branch is exercised on a
+    // PLANTED one: a real entry with its section taken away for the length of
+    // this test, the state a newly added comparison is in before its read.
+    const c = COMPARISONS[0]! as { -readonly [K in keyof VendorComparison]: VendorComparison[K] }
+    const section = c.pricingDetail
+    expect(section).toBeTruthy()
+    c.pricingDetail = undefined
+    try {
+      const { container, unmount } = await renderPage(c.slug)
+      expect(container.querySelector('section#pricing')).toBeNull()
+      expect(container.querySelector('a[href="#pricing"]')).toBeNull()
+      expect(buildComparisonFaq(c)).toHaveLength(5)
+      unmount()
+    } finally {
+      c.pricingDetail = section
+    }
+    // And it is back: the next test, in any order, sees the real registry.
+    expect(COMPARISONS[0]!.pricingDetail).toBe(section)
   })
 })

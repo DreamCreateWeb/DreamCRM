@@ -508,6 +508,17 @@ export const ALLOWED_QUOTES: AllowedQuote[] = [
       'as our list price is a coincidence, and a reprice must not touch it. The figure is a ' +
       '"from", not one end of a band, so `isBand` cannot see it.',
   },
+  {
+    file: 'lib/marketing/comparisons.ts',
+    value: 500,
+    near: 'network optimization fee per',
+    why:
+      "A COMPETITOR'S PUBLISHED FEE, quoted word for word. Podium's own pricing page says " +
+      '"There is a $500 network optimization fee per location" for its phones; the Podium ' +
+      'comparison prints that sentence and its answer repeats the figure, both pinned in ' +
+      '`pricing-detail.test.tsx`. Landing on the same integer as our list price is a ' +
+      'coincidence, and a reprice must not touch it.',
+  },
 ]
 
 const allows = (entry: AllowedQuote, hit: PriceHit): boolean =>

@@ -361,7 +361,7 @@ const VISUALS: Record<ModuleSection['visual'], React.ReactNode> = {
    above and it is the same rule — a mark has to say something, and nine
    different subjects are nine different statements. */
 const ALSO: Array<[ToneTileGlyph, string, string]> = [
-  ['form', 'Digital intake forms', 'Photo & insurance-card fields, OCR autofill, AI pre-visit summary, Spanish, kiosk mode, and an OD chart mirror.'],
+  ['form', 'Digital intake forms', 'Photo & insurance-card fields, OCR autofill, AI pre-visit summary, Spanish and kiosk mode.'],
   ['cart', 'Membership plans', 'In-house plans for the uninsured — monthly or annual, with benefit-usage tracking and a portal upsell.'],
   ['money', 'Payment plans', 'Patient-started installments with card-on-file autopay, retries, and a collections workboard.'],
   ['people', 'Careers + ATS', 'Public job postings with JobPosting schema (Google for Jobs) and a hiring pipeline.'],
