@@ -13,7 +13,8 @@ const state: {
   selectQueue: unknown[][]
   inserts: InsertCall[]
   updates: UpdateCall[]
-} = { selectQueue: [], inserts: [], updates: [] }
+  upserts: Array<{ table: string; config: unknown }>
+} = { selectQueue: [], inserts: [], updates: [], upserts: [] }
 
 // ML-27's seeder reads the clinic tz for the refresh-window form; a real
 // read would shift the hand-rolled select sequence below and strand a 'stray'.
@@ -79,6 +80,11 @@ vi.mock('@/lib/db', async () => {
               return rows.map((r, i) => ({ id: i + 1, ...(r as object) }))
             },
             onConflictDoNothing: () => ({ then: (resolve: (v: unknown) => void) => resolve(undefined) }),
+            // The Huddle's day is UPSERTED by id (seed-huddle.ts) — the same seven rows move with the clinic's calendar.
+            onConflictDoUpdate: (cfg: unknown) => {
+              state.upserts.push({ table: tableName(t), config: cfg })
+              return { then: (resolve: (v: unknown) => void) => resolve(undefined) }
+            },
             then: (resolve: (v: unknown) => void) => resolve(undefined),
           }
         },
@@ -132,6 +138,7 @@ beforeEach(() => {
   state.selectQueue.length = 0
   state.inserts.length = 0
   state.updates.length = 0
+  state.upserts.length = 0
   primaryWrites.length = 0
 })
 
@@ -645,8 +652,10 @@ describe('createDemoClinic', () => {
     expect(out.patientCount).toBe(15)
     // 9 past + 9 future (incl. phantom cancelled "from" row for Mia's reschedule
     // + Aiden's lapsed-rebooking + Emma's just-booked + the unmarked past
-    // visit feeding the "Did these visits happen?" catch-net)
-    expect(out.appointmentCount).toBe(18)
+    // visit feeding the "Did these visits happen?" catch-net), plus the
+    // Huddle's day (docs/daily-tools.md, H1): one older visit, three on the
+    // clinic's yesterday and three on its today.
+    expect(out.appointmentCount).toBe(25)
 
     const counts = tableCounts()
     expect(counts.organization).toBe(1)
@@ -663,7 +672,7 @@ describe('createDemoClinic', () => {
       expect(personaIds.has(w.patientId)).toBe(true)
       expect(w.card.provider || w.card.policyNumber).toBeTruthy()
     }
-    expect(counts.appointment).toBe(18)
+    expect(counts.appointment).toBe(25)
     expect(counts.clinic_provider).toBe(2)
     expect(counts.appointment_reminder_log).toBe(4)
     expect(counts.tasks).toBe(3)
@@ -798,15 +807,57 @@ describe('createDemoClinic', () => {
     state.selectQueue.push([{ id: 'tmpl' }])
     await createDemoClinic()
     const apptInserts = state.inserts.filter((i) => i.table === 'appointment')
-    expect(apptInserts).toHaveLength(18)
+    expect(apptInserts).toHaveLength(25)
     const past = apptInserts.filter(
       (i) => (i.values as { startTime: Date }).startTime.getTime() < Date.now(),
     )
     const future = apptInserts.filter(
       (i) => (i.values as { startTime: Date }).startTime.getTime() > Date.now(),
     )
-    expect(past.length).toBe(9)
-    expect(future.length).toBe(9)
+    // The nine-and-nine of the original stories, plus the Huddle's day: four
+    // rows that are always behind us (one older visit + yesterday's three)
+    // and today's three, which are past or ahead depending on the hour the
+    // seeder runs at — so the split is a floor on each side, never a pair.
+    expect(past.length).toBeGreaterThanOrEqual(13)
+    expect(future.length).toBeGreaterThanOrEqual(9)
+    expect(past.length + future.length).toBe(25)
+  })
+
+  it('seeds the Huddle a yesterday and a today on the CLINIC’s calendar, whatever hour the resync runs at', async () => {
+    state.selectQueue.push([])
+    state.selectQueue.push([])
+    state.selectQueue.push([{ id: 'tmpl' }])
+    await createDemoClinic()
+    const { clinicDayKey } = await import('@/lib/format-datetime')
+    const { clinicDayStart } = await import('@/lib/clinic-timezone')
+    const TZ = 'America/Chicago'
+    const now = new Date()
+    const todayKey = clinicDayKey(now, TZ)
+    const yesterdayKey = clinicDayKey(clinicDayStart(now, TZ, -1), TZ)
+    const rows = state.inserts
+      .filter((i) => i.table === 'appointment')
+      .map((i) => i.values as { startTime: Date; status: string })
+    const on = (key: string) => rows.filter((r) => clinicDayKey(r.startTime, TZ) === key)
+    // Yesterday: two visits that happened and one that did not — the recap's three lines.
+    expect(on(yesterdayKey).map((r) => r.status).sort()).toEqual(['completed', 'completed', 'no_show'])
+    // Today: a confirmed first visit, one still to confirm, one clean row.
+    expect(on(todayKey).map((r) => r.status).sort()).toEqual(['confirmed', 'confirmed', 'scheduled'])
+
+    // Seven marker rows, each UPSERTED by a deterministic id — a resync moves
+    // the same rows; it never adds an eighth.
+    const marked = state.inserts
+      .filter((i) => i.table === 'appointment')
+      .map((i) => i.values as { id: string; organizationId: string; patientId: string })
+      .filter((v) => v.id.startsWith('appt_demohud_'))
+    expect(marked).toHaveLength(7)
+    expect(new Set(marked.map((m) => m.id)).size).toBe(7)
+    for (const m of marked) expect(m.id).toBe(`appt_demohud_${m.organizationId}_${m.id.split('_').pop()}`)
+    expect(state.upserts.filter((u) => u.table === 'appointment')).toHaveLength(7)
+    // Anchored to personas: every marker row sits on a patient the seeder minted.
+    const seededPatients = new Set(
+      state.inserts.filter((i) => i.table === 'patient').flatMap((i) => (Array.isArray(i.values) ? i.values : [i.values])).map((v) => (v as { id: string }).id),
+    )
+    for (const m of marked) expect(seededPatients.has(m.patientId), m.id).toBe(true)
   })
 
   it('seeds clinic_provider rows and attaches providerId to each appointment', async () => {

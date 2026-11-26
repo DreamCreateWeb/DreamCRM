@@ -60,6 +60,10 @@ export const clinicModules: ModuleRegistry = {
     // sign-here stack (moved off the Overview, D2), the take-it-back strip,
     // and, as slices land, the veto runway, goals, roster, and Sandman.
     { id: 'dream_team',        path: '/dream-team',        label: 'Dream Team',       section: 'Daily',    icon: 'moon',     status: 'live' },
+    // THE HUDDLE (docs/daily-tools.md, H1) — the team's morning meeting,
+    // prepared from what the app already holds. Behind its own switch; opens
+    // at A1. The Overview stays the desk's glance; this is the team's page.
+    { id: 'huddle',            path: '/huddle',            label: 'Huddle',           section: 'Daily',    icon: 'sun',      status: 'live' },
     { id: 'my_day',            path: '/my-day',            label: 'My Day',           section: 'Daily',    icon: 'user',     status: 'live' },
     { id: 'messages',          path: '/messages',          label: 'Messages',         section: 'Daily',    icon: 'chat',     status: 'live', pinned: true, shortcut: '⌘2' },
     { id: 'appointments',      path: '/appointments',      label: 'Appointments',     section: 'Daily',    icon: 'cal',      status: 'live', pinned: true, shortcut: '⌘3' },

@@ -25,6 +25,7 @@ open those — do not guess.
 | [`docs/HISTORY.md`](./docs/HISTORY.md) | The chronological session-by-session build log. |
 | [`docs/ACTIVATION.md`](./docs/ACTIVATION.md) | THE FIRST WEEK — every feature has a front door (the seven laws, the switches, the cockpit). Read before adding ANY page, empty state, catalog card or "coming soon". |
 | [`docs/RELEASE.md`](./docs/RELEASE.md) | The release program (beta → 1.0; the defect ledger, Part 5). New ideas go to `docs/POST-1.0.md`. |
+| [`docs/daily-tools.md`](./docs/daily-tools.md) | THE DAILY TOOLS — the reasons to open the app on purpose (the research, the ruling, the seven laws, the Huddle). Read before touching /huddle or adding a tool to the program. |
 | [`docs/ai-operations.md`](./docs/ai-operations.md) | THE DREAM TEAM spec — lexicon, lane matrix, the day-0 deep-sleep ruling, the build log. Read before touching /dream-team, the proposal spine, autonomy, goals or Sandman. |
 | [`docs/COMPLIANCE.md`](./docs/COMPLIANCE.md) | The honest compliance posture (TCPA/CAN-SPAM, the HIPAA subprocessor decision). Read before ANY compliance claim in copy. |
 | [`docs/AUDITS.md`](./docs/AUDITS.md) | Phase-audit certificates, retrospectives, the standing self-sweep checklist. |
@@ -205,8 +206,9 @@ Long-form rows: docs/SUBSYSTEMS.md. History per module: docs/HISTORY.md.
 
 | Section | Module | Path | Notes |
 |---|---|---|---|
-| Daily | Overview | `/dashboard` | Morning huddle; clinic-tz windows; PMS-sourced numbers branch on `getPmsLink`; the MTD trend compares against the same point last month. |
+| Daily | Overview | `/dashboard` | The desk's glance (it no longer calls itself the huddle); clinic-tz windows; PMS-sourced numbers branch on `getPmsLink`; the MTD trend compares against the same point last month. |
 | Daily | Dream Team | `/dream-team` | The AI staff: the sign-here stack, the take-it-back grants, Cycles, the veto runway, Goals, Sandman, the roster. Spec: docs/ai-operations.md. |
+| Daily | Huddle | `/huddle` | The team's morning meeting, already prepared (docs/daily-tools.md): the last day patients were seen, today patient by patient, the next day on the books, what is waiting. A REPORT — rules, never the AI; says its source and the sync's age; no rankings. Present (whole-screen) + Hide details. Flags come from the ONE audit (`auditClinicDay`); switch `huddle`, opens at A1. |
 | Daily | My Day | `/my-day` | Per-staff cockpit + the opt-in morning digest (`lib/morning-after.ts`). |
 | Daily | Messages | `/messages` | Unified patient inbox (in_app + email + inbound SMS); receipts; AI draft; scheduled send (a failed send alerts its scheduler); snooze (resurfaced by cron); `thread_assigned`; the `oldest_unanswered` sort; the SUPPORT thread to Dream Create (`/messages/support`, platform-authored messages render as "Support" BY CONTRACT); activity markers never bump unread. Gmail mailbox at `/inbox`. |
 | Daily | Appointments | `/appointments` | Agenda by clinic-local day; the drawer (confirm/reschedule from real slots with the visit's real duration/cancel with the honest notice/no-show/mark done → "Book their next visit"); the New-booking drawer is a patient SEARCH; a website booking emails the desk (`online_booking` urgent). |
@@ -327,6 +329,15 @@ booking, intake, shop, the token landings. Brand-derived palette
   (`lib/marketing/listing-kit.ts`, printed into `docs/organic-go-live.md`
   between markers a test compares). When the price or trial changes the test
   names the doc: regenerate, then correct the profiles.
+- **Adding a feature switch touches FOUR lists** — the registry
+  (`lib/feature-switches.ts`), the one sidebar read, the daily reconcile's
+  row select (an A1 door missing from it is "owed" forever) and the demo's
+  self-heal. `tests/feature-switches/a1-doors-select.test.ts` holds them
+  together.
+- **A patient's prep flags have ONE home** — `auditClinicDay`
+  (`lib/services/patient-audit.ts`). My Day, the morning email and the
+  Huddle read it; a new flag is added there, never on a page, and says what
+  it reads as with details hidden (`lib/huddle.ts`).
 - **The PMS link has ONE read** — `lib/pms-link.ts` / `getPmsLink` (connected
   / pending / none). Any number that comes from the PMS says where it would
   come from; a practice with no PMS is never shown a PMS promise.
@@ -407,9 +418,9 @@ booking, intake, shop, the token landings. Brand-derived palette
   (GitHub Actions → CodeBuild → ECR → App Runner, ~5 min; then a few minutes
   of rollout — `/api/version` changes when the new build serves).
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs`; a failure keeps
-  the previous version serving). Latest applied: **0196** (prospect fit + freshness — P-04; 0195 = prospect hygiene — P-03; 0194 = the cold-caller portal — P-02; 0193 = prospect verification + quality — P-01; 0192 = shop_order.tracking_url; 0191 = email_domain_failed_checks; 0190 = billing_profiles dropped; 0189 =
+  the previous version serving). Latest applied: **0197** (the Huddle's switch — H1, no backfill by design; 0196 = prospect fit + freshness — P-04; 0195 = prospect hygiene — P-03; 0194 = the cold-caller portal — P-02; 0193 = prospect verification + quality — P-01; 0192 = shop_order.tracking_url; 0191 = email_domain_failed_checks; 0190 = billing_profiles dropped; 0189 =
   two-step sign-in; 0188 = the metrics snapshot, clinic closures, the
-  inbox's wanted stamp). The next number is **0197**.
+  inbox's wanted stamp). The next number is **0198**.
   PARALLEL BRANCHES NEVER SHIP MIGRATION FILES: the integrator regenerates
   ONE sequential migration per PR on the merged schema. Workflow: edit the schema,
   `pnpm db:generate`, pin with a `tests/migrations/*.test.ts`, commit. The
@@ -451,6 +462,15 @@ booking, intake, shop, the token landings. Brand-derived palette
    PRs, four feature slices in a third; 59 planned slices remain (the plan is
    in docs/HISTORY.md's part-3 entry and the session record). Build them
    one or two at a time, never a parallel fan-out.
+0d. **THE DAILY TOOLS (owner directive 2026-11-25)** — tools that give
+   doctors and staff a reason to open the app on purpose. ONE daily page
+   with feeders, never five destinations: the Huddle (H1 SHIPPED) → Upkeep
+   (sterilizer logs + renewal clocks) → Sandman as the office writer → a
+   small toolbox → 3D printing PARKED. `docs/daily-tools.md` first — its
+   seven laws bind every tool (rules never the AI for anything with a
+   patient in it; say where it came from; no rankings; Hide details is a
+   promise; we remind, you remain responsible; one audit; a switch with a
+   front door).
 1. **ROTATE / REVOKE secrets shared in chat** (owner's action item; identify
    by their LAST FOUR in the console): Stripe `rk_live_…` (revoke); AWS keys
    …H5M55 / …OJGLOI (rotate), …4CWFS (dead, delete); Resend `re_BZDw…` (mint

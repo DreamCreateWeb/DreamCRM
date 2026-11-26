@@ -33,6 +33,7 @@ import {
 async function readFeatureSwitchState(organizationId: string): Promise<FeatureSwitchState> {
   const [row] = await db
     .select({
+      huddleEnabledAt: schema.clinicProfile.huddleEnabledAt,
       myDayEnabledAt: schema.clinicProfile.myDayEnabledAt,
       followupsEnabledAt: schema.clinicProfile.followupsEnabledAt,
       leadsEnabledAt: schema.clinicProfile.leadsEnabledAt,

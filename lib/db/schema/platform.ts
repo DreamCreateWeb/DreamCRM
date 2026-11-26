@@ -41,6 +41,11 @@ export const clinicProfile = pgTable('clinic_profile', {
   growthEnabledAt: timestamp('growth_enabled_at'),
   paymentsEnabledAt: timestamp('payments_enabled_at'),
   shopEnabledAt: timestamp('shop_enabled_at'),
+  // THE HUDDLE (docs/daily-tools.md, slice H1 — migration 0197): the same
+  // shape, the first switch of the daily-tools program. Opens on its own at
+  // A1 (it reads only what the app already holds); NO backfill — the daily
+  // activation reconcile opens it for every clinic whose A1 is on file.
+  huddleEnabledAt: timestamp('huddle_enabled_at'),
   // THE FIRST WEEK's activation stamps (docs/ACTIVATION.md Part 3, S2/S8):
   // `{ a1?: iso, a2?: iso, … }`, each key written ONCE the first time the
   // event happens (a stamp is a fact about the past; it never moves). The

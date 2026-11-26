@@ -136,7 +136,7 @@ describe('reconcileActivation', () => {
 describe('reconcileActivationStamps', () => {
   it('walks only the clinics with something unstamped and counts what it wrote', async () => {
     state.rows.set(schema.organization, [
-      { orgId: 'org_done', activation: { a1: '2026-10-01T00:00:00.000Z', a2: '2026-10-01T00:00:00.000Z', a3: '2026-10-01T00:00:00.000Z', a4: '2026-10-01T00:00:00.000Z', a5: '2026-10-01T00:00:00.000Z' }, myDayEnabledAt: NOW, followupsEnabledAt: NOW, doorsClosed: null },
+      { orgId: 'org_done', activation: { a1: '2026-10-01T00:00:00.000Z', a2: '2026-10-01T00:00:00.000Z', a3: '2026-10-01T00:00:00.000Z', a4: '2026-10-01T00:00:00.000Z', a5: '2026-10-01T00:00:00.000Z' }, huddleEnabledAt: NOW, myDayEnabledAt: NOW, followupsEnabledAt: NOW, doorsClosed: null },
       { orgId: 'org_a', activation: null },
     ])
     state.rows.set(schema.clinicProfile, [{ activation: null }])
@@ -151,14 +151,29 @@ describe('reconcileActivationStamps', () => {
   it('an A1 already on file whose doors were never opened (and never closed) is still owed them — a closed one is not (round-3 sweep)', async () => {
     const all = { a1: '2026-10-01T00:00:00.000Z', a2: '2026-10-01T00:00:00.000Z', a3: '2026-10-01T00:00:00.000Z', a4: '2026-10-01T00:00:00.000Z', a5: '2026-10-01T00:00:00.000Z' }
     state.rows.set(schema.organization, [
-      { orgId: 'org_owed', activation: all, myDayEnabledAt: null, followupsEnabledAt: null, doorsClosed: null },
-      { orgId: 'org_closed', activation: all, myDayEnabledAt: null, followupsEnabledAt: null, doorsClosed: { my_day: '2026-10-05T00:00:00.000Z', followups: '2026-10-05T00:00:00.000Z' } },
+      { orgId: 'org_owed', activation: all, huddleEnabledAt: null, myDayEnabledAt: null, followupsEnabledAt: null, doorsClosed: null },
+      { orgId: 'org_closed', activation: all, huddleEnabledAt: null, myDayEnabledAt: null, followupsEnabledAt: null, doorsClosed: { huddle: '2026-10-05T00:00:00.000Z', my_day: '2026-10-05T00:00:00.000Z', followups: '2026-10-05T00:00:00.000Z' } },
     ])
     state.rows.set(schema.clinicProfile, [{ activation: all }])
     const r = await reconcileActivationStamps({ now: NOW })
     expect(r.scanned).toBe(1)
     expect(openDoorsAtA1).toHaveBeenCalledTimes(1)
     expect(openDoorsAtA1).toHaveBeenCalledWith('org_owed', NOW)
+  })
+
+  it('a clinic that was live BEFORE the Huddle existed is owed its door — the daily pass is the backfill (migration 0197 ships none)', async () => {
+    const all = { a1: '2026-10-01T00:00:00.000Z', a2: '2026-10-01T00:00:00.000Z', a3: '2026-10-01T00:00:00.000Z', a4: '2026-10-01T00:00:00.000Z', a5: '2026-10-01T00:00:00.000Z' }
+    state.rows.set(schema.organization, [
+      // Every older A1 door open, the new column null: owed.
+      { orgId: 'org_before', activation: all, huddleEnabledAt: null, myDayEnabledAt: NOW, followupsEnabledAt: NOW, doorsClosed: null },
+      // The same clinic after someone turned the Huddle off: never reopened.
+      { orgId: 'org_said_no', activation: all, huddleEnabledAt: null, myDayEnabledAt: NOW, followupsEnabledAt: NOW, doorsClosed: { huddle: '2026-11-27T00:00:00.000Z' } },
+    ])
+    state.rows.set(schema.clinicProfile, [{ activation: all }])
+    const r = await reconcileActivationStamps({ now: NOW })
+    expect(r.scanned).toBe(1)
+    expect(openDoorsAtA1).toHaveBeenCalledTimes(1)
+    expect(openDoorsAtA1).toHaveBeenCalledWith('org_before', NOW)
   })
 
   it('an A1 the daily pass stamps opens the A1 doors too (audit round 2)', async () => {

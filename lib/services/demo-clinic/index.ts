@@ -39,6 +39,7 @@ import {
   DEMO_VISIT_TYPES,
 } from './clinic-config'
 import { phoneNumber, pick, snapToHalfHour } from './helpers'
+import { seedDemoHuddleDay } from './seed-huddle'
 import {
   DEMO_CALENDAR_FEED_TOKEN,
   DEMO_COLORING_PAGES,
@@ -124,6 +125,10 @@ import type { DemoClinicResult } from './types'
  * file re-exports everything the single file used to export, so no import
  * site had to change.
  */
+/** The demo practice's timezone — its profile is seeded with it, legacy
+ *  demos are backfilled to it, and the Huddle's day is laid out on it. */
+const DEMO_TIME_ZONE = 'America/Chicago'
+
 export async function createDemoClinic(): Promise<DemoClinicResult> {
   // Org NAME is decoupled from the SLUG (2026-06 Acme→Dream Dental rename): the
   // public name became "Dream Dental Demo" but the slug stays the stable,
@@ -204,6 +209,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         onboardingInterviewCompletedAt: schema.clinicProfile.onboardingInterviewCompletedAt,
         siteLiveAt: schema.clinicProfile.siteLiveAt,
         insuranceEnabledAt: schema.clinicProfile.insuranceEnabledAt,
+        huddleEnabledAt: schema.clinicProfile.huddleEnabledAt,
         myDayEnabledAt: schema.clinicProfile.myDayEnabledAt,
         followupsEnabledAt: schema.clinicProfile.followupsEnabledAt,
         leadsEnabledAt: schema.clinicProfile.leadsEnabledAt,
@@ -236,6 +242,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // Every FEATURE SWITCH is ON in the demo (migration 0172, docs/
     // ACTIVATION.md S3): a prospect mid-pitch sees the whole app, never an
     // "Add" group of doors to open.
+    if (!profile?.huddleEnabledAt) patch.huddleEnabledAt = new Date()
     if (!profile?.myDayEnabledAt) patch.myDayEnabledAt = new Date()
     if (!profile?.followupsEnabledAt) patch.followupsEnabledAt = new Date()
     if (!profile?.leadsEnabledAt) patch.leadsEnabledAt = new Date()
@@ -1092,6 +1099,39 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     await seedDemoLoyalty(existing.id, new Date(), existingPatientIds)
     await seedDemoInsuranceChecks(existing.id, new Date(), existingPatientIds)
 
+    // THE HUDDLE's day self-heal (docs/daily-tools.md, H1) — the demo's
+    // appointments were seeded once, relative to the day it was created, so
+    // without this an older demo has no yesterday and no today. Seven
+    // persona-anchored marker rows, upserted (see seed-huddle.ts). LAST, so
+    // its two lookups never shift an earlier read; best-effort, so a hiccup
+    // here can never fail the deploy's resync.
+    try {
+      const resyncNow = new Date()
+      const [providerRows, locationRows] = await Promise.all([
+        db
+          .select({ id: schema.clinicProvider.id, role: schema.clinicProvider.role })
+          .from(schema.clinicProvider)
+          .where(eq(schema.clinicProvider.organizationId, existing.id)),
+        db
+          .select({ id: schema.clinicLocation.id })
+          .from(schema.clinicLocation)
+          .where(eq(schema.clinicLocation.organizationId, existing.id))
+          .limit(1),
+      ])
+      await seedDemoHuddleDay({
+        orgId: existing.id,
+        personaPatientIds: existingPatientIds,
+        personaNames: buildPatientPersonas(resyncNow),
+        locationId: locationRows[0]?.id ?? null,
+        dentistId: providerRows.find((r) => r.role === 'dentist')?.id ?? providerRows[0]?.id ?? null,
+        hygienistId: providerRows.find((r) => r.role === 'hygienist')?.id ?? providerRows[0]?.id ?? null,
+        now: resyncNow,
+        timeZone: profile?.timezone || DEMO_TIME_ZONE,
+      })
+    } catch (err) {
+      console.warn('[demo] huddle-day self-heal failed', err)
+    }
+
     return {
       organizationId: existing.id,
       organizationSlug: existing.slug,
@@ -1409,6 +1449,22 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     })
     apptCount++
   }
+
+  // THE HUDDLE's day (docs/daily-tools.md, H1): a yesterday and a today on
+  // the clinic's calendar — seven marker rows, upserted on every resync so
+  // the demo's /huddle (and Today's chair) never reads as an empty room.
+  // After the loop on purpose: `apptByIdx` below reads `apptsToSeed`, so
+  // the reminder stories keep the visits they were written for.
+  apptCount += await seedDemoHuddleDay({
+    orgId,
+    personaPatientIds: patientIds,
+    personaNames: personas,
+    locationId,
+    dentistId: providerDentistId,
+    hygienistId: providerHygienistId,
+    now,
+    timeZone: DEMO_TIME_ZONE,
+  })
 
   // Reminder log — gives the drawer's "Reminder activity" stripe real
   // rows + triggers the ⏱ "reminder sent recently" glyph on a couple of

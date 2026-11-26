@@ -7663,3 +7663,66 @@ number kept across passes, the durable typed-number guard, unread crawls
 claiming no page fact, an unread site never "no website", a bad number
 never corroborated, the merge's provenance union in both directions);
 the last commit was read directly against its rulings before merge.
+
+## 2026-11-25 — The daily tools, H1: the Huddle (the morning meeting, already prepared)
+
+**The directive.** "Everything we have is generally set it and forget it …
+nobody goes into it all day every day." The owner asked for tool sets that
+give doctors and staff a reason to open the app on purpose, and delegated
+the choice of what to build. Program doc: `docs/daily-tools.md`.
+
+**The research** (`docs/research/daily-tools-2026-11/`, seven passes + a
+synthesis): teams return to RITUALS, not gadgets. The huddle is the one
+daily ritual dental offices share and the one a $399–$899/month product is
+built around; its documented failure is a number that disagrees with the
+practice software. Evidence is thin and says so — no first-hand forum posts
+were reachable, and most prices are vendor-sourced.
+
+**The ruling.** One daily page with feeders, not five destinations: the
+Huddle → Upkeep (sterilizer logs + renewal clocks) → Sandman as the office
+writer → a small toolbox → 3D printing parked. Seven laws bind the program
+(rules never the AI for anything with a patient in it; say where it came
+from; no rankings; Hide details is a promise; we remind, you remain
+responsible; one audit; a switch with a front door). DESIGN.md gained two
+notes: chosen time is not operating time, and a lab case's ARRIVAL is
+logistics (the clinical order stays out of scope).
+
+**What shipped (H1).**
+- `/huddle` — four sections in meeting order: the last day patients were
+  seen (found from the schedule, so Monday talks about Friday with no
+  working-days setting), today patient by patient, the next day on the
+  books (only who needs prep), and what is waiting on the team. A report:
+  assembled by code, sourced ("…from Open Dental, last synced 12 minutes
+  ago"), nothing ranked. Present = a whole-screen dialog a room can read
+  (the one Modal primitive, at a new `screen` size);
+  Hide details = names shortened, amounts and medical detail dropped,
+  remembered per device.
+- ONE audit: `auditUpcomingDay` became `auditClinicDay` (any clinic-local
+  day, `held` vs `live`); My Day and the digest read tomorrow through it
+  unchanged, the Huddle reads today and the next day. Prep flags only for
+  visits still ahead; a slot that already passed today no longer asks for a
+  confirmation.
+- The switch `huddle` (migration 0197, one nullable column, NO backfill):
+  opens at A1; a clinic that was live before the Huddle existed gets its
+  door from the daily activation reconcile, which honors a person's close.
+- The morning email carries the Huddle's one line (counts only), and a day
+  with patients in it is now worth the email on its own.
+- The Overview's eyebrow is `Daily · <day>` (two pages must not both be
+  "the huddle"); Today's chair links to the Huddle while it is on.
+- The demo: seven persona-anchored marker rows (`appt_demohud_…`), UPSERTED
+  on every resync, give it a yesterday and a today on the clinic's calendar.
+
+**Found on the way.**
+- The reconcile's row select named its A1 doors by hand, so a new A1 door
+  read `undefined == null` — "owed" on every clinic, every day, forever.
+  `tests/feature-switches/a1-doors-select.test.ts` now holds the four lists
+  a switch touches (registry, sidebar read, reconcile select, demo
+  self-heal) together.
+- The demo's appointments are seeded ONCE, relative to its creation, and a
+  resync never moves them: an older demo has no today. Only the Huddle's
+  seven rows move now; the rest is recorded as owed in the program doc.
+
+**Owed** (docs/daily-tools.md): H2 the team's own lines + a private
+thank-you; H3 the lab-case arrival check; print; the marketing copy that
+still calls the Overview the morning huddle (left alone — another session
+held the marketing tree that week).

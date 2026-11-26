@@ -1282,6 +1282,7 @@ export async function seed(names = Object.keys(SCOPES)) {
     // from moving a stamp.
     await pool.query(
       `update clinic_profile set
+         huddle_enabled_at = coalesce(huddle_enabled_at, now()),
          my_day_enabled_at = coalesce(my_day_enabled_at, now()),
          followups_enabled_at = coalesce(followups_enabled_at, now()),
          leads_enabled_at = coalesce(leads_enabled_at, now()),

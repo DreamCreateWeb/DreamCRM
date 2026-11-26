@@ -35,7 +35,7 @@ function signedSessionCookie(): string {
 // inquiries triage are the three tables a front desk opens on a phone, and a
 // table is the shape most likely to drag the shell sideways.
 const PAGES = [
-  '/dashboard', '/my-day', '/dream-team', '/messages', '/appointments', '/patients', '/followups', '/leads', '/intake-forms', '/insurance',
+  '/dashboard', '/huddle', '/my-day', '/dream-team', '/messages', '/appointments', '/patients', '/followups', '/leads', '/intake-forms', '/insurance',
   '/growth', '/growth/campaigns', '/growth/outreach', '/growth/reviews', '/growth/social', '/growth/analytics',
   '/website', '/website/content', '/website/design', '/website/pages', '/website/forms', '/website/blog', '/website/seo', '/website/domain', '/website/share',
   '/payments', '/payments/online', '/payments/collections', '/payments/memberships', '/shop', '/integrations', '/integrations/pms',

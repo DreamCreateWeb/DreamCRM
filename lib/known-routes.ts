@@ -69,6 +69,7 @@ export const KNOWN_TOP_LEVEL_SEGMENTS: ReadonlySet<string> = new Set([
   'followups',
   'google-posts',
   'growth',
+  'huddle',
   'inbox',
   'insurance',
   'intake-forms',

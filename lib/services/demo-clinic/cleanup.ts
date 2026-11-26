@@ -2,6 +2,7 @@ import 'server-only'
 import { and, eq, inArray, isNull, like } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { buildPatientPersonas } from './personas'
+import { DEMO_HUDDLE_APPT_PREFIX } from './seed-huddle'
 
 // ── Persona-identity anchoring + misattribution cleanup ─────────────────
 //
@@ -109,6 +110,20 @@ export async function cleanupMisattributedDemoArtifacts(
     .where(eq(schema.patient.organizationId, orgId))
   const strays = allPatients.map((p) => p.id).filter((id) => !personaSet.has(id))
   if (strays.length === 0) return
+
+  // (0) The Huddle's day (seed-huddle.ts): its seven marker appointments
+  // are upserted onto personas by identity, so one on a non-persona patient
+  // can only be a mistake — and a seeded visit on a real person's record is
+  // exactly the harm this sweep exists to undo.
+  await db
+    .delete(schema.appointment)
+    .where(
+      and(
+        eq(schema.appointment.organizationId, orgId),
+        inArray(schema.appointment.patientId, strays),
+        like(schema.appointment.id, `${DEMO_HUDDLE_APPT_PREFIX}%`),
+      ),
+    )
 
   // (1) Seeder-minted review requests (token starts with "demo") on a
   // non-persona patient — the "phantom 5★ review" case.

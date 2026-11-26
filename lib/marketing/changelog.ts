@@ -88,6 +88,42 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: ChangelogEntry[] = [
   {
+    weekOf: '2026-11-23',
+    title: 'The Huddle: your morning meeting, already prepared',
+    summary:
+      'One new page this week, built for the ten minutes before the first patient walks in. It reads what the app already knows and lays the day out in the order a team would talk it through — nothing to enter and nothing to set up.',
+    items: [
+      {
+        kind: 'new',
+        glyph: 'people',
+        title: 'A morning huddle that prepares itself',
+        body:
+          'Most practices hold a quick meeting before the doors open, and most of the work is gathering what to say. The new Huddle page does the gathering: how the last working day went, today’s schedule patient by patient — first visits, birthdays, forms still missing, who has not confirmed — the next day on the books, and the few things waiting on the team. It shows up in your sidebar on its own once your patient data is connected, and it says where its schedule comes from and how long ago it was synced, so you always know how fresh it is.',
+      },
+      {
+        kind: 'new',
+        glyph: 'eye',
+        title: 'Put it on the big screen, and hide the details when patients can see',
+        body:
+          'One button puts the Huddle on the whole screen in type you can read from across a room. A second one, Hide details, shortens names to a first name and an initial and leaves out dollar amounts and anything from a patient’s health history — for a screen somewhere a patient might walk past. The choice is remembered on that device.',
+      },
+      {
+        kind: 'improved',
+        glyph: 'clock',
+        title: 'The morning email tells you what the day holds',
+        body:
+          'If your practice gets the morning email, it now opens with one line about today — how many visits, and how many need a little prep — for anyone who missed the meeting or works a day without one. It is a count only: no patient is named in the email.',
+      },
+      {
+        kind: 'improved',
+        glyph: 'calendar',
+        title: 'Today is checked the same way tomorrow always was',
+        body:
+          'My Day has always looked over tomorrow’s patients for a missing form, a balance worth settling or a confirmation still owed. Today’s schedule is now checked by exactly the same rules, so a patient is never flagged on one page and clean on another.',
+      },
+    ],
+  },
+  {
     weekOf: '2026-10-19',
     title: 'Your icons, your photo, and an editor that no longer freezes',
     summary:

@@ -125,4 +125,43 @@ describe('Modal', () => {
     )
     expect(document.body.style.overflow).toBe('hidden')
   })
+
+  it('a card keeps every class it had before `screen` existed', () => {
+    const { unmount } = render(<Modal open onClose={() => {}} label="card">x</Modal>)
+    const dialog = screen.getByRole('dialog')
+    for (const card of ['max-h-[85dvh]', 'sm:max-h-[90dvh]', 'rounded-t-[var(--r-lg)]', 'sm:rounded-[var(--r-lg)]', 'shadow-[var(--shadow-modal)]', 'bg-[color:var(--color-surface-2)]', 'pb-[env(safe-area-inset-bottom)]', 'sm:pb-0', 'sm:max-w-md', 'overflow-y-auto']) {
+      expect(dialog.className, card).toContain(card)
+    }
+    expect(dialog.className).not.toContain('h-[100dvh]')
+    expect(dialog.querySelector('[data-modal-handle]')).not.toBeNull()
+    unmount()
+  })
+
+  it('at `screen` it is the whole viewport on the page canvas — same trap, same lock, same Escape; no sheet handle, no corner radius', () => {
+    const onClose = vi.fn()
+    const { unmount } = render(
+      <Modal open onClose={onClose} size="screen" label="On the big screen" backdropClose={false}>
+        <button>Done</button>
+      </Modal>,
+    )
+    const dialog = screen.getByRole('dialog', { name: 'On the big screen' })
+    expect(dialog.getAttribute('aria-modal')).toBe('true')
+    // The surface is CHOSEN, never overridden: the card's cap, radius, shadow
+    // and fill are simply not there. (The first cut laid `max-h-none` over
+    // `max-h-[85dvh]` and let the class merger referee — it does not know
+    // `dvh`, so both shipped and the stylesheet's order decided.)
+    expect(dialog.className).toContain('h-[100dvh]')
+    expect(dialog.className).toContain('bg-[color:var(--color-canvas)]')
+    for (const card of ['max-h-[85dvh]', 'sm:max-h-[90dvh]', 'rounded-t-[var(--r-lg)]', 'shadow-[var(--shadow-modal)]', 'bg-[color:var(--color-surface-2)]']) {
+      expect(dialog.className, card).not.toContain(card)
+    }
+    expect(dialog.querySelector('[data-modal-handle]')).toBeNull()
+    expect(document.body.style.overflow).toBe('hidden')
+    // There is no backdrop to tap; Escape is still a way out.
+    fireEvent.click(dialog.parentElement!)
+    expect(onClose).not.toHaveBeenCalled()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+    unmount()
+  })
 })

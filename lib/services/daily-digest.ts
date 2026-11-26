@@ -123,6 +123,9 @@ export function buildDigestContent(
   doors?: { followups?: boolean; leads?: boolean } | null,
   /** ML-51: what the digest says about the practice's closures. */
   closure?: DigestClosureNotes | null,
+  /** The Huddle's one-line read of today (docs/daily-tools.md, H1) — counts
+   *  only, never a name. Null when its door is closed or the day is empty. */
+  huddle?: string | null,
 ): DigestContent {
   // A closed door's list is not a to-do (verification round 2: the Overview
   // hides the follow-ups card with its door; the email must agree).
@@ -138,7 +141,9 @@ export function buildDigestContent(
     auditItems.length > 0
   // Monday's closure heads-up is news on its own; "closed today" only colours
   // the day it already has (a closed day is not a quiet one — it says why).
-  const hasContent = routine || !!websiteSection || !!morning?.sendsAlone || !!closure?.weekLine
+  // A day with patients in it is worth the morning email on its own once the
+  // Huddle is on: "12 visits today — 3 need a little prep" IS the day.
+  const hasContent = routine || !!websiteSection || !!morning?.sendsAlone || !!closure?.weekLine || !!huddle
 
   const sections: DigestEmailSection[] = []
   const parts: string[] = []
@@ -152,6 +157,12 @@ export function buildDigestContent(
   if (morning?.oneThing) {
     parts.push(`⭐ One thing today: ${morning.oneThing.text}`)
     parts.push('')
+  }
+  if (huddle) {
+    const line = `${huddle} The whole day, patient by patient, is on your Huddle page.`
+    parts.push(`☀️ ${line}`)
+    parts.push('')
+    sections.push({ heading: 'Today’s huddle', lines: [line] })
   }
 
   if (followupsDue > 0) {
@@ -487,6 +498,19 @@ export async function runDailyDigest(opts?: { now?: Date }): Promise<DigestRunRe
     // (audit round 1). The Overview carries the same summons strip.
     const switches = await getFeatureSwitchState(clinic.organizationId).catch(() => ALL_ON)
     const myDayOn = switches.my_day
+    // The Huddle's line (docs/daily-tools.md, H1): once per clinic, only
+    // while its door is open, and strictly best-effort — a failed read says
+    // less, it never blocks the morning to-dos. Loaded lazily, like the
+    // closures read above, so the digest's import graph stays what it was.
+    let huddleLine: string | null = null
+    if (switches.huddle) {
+      try {
+        const { getHuddleDigestLine } = await import('@/lib/services/huddle')
+        huddleLine = await getHuddleDigestLine(clinic.organizationId, now)
+      } catch {
+        huddleLine = null
+      }
+    }
 
     for (const s of recipients) {
       result.scanned++
@@ -494,7 +518,7 @@ export async function runDailyDigest(opts?: { now?: Date }): Promise<DigestRunRe
         if (settled.has(s.userId)) { result.skippedAlready++; continue }
 
         const data = await getMyDay(clinic.organizationId, s.userId)
-        const content = buildDigestContent(data, clinic.clinicName ?? 'your clinic', websiteSection, morning, { followups: switches.followups, leads: switches.leads }, closureNotes)
+        const content = buildDigestContent(data, clinic.clinicName ?? 'your clinic', websiteSection, morning, { followups: switches.followups, leads: switches.leads }, closureNotes, huddleLine)
         if (!content.hasContent) {
           // Settle the day for a quiet person too (see the header comment).
           await claimDay(clinic.organizationId, s.userId, sentOn).catch(() => undefined)

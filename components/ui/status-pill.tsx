@@ -14,11 +14,20 @@ export function StatusPill({
   tone,
   label,
   title,
+  size = 'sm',
+  wrap = false,
   className = '',
   children,
 }: {
   tone: Tone
   label?: string
+  /** `lg` is for a screen read from across a room (the Huddle's Present
+   *  mode). `sm` — the default — is the pill every list uses. */
+  size?: 'sm' | 'lg'
+  /** Let a long label wrap instead of running off a phone-width row (a
+   *  flag that quotes an intake answer). Off by default: a status word
+   *  should never break across two lines. */
+  wrap?: boolean
   /** Optional hover explanation ("Needs a confirmation text"). */
   title?: string
   className?: string
@@ -31,7 +40,7 @@ export function StatusPill({
       // contract without coupling to color-class strings that change on a restyle.
       data-tone={tone}
       title={title}
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${TONE_PILL[tone]} ${className}`}
+      className={`inline-flex items-center font-medium ${size === 'lg' ? 'px-3 py-1 text-base' : 'px-2 py-0.5 text-xs'} ${wrap ? 'rounded-[var(--r-sm)] text-left' : 'rounded-full whitespace-nowrap'} ${TONE_PILL[tone]} ${className}`}
     >
       {children ?? label}
     </span>

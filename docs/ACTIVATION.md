@@ -188,6 +188,7 @@ skipped).
 | Patients | always on; empty until data | day-one five | — | A1 |
 | Settings | always on | day-one five | — | — |
 | Dream Team | day-one six (S3 ruling: the setup asks live here) | — | a goal | the first proposal |
+| Huddle | **switch (docs/daily-tools.md, H1 — 2026-11-25)** — generic intro; opens at A1; existing clinics get the door from the daily reconcile, not a backfill | done | — | today's schedule, patient by patient, the morning data is connected |
 | My Day | **switch (S3)** — generic intro; opens at A1 | done | — | today's follow-ups |
 | Follow-ups | **switch (S3)** — generic intro; opens at A1 | done | — | the auto rules' first cards |
 | Inquiries | **switch (S3)** — generic intro; opens when the site goes live | done | — | the first inquiry |

@@ -28,7 +28,7 @@
 
 import type { ModuleDef } from '@/lib/modules/types'
 
-export type FeatureKey = 'my_day' | 'followups' | 'leads' | 'intake_forms' | 'growth' | 'payments' | 'shop' | 'insurance'
+export type FeatureKey = 'huddle' | 'my_day' | 'followups' | 'leads' | 'intake_forms' | 'growth' | 'payments' | 'shop' | 'insurance'
 
 export interface FeatureSwitchDef {
   key: FeatureKey
@@ -38,6 +38,7 @@ export interface FeatureSwitchDef {
   path: string
   /** The clinic_profile column, as the Drizzle property name. */
   column:
+    | 'huddleEnabledAt'
     | 'myDayEnabledAt'
     | 'followupsEnabledAt'
     | 'leadsEnabledAt'
@@ -76,6 +77,28 @@ export interface FeatureSwitchDef {
 
 // Registry order = the clinic sidebar's order (tests/feature-switches pins it).
 export const FEATURE_SWITCHES: readonly FeatureSwitchDef[] = [
+  // THE HUDDLE (docs/daily-tools.md, H1) — the first of the daily tools: the
+  // team's morning meeting, prepared from what the app already holds. Like
+  // My Day it has nothing to set up, so it opens on its own at A1.
+  {
+    key: 'huddle',
+    moduleId: 'huddle',
+    path: '/huddle',
+    column: 'huddleEnabledAt',
+    label: 'Huddle',
+    lede: 'The morning meeting, already prepared: how yesterday went, today patient by patient, and what is next.',
+    does: [
+      'Walks today’s schedule patient by patient — first visits, birthdays, forms, balances and who still needs confirming.',
+      'Opens with how the last working day went and closes with the next day on the books.',
+      'Goes full screen for the team meeting, and reads just as well on a phone for anyone who missed it.',
+    ],
+    know: [
+      'It reads what the app already holds — nothing to enter — and it says where each fact comes from.',
+      'It shows patient names: present it on a staff-only screen, or use “Hide details” where patients can see.',
+      'It opens on its own the day your patient data is connected.',
+    ],
+    autoOpen: 'a1',
+  },
   {
     key: 'my_day',
     moduleId: 'my_day',

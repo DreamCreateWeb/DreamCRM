@@ -59,7 +59,7 @@ export async function getActivationStamps(organizationId: string): Promise<Activ
 // ── The derived read (moved here from first-week.ts in S8) ────────────────
 
 /** Bookings that came THROUGH us (not typed in by staff, not mirrored from the PMS). */
-const OUR_BOOKING_SOURCES = ['booking_widget', 'recall_campaign', 'invite', 'portal']
+export const OUR_BOOKING_SOURCES = ['booking_widget', 'recall_campaign', 'invite', 'portal']
 
 /** A failed rail read is recorded by its KEY, so a key with any unread source is never stamped from the rest (audit round 2). */
 function safeFor(failed: Set<ActivationKey>) {
@@ -264,6 +264,7 @@ export async function reconcileActivationStamps(opts: { now?: Date } = {}): Prom
     .select({
       orgId: schema.organization.id,
       activation: schema.clinicProfile.activation,
+      huddleEnabledAt: schema.clinicProfile.huddleEnabledAt,
       myDayEnabledAt: schema.clinicProfile.myDayEnabledAt,
       followupsEnabledAt: schema.clinicProfile.followupsEnabledAt,
       doorsClosed: schema.clinicProfile.doorsClosed,
@@ -275,10 +276,14 @@ export async function reconcileActivationStamps(opts: { now?: Date } = {}): Prom
   // opened and were never closed (round 3's self-sweep: a clinic whose A1
   // the daily pass stamped BEFORE the pass opened doors, with no later
   // kick to offer them — a bookings-only roster — would wait forever).
+  // Every column an A1 door lives in must be in the select above — a door
+  // missing from it reads `undefined == null` and is "owed" forever
+  // (tests/feature-switches/a1-doors-select.test.ts holds the two together).
+  type A1DoorColumn = 'huddleEnabledAt' | 'myDayEnabledAt' | 'followupsEnabledAt'
   const a1DoorsOwed = (r: (typeof rows)[number]) => {
     if (parseActivation(r.activation).a1 == null) return false
     const closed = parseDoorsClosed(r.doorsClosed)
-    return doorsOpenedBy('a1').some((k) => r[FEATURE_BY_KEY[k].column as 'myDayEnabledAt' | 'followupsEnabledAt'] == null && !closed[k])
+    return doorsOpenedBy('a1').some((k) => r[FEATURE_BY_KEY[k].column as A1DoorColumn] == null && !closed[k])
   }
   const due = rows.filter((r) => ACTIVATION_KEYS.some((k) => parseActivation(r.activation)[k] == null) || a1DoorsOwed(r))
   const sweep = await sweepClinics(

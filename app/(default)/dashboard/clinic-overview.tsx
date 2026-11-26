@@ -325,7 +325,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
 
       {/* ── Header ────────────────────────────────────────────────────── */}
       <PageHeader
-        eyebrow={`Morning huddle · ${formatClinicDayHeader(data.date, data.timeZone)}`}
+        eyebrow={`Daily · ${formatClinicDayHeader(data.date, data.timeZone)}`}
         title={name}
         subtitle="What's worth your attention this morning — every number opens the list behind it."
         legend={<EncodingLegend glyphs={PAGE_GLYPHS} pills={PILL_LEGEND} />}
@@ -579,9 +579,18 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
       <section className="mb-8">
         <div className="v2-card overflow-hidden">
           <div className="v2-well rounded-none px-5 py-4 border-b border-[color:var(--color-hairline)] flex items-center justify-between">
-            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-              Today&rsquo;s chair
-            </h2>
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                Today&rsquo;s chair
+              </h2>
+              {/* The team's page for the same day (docs/daily-tools.md, H1) —
+                  only while its door is open; a closed door is never linked. */}
+              {switches.huddle && (
+                <Link href="/huddle" className="text-xs font-medium text-teal-700 hover:text-teal-800 dark:text-teal-400">
+                  Run the huddle →
+                </Link>
+              )}
+            </div>
             {/* The section's heartbeat (law 7): confirmed share of today, ring +
                 explicit text (color never carries meaning alone). Completed
                 visits count as confirmed — a done visit isn't "needs a text". */}

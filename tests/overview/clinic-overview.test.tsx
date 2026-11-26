@@ -28,7 +28,7 @@ const { mockGetOverview } = vi.hoisted(() => ({
 }))
 
 // The doors (docs/ACTIVATION.md law 1, verification round): a closed module's card never nags.
-const doors = { intake_forms: true, followups: true, shop: true }
+const doors: Record<string, boolean> = { intake_forms: true, followups: true, shop: true }
 vi.mock('@/lib/services/feature-switches', () => ({ getFeatureSwitchState: async () => ({ ...doors }) }))
 vi.mock('@/lib/services/clinic-overview', () => ({
   getClinicOverview: mockGetOverview,
@@ -302,12 +302,33 @@ describe('the catch-net windows agree across surfaces (source-pinned)', () => {
   })
 })
 
+describe('ClinicOverview → the Huddle (docs/daily-tools.md, H1)', () => {
+  it('links to the team page from Today’s chair only while the Huddle is on', async () => {
+    mockGetOverview.mockResolvedValue(makeData())
+    try {
+      render(await ClinicOverview({ ctx: makeCtx() }))
+      // A closed door is never linked (docs/ACTIVATION.md, the dead-link law).
+      expect(screen.queryByRole('link', { name: /Run the huddle/ })).toBeNull()
+      doors.huddle = true
+      render(await ClinicOverview({ ctx: makeCtx() }))
+      expect(screen.getByRole('link', { name: /Run the huddle/ })).toHaveAttribute('href', '/huddle')
+    } finally {
+      delete doors.huddle
+      mockGetOverview.mockReset()
+    }
+  })
+})
+
 describe('ClinicOverview hero', () => {
-  it('renders the morning huddle date + clinic name + primary CTA', async () => {
+  it('renders the day + clinic name + primary CTA', async () => {
     mockGetOverview.mockResolvedValueOnce(makeData())
     const ui = await ClinicOverview({ ctx: makeCtx() })
     render(ui)
-    expect(screen.getByText(/Morning huddle/)).toBeInTheDocument()
+    // "Daily · <the clinic's day>" — the Overview is the desk's glance. The
+    // team's meeting page is /huddle (docs/daily-tools.md), so the Overview
+    // no longer calls itself the morning huddle: two pages, one name each.
+    expect(screen.getByText(/^Daily · /)).toBeInTheDocument()
+    expect(screen.queryByText(/Morning huddle/)).toBeNull()
     expect(screen.getByRole('heading', { level: 1, name: 'Acme Dental' })).toBeInTheDocument()
     // The primary OPENS THE BOOKING DRAWER (`?new=1`, the param the agenda
     // consumes). It shipped pointing at `?window=today`, which only set the

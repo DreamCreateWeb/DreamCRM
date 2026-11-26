@@ -105,10 +105,10 @@ describe('openDoors', () => {
   it('THE MACHINE never reopens a door a person closed; a person can (audit round 2)', async () => {
     state.rows = [{ doorsClosed: { my_day: NOW.toISOString() } }]
     // The A1 opener skips the closed door and opens the rest.
-    expect(await openDoorsAtA1('org_a', NOW)).toEqual(['followups'])
-    expect(Object.keys(state.updates[0])).toEqual(['followupsEnabledAt'])
+    expect((await openDoorsAtA1('org_a', NOW)).sort()).toEqual(['followups', 'huddle'])
+    expect(Object.keys(state.updates[0]).sort()).toEqual(['followupsEnabledAt', 'huddleEnabledAt'])
     // Every door the machine wants is closed → nothing written at all.
-    state.rows = [{ doorsClosed: { my_day: NOW.toISOString(), followups: NOW.toISOString() } }]
+    state.rows = [{ doorsClosed: { huddle: NOW.toISOString(), my_day: NOW.toISOString(), followups: NOW.toISOString() } }]
     expect(await openDoorsAtA1('org_a', NOW)).toEqual([])
     expect(state.updates).toHaveLength(1)
     // A person's "Turn on" opens it regardless and clears the memory.
@@ -116,12 +116,12 @@ describe('openDoors', () => {
     expect(Object.keys(state.updates[1]).sort()).toEqual(['doorsClosed', 'myDayEnabledAt'])
     // Junk in the column reads as nothing closed.
     state.rows = [{ doorsClosed: ['my_day'] }]
-    expect((await openDoorsAtA1('org_a', NOW)).sort()).toEqual(['followups', 'my_day'])
+    expect((await openDoorsAtA1('org_a', NOW)).sort()).toEqual(['followups', 'huddle', 'my_day'])
   })
 
   it('the A1 and site-live entry points open their own doors and never throw', async () => {
     state.rows = [{}]
-    expect((await openDoorsAtA1('org_a', NOW)).sort()).toEqual(['followups', 'my_day'])
+    expect((await openDoorsAtA1('org_a', NOW)).sort()).toEqual(['followups', 'huddle', 'my_day'])
     expect(await openDoorsAtSiteLive('org_a', NOW)).toEqual(['leads'])
     state.throwOnUpdate = true
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})

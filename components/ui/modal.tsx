@@ -25,14 +25,33 @@ import { cn } from '@/lib/utils'
  * Do not hand-roll a `role="dialog"` / fixed overlay anywhere else: the
  * `tests/ui/no-hand-rolled-modal.test.ts` grader fails CI on one.
  */
-export type ModalSize = 'sm' | 'md' | 'lg' | 'xl'
+/**
+ * `screen` is the whole viewport, edge to edge, on the page's own canvas — a
+ * surface people READ from across a room (the Huddle's Present mode), not a
+ * question they answer. It is a size of THIS primitive rather than a second
+ * overlay so the focus trap, the scroll lock and Escape stay in one file. It
+ * has no backdrop to tap and no sheet handle; give it `label` and a visible
+ * way out in its body.
+ */
+export type ModalSize = 'sm' | 'md' | 'lg' | 'xl' | 'screen'
 
 const SIZES: Record<ModalSize, string> = {
   sm: 'sm:max-w-sm',
   md: 'sm:max-w-md',
   lg: 'sm:max-w-lg',
   xl: 'sm:max-w-2xl',
+  screen: '',
 }
+
+/**
+ * The panel's SURFACE, chosen — never overridden. A card (sheet below `sm`)
+ * or the whole screen: two recipes, picked by `size`, because a `max-h-none`
+ * laid over `max-h-[85dvh]` is two utilities racing in the stylesheet, and
+ * the class merger does not referee an arbitrary `dvh` value.
+ */
+const PANEL_CARD =
+  'bg-[color:var(--color-surface-2)] shadow-[var(--shadow-modal)] rounded-t-[var(--r-lg)] sm:rounded-[var(--r-lg)] max-h-[85dvh] sm:max-h-[90dvh] pb-[env(safe-area-inset-bottom)] sm:pb-0'
+const PANEL_SCREEN = 'h-[100dvh] bg-[color:var(--color-canvas)]'
 
 export interface ModalProps {
   open: boolean
@@ -114,6 +133,7 @@ function ModalInner({
       data-modal-backdrop=""
       className={cn(
         'v2-app fixed inset-0 flex items-end sm:items-center justify-center bg-[color:var(--color-ink-900)]/30 backdrop-blur-[2px] sm:px-4',
+        size === 'screen' && 'sm:px-0',
         layer === 'top' ? 'z-[100]' : 'z-50',
       )}
       onClick={backdropClose ? tryClose : undefined}
@@ -127,16 +147,17 @@ function ModalInner({
         data-modal=""
         onClick={(e) => e.stopPropagation()}
         className={cn(
-          'section-enter bg-[color:var(--color-surface-2)] shadow-[var(--shadow-modal)] w-full flex flex-col',
-          'rounded-t-[var(--r-lg)] sm:rounded-[var(--r-lg)] max-h-[85dvh] sm:max-h-[90dvh] overflow-y-auto',
-          'pb-[env(safe-area-inset-bottom)] sm:pb-0',
+          'section-enter w-full flex flex-col overflow-y-auto',
+          size === 'screen' ? PANEL_SCREEN : PANEL_CARD,
           SIZES[size],
           className,
         )}
       >
-        <div className="sm:hidden flex justify-center pt-2 shrink-0" aria-hidden="true" data-modal-handle="">
-          <span className="h-1 w-10 rounded-full bg-[color:var(--color-hairline)]" />
-        </div>
+        {size !== 'screen' && (
+          <div className="sm:hidden flex justify-center pt-2 shrink-0" aria-hidden="true" data-modal-handle="">
+            <span className="h-1 w-10 rounded-full bg-[color:var(--color-hairline)]" />
+          </div>
+        )}
         {title && (
           <div className="flex items-start justify-between gap-3 px-6 py-5 border-b border-[color:var(--color-hairline)] shrink-0">
             <h2 id={titleId} className="text-lg font-semibold text-gray-800 dark:text-gray-100">

@@ -117,7 +117,7 @@ vi.mock('@/lib/services/clinic-cadence', () => ({
   getClinicCadence: vi.fn(async () => ({ recallMonths: 6, lapsedMonths: 18 })),
 }))
 
-import { auditUpcomingDay } from '@/lib/services/patient-audit'
+import { auditClinicDay, auditUpcomingDay } from '@/lib/services/patient-audit'
 
 const NOW = new Date('2026-06-10T15:00:00Z')
 const TOMORROW = new Date('2026-06-11T15:00:00Z')
@@ -291,5 +291,66 @@ describe('medical_alert — the chair read (ML-27)', () => {
     } finally {
       intakeDoor.open = true
     }
+  })
+})
+
+/**
+ * auditClinicDay — the same audit pointed at ANY clinic-local day, which is
+ * how the Huddle (docs/daily-tools.md, H1) reads TODAY. `held` keeps a visit
+ * already marked done on the page; prep flags are only ever raised for a
+ * visit still ahead of the practice.
+ */
+describe('auditClinicDay (today, for the Huddle)', () => {
+  const LATER_TODAY = new Date('2026-06-10T20:00:00Z')
+  const EARLIER_TODAY = new Date('2026-06-10T14:00:00Z')
+
+  it('returns EVERY visit of the day — clean ones too — with where each stands', async () => {
+    state.appointments = [
+      appt({ appointmentId: 'a1', patientId: 'p1', startTime: EARLIER_TODAY, status: 'completed', balance: 35000 }),
+      appt({ appointmentId: 'a2', patientId: 'p2', firstName: 'Noah', lastName: 'Park', startTime: LATER_TODAY, endTime: new Date('2026-06-10T21:00:00Z') }),
+    ]
+    state.submitted = [sub('p1'), sub('p2')]
+    state.lastVisits = [{ patientId: 'p2', last: MONTHS_AGO }]
+    const day = await auditClinicDay('org_1', { now: NOW, dayOffset: 0, scope: 'held' })
+    expect(day.dayKey).toBe('2026-06-10')
+    expect(day.visits.map((v) => [v.appointmentId, v.status])).toEqual([['a1', 'completed'], ['a2', 'confirmed']])
+    expect(day.visits[1]).toMatchObject({ patientName: 'Noah Park', providerName: 'Dr. Patel', endTime: new Date('2026-06-10T21:00:00Z') })
+    // The clean visit is still there, with nothing to do.
+    expect(day.visits[1].flags).toEqual([])
+    // A visit already seen carries NO prep — not even the balance it owes.
+    expect(day.visits[0].flags).toEqual([])
+    expect(day.visits[0].endTime).toBeNull()
+  })
+
+  it('a scheduled slot that already passed this morning no longer asks for a confirmation; one still ahead does', async () => {
+    state.appointments = [
+      appt({ appointmentId: 'a1', patientId: 'p1', startTime: EARLIER_TODAY, status: 'scheduled' }),
+      appt({ appointmentId: 'a2', patientId: 'p2', startTime: LATER_TODAY, status: 'scheduled' }),
+    ]
+    state.submitted = [sub('p1'), sub('p2')]
+    state.lastVisits = [{ patientId: 'p1', last: MONTHS_AGO }, { patientId: 'p2', last: MONTHS_AGO }]
+    const day = await auditClinicDay('org_1', { now: NOW, dayOffset: 0, scope: 'held' })
+    expect(day.visits[0].flags.map((f) => f.key)).not.toContain('unconfirmed')
+    expect(day.visits[1].flags.map((f) => f.key)).toContain('unconfirmed')
+  })
+
+  it('a no-show is part of the day, without prep', async () => {
+    state.appointments = [appt({ startTime: EARLIER_TODAY, status: 'no_show', balance: 5000 })]
+    const day = await auditClinicDay('org_1', { now: NOW, dayOffset: 0, scope: 'held' })
+    expect(day.visits).toHaveLength(1)
+    expect(day.visits[0]).toMatchObject({ status: 'no_show', flags: [] })
+  })
+
+  it('tomorrow through the same door is exactly what auditUpcomingDay reports', async () => {
+    state.appointments = [appt({ status: 'scheduled', balance: 35000 }), appt({ appointmentId: 'a2', patientId: 'p2' })]
+    state.submitted = [sub('p2')]
+    state.lastVisits = [{ patientId: 'p1', last: MONTHS_AGO }, { patientId: 'p2', last: MONTHS_AGO }]
+    const day = await auditClinicDay('org_1', { now: NOW, dayOffset: 1 })
+    apptServed = false
+    const upcoming = await auditUpcomingDay('org_1', { now: NOW })
+    expect(upcoming.visitCount).toBe(day.visits.length)
+    expect(upcoming.items.map((i) => i.flags)).toEqual(day.visits.filter((v) => v.flags.length > 0).map((v) => v.flags))
+    // The older shape is unchanged: no status / endTime leak into My Day's items.
+    expect(Object.keys(upcoming.items[0]).sort()).toEqual(['appointmentId', 'flags', 'patientId', 'patientName', 'providerName', 'startTime', 'type'])
   })
 })

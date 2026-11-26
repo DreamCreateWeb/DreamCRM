@@ -112,6 +112,13 @@ product is a cost we are trying to drive to zero; instrument it and watch
 it. A feature that increases clinic time-in-app must justify itself against
 this law.
 
+**Chosen time is not operating time (ruled 2026-11-25, the daily-tools
+program — `docs/daily-tools.md`).** The law above counts time spent
+OPERATING the product. A page a team opens on purpose because it does a job
+for them — the Huddle is the first — is not that cost, and the design test
+still decides which is which: a daily tool that asks to be operated has
+failed it; one that prepares itself and reports has not.
+
 ### The build order (2026-07-27)
 
 Phase 0 this doctrine · Phase 1 the spine (journey resolver + action ledger
@@ -173,7 +180,9 @@ To prevent scope creep, these are explicitly NOT in v1 or v2:
 - Procedure code catalog (CDT) + per-procedure fees
 - Insurance claim submission / EDI / clearinghouse
 - Encounter / SOAP notes
-- Lab order tracking
+- Lab order tracking (the clinical order — the prescription, the shade, the
+  lab's fee. A lab case's ARRIVAL against its seat appointment is logistics
+  and was ruled in scope for the Huddle on 2026-11-25; docs/daily-tools.md)
 - Multi-PMS clinical data sync
 - Real e-prescribing (refill *requests* are a form; actual prescribing is
   regulated and out of scope)

@@ -51,12 +51,24 @@ describe('feature-switch registry', () => {
     expect(some.add.some((m) => m.id === 'followups')).toBe(true)
   })
 
-  it('A1 opens My Day + Follow-ups; the site going live opens Inquiries; nothing else opens itself', () => {
-    expect(doorsOpenedBy('a1').sort()).toEqual(['followups', 'my_day'])
+  it('A1 opens the Huddle + My Day + Follow-ups; the site going live opens Inquiries; nothing else opens itself', () => {
+    // The Huddle (docs/daily-tools.md, H1) joined the A1 doors: like My Day
+    // it reads only what the app already holds, so there is nothing to set up.
+    expect(doorsOpenedBy('a1').sort()).toEqual(['followups', 'huddle', 'my_day'])
     expect(doorsOpenedBy('site_live')).toEqual(['leads'])
     for (const f of FEATURE_SWITCHES) {
-      if (!['my_day', 'followups', 'leads'].includes(f.key)) expect(f.autoOpen, f.key).toBeNull()
+      if (!['huddle', 'my_day', 'followups', 'leads'].includes(f.key)) expect(f.autoOpen, f.key).toBeNull()
     }
+  })
+
+  it('the Huddle sits in the Daily group, behind its own switch, and its intro says the screen shows patient names', () => {
+    const huddle = FEATURE_BY_KEY.huddle
+    const mod = clinicModules.modules.find((m) => m.id === 'huddle')
+    expect(mod).toMatchObject({ path: '/huddle', label: 'Huddle', section: 'Daily' })
+    expect(huddle.column).toBe('huddleEnabledAt')
+    // Honest about what is on the screen before anyone puts it on a wall.
+    expect(huddle.know.join(' ')).toMatch(/patient names/)
+    expect(huddle.know.join(' ')).toMatch(/Hide details/)
   })
 
   it('every generic intro says three things it does and three things to know, and never "coming soon"', () => {
