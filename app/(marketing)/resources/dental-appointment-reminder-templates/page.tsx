@@ -156,7 +156,7 @@ ${CONFIRMED.body}`}
         items={[
           <><strong>What it covers:</strong> “{RULE.purposes}”, among a short list of purposes.</>,
           <><strong>Who it is from:</strong> the message “{RULE.identify}”.</>,
-          <><strong>What it may not carry:</strong> it “{RULE.noBilling}”. A balance does not belong in a reminder.</>,
+          <><strong>What it may not carry:</strong> it “{RULE.noBilling}”. A balance does not belong in a reminder; it has{' '}<Link href="/resources/dental-past-due-balance-letters" className="font-semibold text-teal-700 hover:underline">letters of its own</Link>.</>,
           <><strong>How long:</strong> “{RULE.length}”.</>,
           <><strong>How often:</strong> “{RULE.frequency}”.</>,
           <><strong>The way out:</strong> a text “{RULE.optOut}” the word STOP, and the provider “{RULE.honor}”</>,

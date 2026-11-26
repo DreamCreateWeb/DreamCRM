@@ -5,6 +5,7 @@ import { DOCS } from '@/lib/marketing/docs'
 import { LEGAL_UPDATED } from '@/lib/marketing/legal'
 import { RESOURCE_GUIDES } from '@/lib/marketing/resources'
 import {
+  INSTALLMENT_RULE,
   LOCAL_RANKING,
   NO_SHOW_SOURCES,
   PRIVACY_NOTICE_RULE,
@@ -100,6 +101,14 @@ const GUIDE_SOURCES: Record<string, () => unknown> = {
     PRIVACY_NOTICE_RULE,
     productEmail('intake_request'),
     productEmail('portal_invite'),
+  ],
+  // The past-due guide: the installment rule it quotes, the one line of the
+  // calling rule that explains why it has no text template, and the product's
+  // balance email.
+  'dental-past-due-balance-letters': () => [
+    INSTALLMENT_RULE,
+    REMINDER_RULE.conditions.noBilling,
+    productEmail('balance_pay_link'),
   ],
   // The growth guide quotes one line of Google's review policy and five of
   // its page on local ranking.

@@ -221,3 +221,26 @@ export const LOCAL_RANKING = {
     noPaying: 'There\'s no way to request or pay for a better local ranking on Google.',
   },
 } as const
+
+/**
+ * WHEN A PAYMENT PLAN IN WRITING BECOMES "CREDIT" — 12 CFR 1026.2(a)(17), the
+ * past-due letters guide's one outside rule.
+ *
+ * ONE SENTENCE, QUOTED, AND NOT EXPLAINED. The rule goes on to say what
+ * "regularly" means and to carve out cases; whether it reaches a given
+ * practice is a lawyer's answer. The guide gives the sentence that raises the
+ * question beside the payment-plan letter and stops. Read at Cornell's Legal
+ * Information Institute and labelled so.
+ */
+export const INSTALLMENT_RULE = {
+  source: {
+    label:
+      'the federal lending rule’s definition of a creditor, 12 CFR 1026.2(a)(17), as published by Cornell’s Legal Information Institute',
+    url: 'https://www.law.cornell.edu/cfr/text/12/1026.2',
+    readOn: '2026-11-26',
+  } satisfies GuideSource,
+  says: {
+    creditor:
+      'A person who regularly extends consumer credit that is subject to a finance charge or is payable by written agreement in more than four installments (not including a down payment)',
+  },
+} as const

@@ -29,6 +29,7 @@ const BLANKS: ReadonlyArray<readonly [token: string, blank: string]> = [
   ['{{appointmentDate}}', '{date}'],
   // The product's "time" token is the whole moment — "Monday, Jan 5 at 9:00 AM".
   ['{{appointmentTime}}', '{day and time}'],
+  ['{{balance}}', '{balance}'],
 ]
 
 /** The tokens this module can respell. */

@@ -31,7 +31,7 @@ describe('the product’s emails, as a guide shows them', () => {
   })
 
   it('throws on a token it has no blank for — a raw {{token}} never reaches a page', () => {
-    expect(() => asBlanks('Your balance is {{balance}}.')).toThrow(/\{\{balance\}\}/)
+    expect(() => asBlanks('Your plan is {{planName}}.')).toThrow(/\{\{planName\}\}/)
     // Every email a guide shows today respells cleanly.
     for (const key of [
       'booking_confirmation',
@@ -40,6 +40,10 @@ describe('the product’s emails, as a guide shows them', () => {
       'rescheduled',
       'cancellation',
       'no_show_rebook',
+      'review_request',
+      'intake_request',
+      'portal_invite',
+      'balance_pay_link',
     ] as const) {
       expect(() => productEmail(key), key).not.toThrow()
     }
