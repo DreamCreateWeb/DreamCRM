@@ -577,6 +577,8 @@ ready to copy — not an article about it.
    **Built 2026-11-25:** `/resources/dental-cancellation-no-show-policy`
    (`docs/marketing-engine.md`, Part 12 slice 6).
 3. Review request templates, and what Google and the FTC allow.
+   **Built 2026-11-26:** `/resources/dental-review-request-templates`
+   (`docs/marketing-engine.md`, Part 12 slice 8).
 4. Weave's pricing, read out line by line (the largest name dentists search).
 5. What a dental practice website costs.
 6. NexHealth's pricing, line by line.
@@ -590,6 +592,9 @@ ready to copy — not an article about it.
     reminder services, membership-plan software).
 12. The search scoreboard: the app saves what Search Console reports each
     week, so results can be read without an export.
+13. Re-read the two September guides (patient growth, membership pricing)
+    against the library's own content law. They carry figures with no source;
+    each is sourced, softened or cut. Found while building item 3.
 
 A text template is content a practice may use anywhere; it is never a
 statement that this product sends texts (the recall guide's closing block is

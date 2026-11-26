@@ -4,8 +4,13 @@ import { CHANGELOG_ENTRIES } from '@/lib/marketing/changelog'
 import { DOCS } from '@/lib/marketing/docs'
 import { LEGAL_UPDATED } from '@/lib/marketing/legal'
 import { RESOURCE_GUIDES } from '@/lib/marketing/resources'
-import { NO_SHOW_SOURCES, REMINDER_RULE } from '@/lib/marketing/guide-sources'
-import { productEmail, REMINDER_GUIDE_EMAILS, REMINDER_TEXTS } from '@/lib/marketing/guide-templates'
+import { NO_SHOW_SOURCES, REMINDER_RULE, REVIEW_RULES } from '@/lib/marketing/guide-sources'
+import {
+  productEmail,
+  REMINDER_GUIDE_EMAILS,
+  REMINDER_TEXTS,
+  REVIEW_REQUEST_TEXT,
+} from '@/lib/marketing/guide-templates'
 import { MARKETING_PUBLIC_PATHS, TRIAL } from '@/lib/marketing/site'
 import { contentKey } from '@/lib/indexnow'
 import { getQuotedPlan } from '@/lib/stripe-config'
@@ -80,6 +85,11 @@ const GUIDE_SOURCES: Record<string, () => unknown> = {
   'dental-cancellation-no-show-policy': () => [NO_SHOW_SOURCES, productEmail('no_show_rebook')],
   // The reminder guide is the product's four appointment emails, four
   // hand-written texts and a quoted rule: all three live outside its entry.
+  // The review guide: the rules it quotes, its one text, the product's
+  // review request email.
+  'dental-review-request-templates': () => [REVIEW_RULES, REVIEW_REQUEST_TEXT, productEmail('review_request')],
+  // The growth guide quotes one line of Google's policy from the same data.
+  'how-to-get-more-dental-patients': () => REVIEW_RULES.googlePolicy.says.gating,
   'dental-appointment-reminder-templates': () => [
     REMINDER_RULE,
     REMINDER_TEXTS,

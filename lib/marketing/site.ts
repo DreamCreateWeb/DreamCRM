@@ -183,6 +183,7 @@ export const FOOTER_COLUMNS: Array<{ title: string; links: Array<{ label: string
       { label: 'Dental recall scripts', href: '/resources/dental-recall-scripts' },
       { label: 'Appointment reminder templates', href: '/resources/dental-appointment-reminder-templates' },
       { label: 'Cancellation & no-show policy', href: '/resources/dental-cancellation-no-show-policy' },
+      { label: 'Review request templates', href: '/resources/dental-review-request-templates' },
       { label: 'Membership plan pricing', href: '/resources/dental-membership-plan-pricing' },
       { label: 'Get more dental patients', href: '/resources/how-to-get-more-dental-patients' },
       { label: 'Dental software pricing', href: '/resources/dental-software-pricing' },
