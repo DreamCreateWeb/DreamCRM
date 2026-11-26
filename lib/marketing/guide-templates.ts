@@ -51,3 +51,59 @@ export function productEmail(key: EmailAutomationKey): EmailSlots {
     ...(d.closing != null ? { closing: asBlanks(d.closing) } : {}),
   }
 }
+
+/**
+ * The product emails the reminder guide shows, in the order it shows them.
+ * One list, read by the page, by the page's search-notice key
+ * (`public-pages.ts`) and by its test — so a fifth email added to the page
+ * cannot be left out of the key that tells the search engines it changed.
+ */
+export const REMINDER_GUIDE_EMAILS = [
+  'booking_confirmation',
+  'appointment_reminder',
+  'appointment_reminder_confirmed',
+  'rescheduled',
+] as const satisfies readonly EmailAutomationKey[]
+
+/**
+ * THE REMINDER TEXTS — hand-written, and held to ONE SEGMENT by test.
+ *
+ * These are not the product's: it does not send text messages today, and no
+ * card or sentence around them may say otherwise. They are written to the
+ * conditions the federal calling rule sets for a health-care provider's
+ * reminder texts (47 CFR 64.1200(a)(9)(iv), quoted on the guide): the
+ * practice named, a way to reach it, nothing about money, 160 characters or
+ * less, the STOP line. Plain characters only — one curly quote reprices the
+ * whole message (`lib/sms-segments.ts`), so these use the straight
+ * apostrophe on purpose.
+ */
+export const REMINDER_TEXTS = {
+  /** Asks for a confirmation by reply — the shortest, and it needs no link. */
+  reply:
+    "{practice name}: {first name}, your visit is {day} at {time}. Reply C to confirm, or call {phone} to change it. Reply STOP to opt out.",
+  /** Asks for a confirmation by link — one character under the limit on the sample fill. */
+  link: "{practice name}: {first name}, your visit is {day} at {time}. Confirm: {link} or call {phone}. Reply STOP to opt out.",
+  /** The day-before heads-up for a visit already confirmed: no ask. */
+  confirmed:
+    "{practice name}: See you {day} at {time}, {first name}. Need to change it? Call {phone}. Reply STOP to opt out.",
+  /** One text for a family's same-day visits on a shared phone. */
+  family:
+    "{practice name}: your family's visits on {day}: {first name} {time}, {second name} {second time}. Questions? Call {phone}. Reply STOP to opt out.",
+} as const
+
+/** A realistic fill, for measuring a text the way a carrier will. */
+export const REMINDER_TEXT_SAMPLE: Record<string, string> = {
+  '{practice name}': 'Maple Street Dental',
+  '{first name}': 'Alexandria',
+  '{visit type}': 'cleaning',
+  '{day}': 'Tue, Jun 9',
+  '{time}': '10:30 AM',
+  '{link}': 'https://mapledental.example/c/8fk2',
+  '{phone}': '555-010-0142',
+  '{second name}': 'Benjamin',
+  '{second time}': '11:15 AM',
+}
+
+export function fillSample(template: string): string {
+  return Object.entries(REMINDER_TEXT_SAMPLE).reduce((s, [blank, value]) => s.replaceAll(blank, value), template)
+}

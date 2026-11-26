@@ -69,3 +69,32 @@ export const NO_SHOW_SOURCES = {
     readOn: '2026-11-25',
   },
 } satisfies Record<string, GuideSource>
+
+/**
+ * THE RULE ON REMINDER CALLS AND TEXTS — 47 CFR 64.1200(a)(9)(iv), the
+ * conditions on a health-care provider's messages.
+ *
+ * Read at Cornell's Legal Information Institute, and labelled so: the
+ * government's own copies (ecfr.gov, govinfo.gov) refused the reader on
+ * 2026-11-25. Each condition is a FRAGMENT of one lettered paragraph, word
+ * for word; `tests/marketing/reminder-templates-guide.test.tsx` pins all
+ * seven. `optOut` stops before the rule's own inner quotation marks so the
+ * page never has to re-punctuate the regulation.
+ */
+export const REMINDER_RULE = {
+  source: {
+    label: 'the federal calling rule, 47 CFR 64.1200(a)(9)(iv), as published by Cornell’s Legal Information Institute',
+    url: 'https://www.law.cornell.edu/cfr/text/47/64.1200',
+    readOn: '2026-11-25',
+  } satisfies GuideSource,
+  conditions: {
+    purposes: 'appointment and exam confirmations and reminders',
+    identify: 'must state the name and contact information of the healthcare provider',
+    noBilling: 'may not include accounting, billing, debt-collection, or other financial content',
+    length: '160 characters or less in length for text messages',
+    frequency:
+      'A healthcare provider may initiate only one message (whether by voice call or text message) per day to each patient, up to a maximum of three voice calls or text messages combined per week to each patient',
+    optOut: 'must inform recipients of the ability to opt out by replying',
+    honor: 'must honor opt-out requests immediately.',
+  },
+} as const

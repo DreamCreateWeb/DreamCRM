@@ -81,6 +81,24 @@ export const RESOURCE_GUIDES: ResourceGuide[] = [
     datePublished: '2026-11-25',
   },
   {
+    slug: 'dental-appointment-reminder-templates',
+    title: 'Dental appointment reminder templates (email, text & phone scripts)',
+    description:
+      'Copy-ready dental appointment reminder and confirmation templates: the emails, the texts and the phone scripts, with the timing and the rule on reminder texts.',
+    // `clock` — brand. The subject is WHEN a patient hears from the practice
+    // and what the message asks of them; the visit itself is `calendar`'s.
+    glyph: 'clock',
+    contains: [
+      'The confirmation email, sent when they book',
+      'The reminder email, and the quieter one once they confirm',
+      'Text templates held to a single message',
+      'The confirmation call and its voicemail',
+      'The rule on reminder texts, in its own words',
+    ],
+    readMinutes: 6,
+    datePublished: '2026-11-26',
+  },
+  {
     slug: 'dental-cancellation-no-show-policy',
     title: 'Dental cancellation & no-show policy template (with the letters and scripts)',
     description:
