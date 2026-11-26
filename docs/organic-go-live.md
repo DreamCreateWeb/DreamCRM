@@ -585,6 +585,8 @@ ready to copy — not an article about it.
 5. What a dental practice website costs.
 6. NexHealth's pricing, line by line.
 7. New-patient welcome letter and first-visit email.
+   **Built 2026-11-26:** `/resources/dental-new-patient-welcome-letter`
+   (`docs/marketing-engine.md`, Part 12 slice 10).
 8. Unscheduled-treatment follow-up scripts.
 9. Past-due balance letters and scripts.
 10. A free Google-review link and QR-card maker (a tool earns links that a
@@ -597,6 +599,7 @@ ready to copy — not an article about it.
 13. Re-read the two September guides (patient growth, membership pricing)
     against the library's own content law. They carry figures with no source;
     each is sourced, softened or cut. Found while building item 3.
+    **Done 2026-11-26** (`docs/marketing-engine.md`, Part 12 slice 11).
 
 A text template is content a practice may use anywhere; it is never a
 statement that this product sends texts (the recall guide's closing block is

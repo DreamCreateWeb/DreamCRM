@@ -136,6 +136,25 @@ export const RESOURCE_GUIDES: ResourceGuide[] = [
     datePublished: '2026-11-26',
   },
   {
+    slug: 'dental-new-patient-welcome-letter',
+    title: 'Dental new patient welcome letter & email templates (with what to bring)',
+    description:
+      'Copy-ready new patient welcome letter and email templates for a dental office, with the forms email, the what-to-bring list and the script for the first call.',
+    // `door` — brand. The first visit is the front door, and this guide is
+    // everything a new patient hears before they walk through it.
+    glyph: 'door',
+    contains: [
+      'The welcome email, sent when the first visit is booked',
+      'The mailed welcome letter, on one page',
+      'The forms email and the portal invitation',
+      'What to bring, as a list to paste',
+      'The first phone call, start to finish',
+      'When the privacy notice is due, in the rule’s words',
+    ],
+    readMinutes: 5,
+    datePublished: '2026-11-26',
+  },
+  {
     slug: 'dental-membership-plan-pricing',
     title: 'How to price a dental membership plan (with the math)',
     description:
@@ -149,7 +168,9 @@ export const RESOURCE_GUIDES: ResourceGuide[] = [
       'The state-regulation caveat, unhedged',
     ],
     readMinutes: 8,
-    datePublished: '2026-09-08',
+    // Revised 2026-11-26: every figure sourced, softened or cut
+    // (`tests/marketing/sourced-guides.test.tsx`).
+    datePublished: '2026-11-26',
   },
   {
     slug: 'how-to-get-more-dental-patients',
@@ -172,7 +193,9 @@ export const RESOURCE_GUIDES: ResourceGuide[] = [
       'The one-page version at the end',
     ],
     readMinutes: 10,
-    datePublished: '2026-09-08',
+    // Revised 2026-11-26: every figure sourced, softened or cut
+    // (`tests/marketing/sourced-guides.test.tsx`).
+    datePublished: '2026-11-26',
   },
   {
     slug: 'dental-software-pricing',

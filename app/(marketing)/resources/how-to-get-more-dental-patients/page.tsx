@@ -1,11 +1,24 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getResourceGuide } from '@/lib/marketing/resources'
-import { REVIEW_RULES } from '@/lib/marketing/guide-sources'
-import { GuideShell, GuideH2, GuideP, GuideList, GuideNote } from '../guide-ui'
+import { LOCAL_RANKING, REVIEW_RULES } from '@/lib/marketing/guide-sources'
+import { formatCheckedOn } from '@/lib/marketing/comparisons'
+import { GuideShell, GuideH2, GuideP, GuideList, GuideNote, GuideSourceLink } from '../guide-ui'
 import { pageMetadata } from '@/lib/marketing/seo'
 
 const guide = getResourceGuide('how-to-get-more-dental-patients')
+
+/**
+ * RE-READ 2026-11-26 AGAINST THE LIBRARY'S OWN CONTENT LAW. This guide was
+ * written in September with a figure or a comparison in most paragraphs and a
+ * source for none ("most new patients pick from those three tiles", "100+
+ * Google reviews", "converts multiples better"). Each was sourced, softened or
+ * cut. What could be sourced is Google's own page on local ranking
+ * (`LOCAL_RANKING`), quoted word for word; the rest now says what to do and
+ * stops claiming how often it works. `tests/marketing/sourced-guides.test.tsx`
+ * holds the retired sentences out.
+ */
+const RANK = LOCAL_RANKING.says
 
 export const metadata = pageMetadata({
   title: 'How to get more dental patients — the order that actually works',
@@ -27,30 +40,30 @@ export default function MorePatientsGuide() {
 
       <GuideH2 id="google-listing">1. The Google listing is the front door</GuideH2>
       <GuideP>
-        When someone searches “dentist near me,” the map pack is the whole game — most
-        new patients pick from those three tiles and never scroll further. Before
-        anything else:
+        When someone searches “dentist near me,” Google answers with a map and a short
+        list of practices. That list is built from Business Profiles, so the profile
+        comes first:
       </GuideP>
       <GuideList
         items={[
-          <><strong>Claim and verify</strong> your Google Business Profile. Unverified listings can’t be fully edited and get outranked by ones that are.</>,
-          <><strong>Check the website button.</strong> A wrong or dead website link on the listing silently sends every map-pack click to nowhere — we’ve watched a practice lose essentially all of its online traffic to exactly this, and nobody noticed for months because the phone still rang.</>,
-          <><strong>Match name, address, phone, and hours everywhere</strong> — listing, website, socials. Google cross-checks; disagreements cost trust and rank.</>,
-          <><strong>Add photos of the real place and real team.</strong> Listings with genuine photos get dramatically more clicks than logo-only ones, and patients are choosing a room they’ll sit in.</>,
+          <><strong>Claim and verify</strong> your Google Business Profile. Google’s own page on local ranking says of verifying: “{RANK.verify}”</>,
+          <><strong>Check the website button.</strong> A wrong or dead website link on the listing sends every click from the map to nowhere, and nothing tells you. The phone still rings, so nobody looks.</>,
+          <><strong>Keep the name, address, phone and hours complete, and the same everywhere</strong> — listing, website, socials. The same page: “{RANK.complete}”</>,
+          <><strong>Add photos of the real place and the real team.</strong> A patient is choosing a room they will sit in, and a logo does not show them one.</>,
         ]}
       />
 
       <GuideH2 id="reviews">2. Reviews are the tiebreaker</GuideH2>
       <GuideP>
-        Between two practices on the same map, patients pick the one with more and
-        better reviews almost every time. The winning practices in most markets carry
-        100+ Google reviews — and none of them got there by hoping. The loop is simple:
+        Reviews do two jobs. A patient choosing between two practices on the same map
+        reads them, and Google counts them: “{RANK.reviews}” Nobody collects them by
+        hoping. The loop is simple:
       </GuideP>
       <GuideList
         items={[
           <><strong>Ask every patient, the same way, after every completed visit.</strong> Same ask for everyone — filtering who you ask by how happy they seemed (“review gating”) is against Google’s policy, which does not allow a business to “{REVIEW_RULES.googlePolicy.says.gating}”. The wording for the ask, and the rest of the rules, are in the{' '}<Link href="/resources/dental-review-request-templates" className="font-semibold text-teal-700 hover:underline">review request templates</Link>.</>,
-          <><strong>Ask while it’s fresh.</strong> The review request that goes out the evening of the visit converts multiples better than the one that goes out Friday.</>,
-          <><strong>Reply to everything,</strong> especially the bad ones — calmly, without discussing the person’s care in public. Future patients read your replies as a preview of how you handle problems.</>,
+          <><strong>Ask while it’s fresh.</strong> The same day, while the visit is still on their mind, and not in a batch on Friday.</>,
+          <><strong>Reply to everything,</strong> especially the bad ones — calmly, without discussing the person’s care in public. Google again: “{RANK.replies}”</>,
         ]}
       />
 
@@ -62,9 +75,9 @@ export default function MorePatientsGuide() {
       </GuideP>
       <GuideList
         items={[
-          <><strong>Online booking, 24/7</strong> — a large share of booking intent happens after hours, when “call us” means “keep looking.”</>,
-          <><strong>Built for phones first</strong> — that’s where the map-pack click comes from.</>,
-          <><strong>A tap-to-call phone number</strong> on every page; the fastest patients still book by calling.</>,
+          <><strong>Online booking, at any hour.</strong> A patient who decides at nine at night can book at nine at night; “call us tomorrow” is a reason to keep looking.</>,
+          <><strong>Built for phones first.</strong> A patient with a toothache in a parking lot is not at a desk.</>,
+          <><strong>A tap-to-call phone number</strong> on every page, for the patients who would still rather call.</>,
           <><strong>Fast, secure (HTTPS), with real search titles</strong> and dentist structured data, so Google knows exactly who and where you are.</>,
         ]}
       />
@@ -79,10 +92,9 @@ export default function MorePatientsGuide() {
 
       <GuideH2 id="reactivation">4. The cheapest new patient is one you already have</GuideH2>
       <GuideP>
-        Before spending a dollar acquiring strangers, look at your own chart list: in a
-        typical practice, a meaningful slice of active patients quietly falls off the
-        hygiene schedule every year. Reactivating them costs an email, and they already
-        trust you. Run a standing recall cycle — due date + 2 weeks gets the email, +3
+        Before spending a dollar acquiring strangers, look at your own chart list for the
+        patients who have quietly fallen off the hygiene schedule. Reaching them costs an
+        email, and they already trust you. Run a standing recall cycle — due date + 2 weeks gets the email, +3
         weeks the text, +6 weeks the phone call for the long-overdue. We published the
         exact scripts:{' '}
         <Link href="/resources/dental-recall-scripts" className="font-semibold text-teal-700 hover:underline">
@@ -96,7 +108,7 @@ export default function MorePatientsGuide() {
         items={[
           <>Ask at the moment of delight — after the “wow, that didn’t hurt” visit, not on a random Tuesday.</>,
           <>Give the referrer something to hand over: a card, a link, a family-booking option. “Tell your friends about us” with no vehicle goes nowhere.</>,
-          <>Thank people visibly. A handwritten note beats a mug; a mug beats silence. (Check your state’s rules before offering referral rewards — several regulate them for healthcare.)</>,
+          <>Thank people visibly. A handwritten note beats a mug; a mug beats silence. (Check your state’s rules before offering a reward for a referral.)</>,
         ]}
       />
 
@@ -113,8 +125,12 @@ export default function MorePatientsGuide() {
         What to skip: bulk coupon platforms (one-visit bargain hunters), generic social
         posting as an acquisition strategy (it’s a credibility asset, not a patient
         source), and any vendor promising “#1 on Google.” Nobody can promise that
-        honestly.
+        honestly. Google says so itself: “{RANK.noPaying}”
       </GuideNote>
+      <GuideP>
+        The quotations from Google on this page were read{' '}
+        {formatCheckedOn(LOCAL_RANKING.source.readOn)}: <GuideSourceLink source={LOCAL_RANKING.source} />.
+      </GuideP>
 
       <GuideH2>The one-page version</GuideH2>
       <GuideList

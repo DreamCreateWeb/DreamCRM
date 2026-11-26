@@ -5,6 +5,18 @@ import { pageMetadata } from '@/lib/marketing/seo'
 
 const guide = getResourceGuide('dental-membership-plan-pricing')
 
+/**
+ * RE-READ 2026-11-26 AGAINST THE LIBRARY'S OWN CONTENT LAW. The worked example
+ * was always labelled illustrative, and then the lines around it said what
+ * practices "commonly" charge, what hygiene costs "in most practices" and where
+ * a price "commonly lands" — market facts with no source. They are now what
+ * they always were: one example's choices, said as choices. The example's own
+ * arithmetic was also inconsistent (a target band of $280–$345 a year beside a
+ * "landing spot" of $350–$420); it has one price now, inside its own floor and
+ * ceiling. And the legal note stopped describing what "several US states"
+ * require, which nobody here had read. `tests/marketing/sourced-guides.test.tsx`.
+ */
+
 export const metadata = pageMetadata({
   title: 'Dental membership plan pricing: what to include & what to charge',
   description: guide?.description ?? '',
@@ -30,7 +42,7 @@ export default function MembershipPricingGuide() {
           <><strong>Two cleanings a year</strong> (prophylaxis — perio maintenance belongs in a separate, higher tier).</>,
           <><strong>Two exams</strong>, usually with the cleanings.</>,
           <><strong>Routine X-rays</strong> — bitewings annually, a panoramic on the cycle you already use.</>,
-          <><strong>A flat discount on everything else</strong> — commonly 10–20% off your fee schedule for fillings, crowns, and elective work.</>,
+          <><strong>A flat discount on everything else</strong> — one percentage off your fee schedule for fillings, crowns and elective work. The example below uses 15%.</>,
         ]}
       />
       <GuideP>
@@ -57,30 +69,30 @@ export default function MembershipPricingGuide() {
   Retail value ............... $430
 
 What it costs you to deliver (chair time + staff + materials):
-  Roughly 40–60% of retail for hygiene in most practices
-  Call it ~$220 in this example.
+  Work it out from your own numbers.
+  This example uses .......... $220
 
-Pricing band:
-  Floor  — your delivery cost ......... ~$220/yr
-  Target — 65–80% of retail value ..... ~$280–$345/yr
-  A common landing spot ............... $29–$35/mo (≈ $350–$420/yr)
+The band you can price in:
+  Floor — your delivery cost ......... $220/yr
+  Ceiling — paying as they go ........ $430/yr
+  This example picks ................. $29/mo ($348/yr)
 
-The member's story: "everything my checkups cost, for less,
+The member's story: "my checkups for less than paying as I go,
 plus 15% off anything else — and no insurance paperwork."`}
       </ScriptCard>
       <GuideList
         items={[
           <><strong>The floor is your delivery cost.</strong> Below that you’re paying patients to attend. Above retail, nobody joins — the plan must be visibly cheaper than paying as they go.</>,
-          <><strong>The discount is where margin hides.</strong> The 10–20% off restorative work isn’t a giveaway — members accept treatment more readily because the price objection shrank and the trust grew. That production lift is the real business case.</>,
-          <><strong>Family pricing:</strong> a lower add-on rate per additional member (commonly 10–20% off the second adult, child plans priced separately) — a household on one subscription is your stickiest revenue.</>,
+          <><strong>Decide what the discount is for.</strong> A percentage off restorative work lowers the price of the treatment a member has been putting off. Whether that brings in more than it gives away is a number to watch in your own practice, not one to assume.</>,
+          <><strong>Family pricing:</strong> a lower add-on rate for each additional member, with child plans priced separately. A household on one subscription has one renewal to keep.</>,
         ]}
       />
 
       <GuideH2>Monthly vs annual</GuideH2>
       <GuideP>
-        Offer both. Monthly (card on file, auto-renewing) is the volume seller — a $30
-        decision is easy, a $400 one gets postponed. Annual with roughly one month free
-        rewards the committed and pulls cash forward. Whichever they pick, auto-renewal
+        Offer both. Monthly (card on file, auto-renewing) is the easier yes: a small
+        monthly decision gets made, a large annual one gets postponed. Annual, with a
+        month free, rewards the committed and brings the cash forward. Whichever they pick, auto-renewal
         is the whole point: a plan someone must remember to rejoin is a plan they quietly
         leave.
       </GuideP>
@@ -89,17 +101,16 @@ plus 15% off anything else — and no insurance paperwork."`}
       <GuideList
         items={[
           <><strong>Never stack the plan with insurance.</strong> The plan is for the uninsured and under-insured; say so in the terms. Members with coverage should use the coverage.</>,
-          <><strong>Don’t discount below lab cost</strong> on lab-heavy work — a 20% member discount on a crown can eat the margin whole. Some practices cap the discount tier for lab cases; decide on purpose either way.</>,
+          <><strong>Don’t discount below lab cost</strong> on lab-heavy work — a member discount on a crown can eat the margin whole. You can cap the discount for lab cases; decide on purpose either way.</>,
           <><strong>Put the renewal date to work.</strong> The renewal email is a recall message wearing a receipt — “your plan renewed, let’s book your first cleaning of the year” fills January.</>,
           <><strong>Track usage.</strong> A member who pays and never comes is churn you haven’t met yet. Unused benefits at month nine deserve a friendly nudge, not a shrug.</>,
         ]}
       />
       <GuideNote>
-        The legal caveat, plainly: several US states regulate in-house dental plans —
-        some require registering the plan, specific contract language, or treat
-        poorly-structured plans like insurance products. Before you launch, check your
-        state dental board’s guidance or have a healthcare attorney read your terms.
-        This guide is arithmetic, not legal advice.
+        The legal caveat, plainly: whether and how an in-house dental plan is regulated
+        depends on your state, and we have not read the rules of any of them. Before you
+        launch, ask your state dental board, or have a healthcare attorney read your
+        terms. This guide is arithmetic, not legal advice.
       </GuideNote>
 
       <GuideH2>Selling it in one sentence</GuideH2>

@@ -166,3 +166,58 @@ export const REVIEW_RULES = {
     },
   },
 } as const
+
+/**
+ * WHEN A NEW PATIENT IS OWED THE PRIVACY NOTICE — 45 CFR 164.520(c)(2), the
+ * welcome guide's one outside rule.
+ *
+ * Read at Cornell's Legal Information Institute and labelled so. Each string
+ * is a fragment of the regulation, word for word, pinned in
+ * `tests/marketing/welcome-letter-guide.test.tsx`. The guide names the rule
+ * by its citation and never by the statute's four-letter name: nothing on
+ * the marketing site may read as a claim about OUR standing under it
+ * (`docs/COMPLIANCE.md`), and a page that used the name beside our product
+ * would invite exactly that reading.
+ */
+export const PRIVACY_NOTICE_RULE = {
+  source: {
+    label: 'the federal privacy rule, 45 CFR 164.520(c)(2), as published by Cornell’s Legal Information Institute',
+    url: 'https://www.law.cornell.edu/cfr/text/45/164.520',
+    readOn: '2026-11-26',
+  } satisfies GuideSource,
+  says: {
+    who: 'A covered health care provider that has a direct treatment relationship with an individual must',
+    when: 'No later than the date of the first service delivery',
+    acknowledgment: 'make a good faith effort to obtain a written acknowledgment of receipt of the notice',
+    onSite: 'Have the notice available at the service delivery site for individuals to request to take with them',
+    posted: 'Post the notice in a clear and prominent location',
+    website: 'must prominently post its notice on the web site',
+  },
+} as const
+
+/**
+ * WHAT GOOGLE SAYS MOVES A LOCAL RANKING — the patient-growth guide's source.
+ *
+ * That guide was written in September with a figure or a comparison in most
+ * paragraphs and a source for none of them ("most new patients pick from
+ * those three tiles", "100+ Google reviews", "converts multiples better").
+ * The library's content law is "no invented statistics", so on 2026-11-26
+ * each was sourced, softened or cut. What could be sourced is here: Google's
+ * own help page on local ranking, read as served, each line word for word and
+ * pinned in `tests/marketing/sourced-guides.test.tsx`.
+ */
+export const LOCAL_RANKING = {
+  source: {
+    label: 'Google Business Profile Help, “Tips to improve your local ranking on Google”',
+    url: 'https://support.google.com/business/answer/7091',
+    readOn: '2026-11-26',
+  } satisfies GuideSource,
+  says: {
+    verify:
+      'This tells Google that you’re authorized to represent the business, so it\'s more likely to show up in search results.',
+    complete: 'Businesses with complete and accurate info are more likely to show up in local search results.',
+    reviews: 'More reviews and positive ratings can help your business’s local ranking.',
+    replies: 'Positive reviews and helpful replies can help your business stand out.',
+    noPaying: 'There\'s no way to request or pay for a better local ranking on Google.',
+  },
+} as const

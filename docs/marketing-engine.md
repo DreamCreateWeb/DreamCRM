@@ -2429,3 +2429,71 @@ change: `subscription_status` is free text, and the new state is a value.
 - **Tests.** Weave's facts are pinned beside the generic rules in
   `tests/marketing/pricing-detail.test.tsx`; fifteen mutations, all caught.
 
+**Part 12 slice 10 — the new-patient welcome letter guide (2026-11-26, no migration).**
+
+- **The page.** `/resources/dental-new-patient-welcome-letter`, queue item 7:
+  the first phone call, a welcome email, a one-page letter for the patients a
+  practice mails, the forms request, the portal invitation, a what-to-bring
+  list, and when the privacy notice is due.
+- **Which emails are the product's is said on the page, and held.** The forms
+  request and the portal invitation are read from their specs, with the
+  senders' own buttons. The welcome email and the letter are hand-written —
+  the product has no "welcome" email — and a test keeps the page from
+  claiming them, which is the mistake the library hub carried until slice 7.
+- **The forms claim is conditional because the feature is.** Intake forms are
+  off until a practice switches them on (`patientFacingIntakeOpen`). The
+  closing block says "switch intake forms on"; a test fails if it ever says
+  forms go out with every booking.
+- **No card makes the patient wait, promises treatment or names a price.**
+  The opening paragraph quotes "please arrive fifteen minutes early to
+  complete paperwork" as the thing to avoid, and no card may say it. What
+  happens in the chair is the dentist's to promise.
+- **The privacy-notice timing is quoted, by citation:** six fragments of
+  45 CFR 164.520(c)(2), read at Cornell's Legal Information Institute. The
+  statute's four-letter name appears nowhere on the page — beside our product
+  it would read as a claim about our standing under it — and the same test
+  that pins the quotations holds that.
+- **Wiring.** Registry entry, footer link, links on to the reminder, review
+  and recall guides and one back from the review guide, the search-notice key
+  built from the rule and the two product emails.
+- **Tests.** `tests/marketing/welcome-letter-guide.test.tsx` (twelve);
+  twenty-seven mutations, all caught.
+
+**Part 12 slice 11 — the two September guides, re-read against the library's own content law (2026-11-26, no migration).**
+
+- **What was wrong.** The resource registry's content law is "no invented
+  statistics", and it was written beside two guides that broke it. The
+  patient-growth guide said most new patients pick from the map's three
+  tiles, that winning practices carry 100+ Google reviews, that an evening
+  review request "converts multiples better", that unverified listings "get
+  outranked", and that "we've watched a practice lose essentially all of its
+  online traffic" to a dead link. The membership guide said what practices
+  "commonly" charge and what hygiene costs "in most practices". None had a
+  source, and nothing found them for two and a half months because no test
+  read prose for a number. Found while building slice 8.
+- **Sourced where a source exists.** Google's own help page on local ranking
+  was read as served and five of its lines are now quoted, pinned and linked
+  (`LOCAL_RANKING`): verifying, complete information, reviews and ratings,
+  replies, and that a ranking cannot be requested or bought. They replace the
+  guide's own assertions on those five points.
+- **Cut where there is none.** The share of patients who pick from the map,
+  the review count of "winning practices", the conversion multiple, the
+  after-hours share, the "typical practice" and the anecdote nobody could
+  verify are gone. The guide now says what to do and stops saying how often
+  it works.
+- **The membership example says it is an example.** Its lines read as market
+  facts ("commonly 10–20%", "a common landing spot"). They are one example's
+  choices now, said as choices. Its arithmetic was also inconsistent — a
+  target band of $280–$345 a year printed beside a "landing spot" of
+  $350–$420 — and has one price inside its own floor and ceiling; a test adds
+  it up. The legal note stopped describing what "several US states" require,
+  which nobody here had read.
+- **A rule for the whole library.** In any prose guide, a percentage in the
+  guide's own words is either inside a quotation from a registered source or
+  in a sentence that calls itself an example. The guides are imported by
+  name and the list is checked against the registry.
+- **Dates.** Both guides carry the day they were revised; the growth guide's
+  search-notice key now follows the page it quotes.
+- **Tests.** `tests/marketing/sourced-guides.test.tsx` (eight); seventeen
+  mutations, all caught.
+
