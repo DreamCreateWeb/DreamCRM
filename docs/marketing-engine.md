@@ -2634,6 +2634,12 @@ change: `subscription_status` is free text, and the new state is a value.
   trial's length; `trial-copy.test.ts` reads any typed trial length in the
   public trees as ours. The guard is right to be blunt, and only the billing
   sentence is quoted.
+- **A second guard stopped one number, and only the full gate saw it.** The
+  price-literal guard read InfoStar's "from $500 a month" as our list price.
+  It is recorded in that guard's `ALLOWED_QUOTES` with the reason. The
+  targeted run before the commit had passed: the guard reads tracked files,
+  and the new registry was still untracked. Run the marketing suite after
+  `git add`, not before.
 - **Two things found while fact-checking our own answers:**
   1. Two help articles said a practice's website content "exports with you".
      The product has no such export. Both corrected, and the guide says so
