@@ -94,10 +94,14 @@ describe('the other entries re-read the same day', () => {
   it('NexHealth is described as it describes itself — no published price, a monthly option, 90 days’ notice on annual', () => {
     const nx = COMPARISONS.find((c) => c.slug === 'nexhealth')!
     expect(nx.pricingChecked?.url).toContain('nexhealth.com')
-    // Its page shows no number, so ours must not present one as theirs: the
-    // only figure on the line is attributed to third parties.
+    // Its page shows no number, so ours must not present one as theirs. The
+    // line used to end "third-party reviews report ~$300+/mo": a figure
+    // nobody could name the source of. It went on 2026-11-26, when the entry
+    // was read out in full and its own help centre turned out to publish
+    // what extra usage costs — which is what the line points at now.
     expect(nx.reportedPricing).toMatch(/shows no price/)
-    expect(nx.reportedPricing).toMatch(/third-party reviews report/)
+    expect(nx.reportedPricing).not.toMatch(/third-party|reviews report/)
+    expect(nx.reportedPricing).toMatch(/its help centre publishes/)
     const contract = nx.matrix.find((r) => r.feature.startsWith('Month-to-month'))!
     // The honest "yes": they do offer month-to-month. The page used to say
     // "terms vary".
@@ -142,7 +146,7 @@ describe('all eight entries, each re-read in a browser on the day it says', () =
   // its newest read, never ahead of it.
   const ALL: Array<[slug: string, host: string, readOn: string]> = [
     ['weave', 'getweave.com', '2026-11-26'],
-    ['nexhealth', 'nexhealth.com', '2026-11-25'],
+    ['nexhealth', 'nexhealth.com', '2026-11-26'],
     ['revenuewell', 'revenuewell.com', '2026-11-25'],
     ['solutionreach', 'solutionreach.com', '2026-11-25'],
     ['adit', 'adit.com', '2026-11-25'],
@@ -200,7 +204,10 @@ describe('all eight entries, each re-read in a browser on the day it says', () =
     expect(c.reportedPricing).toMatch(/^(No price published|Custom quote only)/)
     // Nothing with a dollar sign before the line has said whose figure it is.
     expect(c.reportedPricing.split(';')[0], `${slug}: a figure in the vendor's own half`).not.toMatch(/\$\d/)
-    expect(c.reportedPricing, slug).toMatch(/third-party reviews report ~\$\d/)
+    // An entry that has been read out in full names its sources or repeats
+    // no figure; the shorthand survives only where nobody has done that yet.
+    if (c.pricingDetail) expect(c.reportedPricing, slug).not.toMatch(/third-party reviews report/)
+    else expect(c.reportedPricing, slug).toMatch(/third-party reviews report ~\$\d/)
   })
 
   it('Adit: none in the text of its pricing page, one in that page’s structured data — both on the line', () => {

@@ -587,6 +587,8 @@ ready to copy — not an article about it.
    **Built 2026-11-26:** `/resources/dental-website-cost`
    (`docs/marketing-engine.md`, Part 12 slice 15).
 6. NexHealth's pricing, line by line.
+   **Built 2026-11-26:** `/compare/nexhealth#pricing`
+   (`docs/marketing-engine.md`, Part 12 slice 16).
 7. New-patient welcome letter and first-visit email.
    **Built 2026-11-26:** `/resources/dental-new-patient-welcome-letter`
    (`docs/marketing-engine.md`, Part 12 slice 10).
