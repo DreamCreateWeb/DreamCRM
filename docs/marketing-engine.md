@@ -2389,3 +2389,43 @@ change: `subscription_status` is free text, and the new state is a value.
   thirty-three mutations, all caught (one was missed on the first pass — a
   caveat said twice — and the assertion was narrowed to the one it protects).
 
+**Part 12 slice 9 — Weave's pricing, read out line by line (2026-11-26, no migration).**
+
+- **Why Weave.** It is the largest name a dentist searches among the eight,
+  and in the first Search Console export its page turned 42 showings into
+  three clicks, the best rate of any comparison page. Queue item 4.
+- **What was read, on the 26th, three ways.** Its plans page and its pricing
+  page in a real browser with scripts running; its own sitemap, searched for
+  any other page carrying a price (there are those two, and promotion pages
+  with no number); and both pages' structured data (no price in either).
+  Then its terms of service, which carry their own date (October 2, 2026).
+- **What the section says.** The base plan from $199 a month and two bundles
+  at $149 each, with the page's own statement that other add-ons are "at
+  varying prices"; the three named tiers that show no number; that the price
+  of a selection appears after an email address is entered; no free trial of
+  the full platform, in Weave's words.
+- **Both clauses on price, and no choosing between them.** The terms say fees
+  stay fixed during the initial term, with exceptions, and separately that
+  they may rise by up to 10% in any twelve-month period without notice. The
+  section prints both. Reconciling them would be our reading of a contract.
+- **The contract, as its two pages put it.** The plans page: no long-term
+  contract required, discounts on year-long ones. The terms: an order with no
+  stated term renews monthly and is cancelled on thirty days' notice; one
+  with a stated term is owed in full and, at a year or more, renews
+  automatically. Our comparison row ("no long-term contract required, per
+  its plans page") stands, and the section adds what the terms add.
+- **Leaving.** A cancellation is not effective until every phone number has
+  been ported out; leased phones go back within ten business days; data is
+  made available on written request within thirty days.
+- **No third party's figure.** The review directories cannot be read from
+  here, so none is repeated and the section says so. That exposed a hole: the
+  "Not read" line was rendered only inside the branch that lists reports, so
+  the first entry with none would have dropped it. The card now renders in
+  both cases; a test holds both branches.
+- **It says where Weave is lower** — its base plan is a dollar under ours —
+  and what that base plan is (a phone system, which this product is not).
+- **Dates.** Weave's stamp moved to the 26th; the pricing guide's date moved
+  with it, as its test requires. The other seven are unchanged.
+- **Tests.** Weave's facts are pinned beside the generic rules in
+  `tests/marketing/pricing-detail.test.tsx`; fifteen mutations, all caught.
+

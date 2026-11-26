@@ -194,7 +194,7 @@ export const RESOURCE_GUIDES: ResourceGuide[] = [
     // registry, so this must move when that does —
     // `tests/marketing/pricing-guide.test.tsx` fails until it equals the
     // registry's latest `pricingChecked.on`.
-    datePublished: '2026-11-25',
+    datePublished: '2026-11-26',
   },
 ]
 

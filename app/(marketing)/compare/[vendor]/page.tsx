@@ -260,24 +260,39 @@ function PricingDetailSection({ c }: { c: VendorComparison }) {
 
         {/* WHAT OTHERS REPORT — kept apart from the vendor's own pages, under
             each reporter's name, with that reporter's own caveat. A figure
-            from a review site must never read as the vendor's. */}
-        {d.reported.length > 0 && (
+            from a review site must never read as the vendor's.
+
+            THE CARD RENDERS WHEN THERE IS NOTHING TO REPORT, TOO. The "Not
+            read" line used to live inside the `reported.length > 0` branch,
+            so the first entry with no third-party figure (Weave, 2026-11-26)
+            would have dropped the list of sources we could not read along
+            with the reports — and a page that quotes no outside figure is
+            exactly the page that owes the reader the reason. */}
+        {(d.reported.length > 0 || d.notRead.length > 0) && (
           <div className="mt-5 rounded-[14px] border bg-white p-5" style={{ borderColor: DAY_WIRE }}>
             <h3 className="text-[1rem] font-bold text-gray-950">What others report</h3>
-            <p className="mt-1.5 text-[0.85rem] leading-relaxed text-gray-600">
-              Not {c.name}’s numbers. A third party’s, under its own name.
-            </p>
-            <ul className="mt-4 space-y-4">
-              {d.reported.map((r) => (
-                <li key={r.who}>
-                  <p className="text-[0.92rem] leading-relaxed text-gray-950">
-                    <strong>{r.who}</strong> {r.says}.
-                  </p>
-                  <p className="mt-1.5 text-[0.85rem] leading-relaxed text-gray-600">{r.caveat}.</p>
-                  <SourceLine source={r.source} />
-                </li>
-              ))}
-            </ul>
+            {d.reported.length > 0 ? (
+              <>
+                <p className="mt-1.5 text-[0.85rem] leading-relaxed text-gray-600">
+                  Not {c.name}’s numbers. A third party’s, under its own name.
+                </p>
+                <ul className="mt-4 space-y-4">
+                  {d.reported.map((r) => (
+                    <li key={r.who}>
+                      <p className="text-[0.92rem] leading-relaxed text-gray-950">
+                        <strong>{r.who}</strong> {r.says}.
+                      </p>
+                      <p className="mt-1.5 text-[0.85rem] leading-relaxed text-gray-600">{r.caveat}.</p>
+                      <SourceLine source={r.source} />
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <p data-no-reports className="mt-1.5 text-[0.85rem] leading-relaxed text-gray-600">
+                No third party’s figure is repeated here. Everything above is from {c.name}’s own pages.
+              </p>
+            )}
             {d.notRead.length > 0 && (
               <p className="mt-4 text-[0.8rem] leading-relaxed text-gray-600">
                 Not read: {d.notRead.join(', ')}. Each refuses an automated visit, so nothing on this page is taken

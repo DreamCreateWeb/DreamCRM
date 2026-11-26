@@ -247,7 +247,7 @@ export const COMPARISONS: VendorComparison[] = [
       'Weave is a patient communication platform built around the phone: VoIP calling that shows the caller’s details when the phone rings, two-way texting with an automatic text after a missed call, and payments by card terminal or by text.',
     reportedPricing:
       'Published at $199/mo for the base plan (calls, two-way texting, text-to-pay); online scheduling, digital forms, reminders and recall are a $149/mo bundle on top, and reviews plus email marketing a second $149/mo bundle, while its Pro, Elite and Ultimate tiers stay quote-only',
-    pricingChecked: { on: '2026-11-25', source: 'Weave’s own plans and pricing pages', url: 'https://www.getweave.com/plans/' },
+    pricingChecked: { on: '2026-11-26', source: 'Weave’s own plans and pricing pages', url: 'https://www.getweave.com/plans/' },
     summary:
       'Weave is the category leader in dental phone systems — VoIP with caller-context screen pops, texting, and payments. It is genuinely excellent at the phone, and it publishes a starting price and says it requires no long-term contract. But it has no practice website and no patient portal, its online scheduling, digital forms and recall are a paid bundle on top of the base plan, and it offers no free trial of the full platform. DreamCRM starts where the phone call ends: the website that wins the patient, the portal they come back to, and one inbox for everything they send you.',
     theirStrengths: [
@@ -279,6 +279,90 @@ export const COMPARISONS: VendorComparison[] = [
     }),
     bottomLine:
       'Keep your phones — Weave’s or anyone’s. If what you’re missing is the patient-facing layer (website, booking, portal, reviews, shop) at a flat monthly price, that is exactly the layer DreamCRM is.',
+    pricingDetail: {
+      intro:
+        'Weave publishes a starting price and sells the rest in two ways: a build-your-own plan with two priced bundles, and three named tiers with no price on the page. Its fee rules and contract terms are in its terms of service. This is what each of those pages said on the day it was read.',
+      groups: [
+        {
+          id: 'published-prices',
+          title: 'The prices Weave publishes',
+          source: { label: 'Weave’s plans page', url: 'https://www.getweave.com/plans/', readOn: '2026-11-26' },
+          question: 'How much does Weave cost per month?',
+          answer:
+            'Weave’s plans page starts the base plan at $199 a month and prices two bundles at $149 a month each: one for online scheduling, digital forms, reminders and recall, one for reviews, email marketing and bulk texting. The page shows the price of your own selection after you enter an email address.',
+          lines: [
+            { label: 'Base plan', value: 'Starting at $199 a month' },
+            { label: 'What the base plan lists', value: 'Call Pop, two-way texting, Missed Call Text, Text to Pay, the mobile app, Team Chat, call analytics, fax and its integration, chosen with two phones or without' },
+            { label: 'Coordinate bundle', value: '$149 a month: online scheduling, digital forms, reminders and follow-ups, appointment confirmations, recall and reactivation texts and calls' },
+            { label: 'Attract bundle', value: '$149 a month: reviews, Text Connect, email marketing (10,000 emails) and bulk texting (5,000 texts)' },
+            { label: 'Other add-ons', value: '“individual solutions at varying prices”; the page lists none of those prices' },
+            { label: 'AI Receptionist', value: 'Marked “Early access”, with no price' },
+            { label: 'The price of your own selection', value: 'Shown after you enter an email address' },
+            { label: 'A free trial', value: '“Weave does not offer a free trial for our full platform”' },
+          ],
+        },
+        {
+          id: 'the-tiers',
+          title: 'The three tiers with no price',
+          source: { label: 'Weave’s pricing page', url: 'https://www.getweave.com/pricing/', readOn: '2026-11-26' },
+          lines: [
+            { label: 'Pro, Elite and Ultimate', value: 'No price on the page; the buttons read “Get Pricing” and “Get Started”' },
+            { label: 'The page’s own headline', value: '“starting from $199 per month”' },
+            { label: 'Bulk texting, by tier', value: '1,500 messages a month on Pro, 3,000 on Elite, 15,000 on Ultimate' },
+            { label: 'Phones on Ultimate', value: 'Up to 15' },
+            { label: 'Included with every plan', value: 'Customer support and onboarding' },
+          ],
+        },
+        {
+          id: 'fees-and-increases',
+          title: 'Fees and price changes',
+          source: { label: 'Weave’s terms of service', url: 'https://www.getweave.com/legal/terms/', readOn: '2026-11-26', pageSays: 'Last updated: October 2, 2026' },
+          question: 'Can Weave raise its price?',
+          answer:
+            'Weave’s terms say subscription fees stay fixed during the initial term unless you receive promotional discounts, exceed subscription limits, upgrade or add products. A separate clause says fees may increase by up to 10% in any twelve-month period without notice, with advance notice given only for an increase above 10%.',
+          lines: [
+            { label: 'During the initial term', value: 'Fees stay fixed “unless you receive promotional discounts, exceed subscription limits, upgrade products, or subscribe to additional products”' },
+            { label: 'Price increases', value: 'Up to 10% in any twelve-month period “without notice”; advance notice only for an increase above 10%' },
+            { label: 'New fees', value: 'Weave reserves the right “to institute new fees or charges”' },
+            { label: 'When billing starts', value: 'When the software is enabled and, if you took phones, when they are installed; it “is not dependent on phone number(s) being ported into Weave”' },
+            { label: 'Call and text costs', value: 'Yours: “All costs for phone usage”, domestic or international' },
+            { label: 'Taxes and surcharges', value: 'Yours, including Federal Universal Service Fund contributions and a cost recovery fee' },
+            { label: 'Refunds', value: '“There are no refunds for Service cancellations”' },
+          ],
+        },
+        {
+          id: 'the-contract',
+          title: 'The contract',
+          source: { label: 'Weave’s terms of service', url: 'https://www.getweave.com/legal/terms/', readOn: '2026-11-26', pageSays: 'Last updated: October 2, 2026' },
+          question: 'Does Weave require a contract?',
+          answer:
+            'Weave’s plans page says it does not require a long-term contract and offers discounts on year-long ones. Its terms describe both kinds of order: one with no stated term renews every month and is cancelled with at least thirty days’ notice, and one with a stated term is owed in full and, at a year or longer, renews automatically unless you give notice before it ends.',
+          lines: [
+            { label: 'An order with no stated term', value: 'Renews every month; cancel at least thirty days before the next billing period to avoid that period’s charge' },
+            { label: 'An order with a stated term', value: 'You owe the fees for the whole term, “whether you use the Service, or not”' },
+            { label: 'Renewal of a term of a year or longer', value: 'Automatic, unless you give notice no less than thirty days before the term ends' },
+            { label: 'Ending a stated term early', value: 'You pay the outstanding balance for the rest of the term, and prepaid fees are not refunded' },
+            { label: 'Ending for convenience', value: 'Either side may, on thirty days’ written notice; an order with a stated term stays in force until that term ends' },
+          ],
+        },
+        {
+          id: 'if-you-leave',
+          title: 'If you leave',
+          source: { label: 'Weave’s terms of service', url: 'https://www.getweave.com/legal/terms/', readOn: '2026-11-26', pageSays: 'Last updated: October 2, 2026' },
+          question: 'What happens to my phone numbers if I leave Weave?',
+          answer:
+            'Weave’s terms say no cancellation is effective until every phone number on the account has been ported out of Weave, and that the monthly fee is charged for any billing period in which a number remains. Leased phones go back within ten business days at your shipping cost, and your data is made available on written request within thirty days of termination.',
+          lines: [
+            { label: 'Your phone numbers', value: 'A cancellation is not effective until every number has been ported out of Weave; the monthly fee is charged for any billing period in which one remains' },
+            { label: 'Leased phones', value: 'They are Weave’s property: return them within ten business days of termination, shipping at your cost, or Weave may bill their full retail cost' },
+            { label: 'Your data', value: 'Made available on written request within thirty days of termination, where technically feasible and once all amounts owed are paid; “Additional fees may apply”' },
+          ],
+        },
+      ],
+      reported: [],
+      notRead: ['G2', 'Capterra', 'Software Advice', 'GetApp', 'TrustRadius'],
+      versusUs: `Weave’s base plan is a dollar lower than ours, and it is a phone system, which we do not sell. Add the bundle that holds online scheduling, digital forms, reminders and recall and it is $348 a month. ${RATE_MONTHLY}/mo here includes those, the website and the patient portal, with no term and nothing to send back.`,
+    },
   },
   {
     slug: 'nexhealth',

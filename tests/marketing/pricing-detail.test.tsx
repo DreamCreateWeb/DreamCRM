@@ -65,7 +65,56 @@ async function renderPage(slug: string) {
 describe('the registry', () => {
   it('the entry the search data pointed at has one — and at least one entry does not, so both branches are real', () => {
     expect(detailed.map((c) => c.slug)).toContain('patientpop')
+    // Weave: the largest name a dentist searches, read out on 2026-11-26.
+    expect(detailed.map((c) => c.slug)).toContain('weave')
     expect(plain.length).toBeGreaterThan(0)
+  })
+
+  /**
+   * WEAVE, PINNED. The generic rules below hold the SHAPE of any entry; these
+   * hold the facts of this one, because a shape-correct line that misstates a
+   * competitor's contract is the failure the whole registry is built against.
+   * Each is a sentence of Weave's own page, read 2026-11-26.
+   */
+  it('Weave: the published figures, the two clauses on price, and the number-porting rule', () => {
+    const weave = COMPARISONS.find((c) => c.slug === 'weave')!
+    const d = weave.pricingDetail!
+    const line = (group: string, label: string) =>
+      d.groups.find((g) => g.id === group)!.lines.find((l) => l.label === label)!.value
+
+    expect(line('published-prices', 'Base plan')).toBe('Starting at $199 a month')
+    expect(line('published-prices', 'Coordinate bundle')).toMatch(/^\$149 a month: online scheduling, digital forms/)
+    expect(line('published-prices', 'Attract bundle')).toMatch(/^\$149 a month: reviews/)
+    // Its own sentence about a trial, in its own words.
+    expect(line('published-prices', 'A free trial')).toBe('“Weave does not offer a free trial for our full platform”')
+    // The three tiers show a reader no number.
+    expect(line('the-tiers', 'Pro, Elite and Ultimate')).toMatch(/^No price on the page/)
+
+    // BOTH clauses on price are given, and the page does not choose between
+    // them: fees fixed during the initial term, and up to 10% a year without
+    // notice. Printing one without the other would be our reading of a
+    // contract, not Weave's words.
+    expect(line('fees-and-increases', 'During the initial term')).toContain('Fees stay fixed')
+    expect(line('fees-and-increases', 'Price increases')).toMatch(/^Up to 10% in any twelve-month period “without notice”/)
+
+    // The contract: both kinds of order, as its terms describe them — and the
+    // plans page's own "no long-term contract" is in the answer, not dropped.
+    const contract = d.groups.find((g) => g.id === 'the-contract')!
+    expect(contract.answer).toMatch(/does not require a long-term contract/)
+    expect(contract.answer).toMatch(/one with a stated term is owed in full/)
+    const row = weave.matrix.find((r) => r.feature.startsWith('Month-to-month'))!
+    expect(JSON.stringify(row)).toMatch(/No long-term contract required, per its plans page/)
+
+    // Leaving: the rule a practice with ported numbers needs before it signs.
+    expect(line('if-you-leave', 'Your phone numbers')).toMatch(/not effective until every number has been ported out/)
+
+    // Every group is Weave's own site, and the terms carry their own date.
+    for (const g of d.groups) expect(new URL(g.source.url).hostname).toBe('www.getweave.com')
+    expect(d.groups.filter((g) => g.source.pageSays === 'Last updated: October 2, 2026')).toHaveLength(3)
+
+    // No third party's figure is repeated, and the page says where theirs is lower.
+    expect(d.reported).toEqual([])
+    expect(d.versusUs).toMatch(/a dollar lower than ours/)
   })
 
   it('1 — every group cites ONE page on the vendor’s own site, read on a stated day', () => {
@@ -234,6 +283,29 @@ describe('the page', () => {
       }
       for (const name of d.notRead) expect(section.textContent, name).toContain(name)
       expect(section.textContent).toContain(d.versusUs)
+      unmount()
+    }
+  })
+
+  it('an entry with no third-party report still names what was not read, and repeats nobody’s figure', async () => {
+    // The "Not read" line lived inside the branch that renders reports, so the
+    // first entry with none would have lost it. Both branches are held.
+    const none = detailed.filter((c) => c.pricingDetail!.reported.length === 0)
+    const some = detailed.filter((c) => c.pricingDetail!.reported.length > 0)
+    expect(none.length, 'no entry exercises the empty branch').toBeGreaterThan(0)
+    expect(some.length, 'no entry exercises the reports branch').toBeGreaterThan(0)
+    for (const c of none) {
+      const { container, unmount } = await renderPage(c.slug)
+      const section = container.querySelector('section#pricing') as HTMLElement
+      const empty = section.querySelector('[data-no-reports]')
+      expect(empty, `${c.slug}: nothing says no figure is repeated`).toBeTruthy()
+      expect(empty!.textContent).toContain(`${c.name}’s own pages`)
+      expect(section.textContent).toContain(`Not read: ${c.pricingDetail!.notRead.join(', ')}.`)
+      unmount()
+    }
+    for (const c of some) {
+      const { container, unmount } = await renderPage(c.slug)
+      expect(container.querySelector('[data-no-reports]'), c.slug).toBeNull()
       unmount()
     }
   })

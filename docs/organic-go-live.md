@@ -580,6 +580,8 @@ ready to copy — not an article about it.
    **Built 2026-11-26:** `/resources/dental-review-request-templates`
    (`docs/marketing-engine.md`, Part 12 slice 8).
 4. Weave's pricing, read out line by line (the largest name dentists search).
+   **Built 2026-11-26:** `/compare/weave#pricing`
+   (`docs/marketing-engine.md`, Part 12 slice 9).
 5. What a dental practice website costs.
 6. NexHealth's pricing, line by line.
 7. New-patient welcome letter and first-visit email.
