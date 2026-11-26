@@ -2497,3 +2497,39 @@ change: `subscription_status` is free text, and the new state is a value.
 - **Tests.** `tests/marketing/sourced-guides.test.tsx` (eight); seventeen
   mutations, all caught.
 
+**Part 12 slice 12 — the past-due balance letters guide (2026-11-26, no migration).**
+
+- **The page.** `/resources/dental-past-due-balance-letters`, queue item 9:
+  the balance email, three letters from first reminder to final notice, the
+  phone call and its voicemail, a payment-plan letter, why there is no text
+  template, and when to stop writing.
+- **The guide with the most ways to hurt somebody, so the cards are held
+  first.** None threatens, shouts or names a consequence of its own — no
+  agency, no credit report, no lawyer. The final notice has a blank the
+  practice fills from its own financial policy, and the note under it says to
+  fill it only with something the practice will do. Every notice carries the
+  amount, what it is for and how to pay, as blanks; no card picks a number.
+  Every letter leaves a door open for a mistake.
+- **The voicemail says nothing about money**, by test: not the amount, not
+  "balance", not "account".
+- **No text template, and the page says why** in the calling rule's own words
+  (the fragment the reminder guide already quotes: such a message "may not
+  include accounting, billing, debt-collection, or other financial content").
+- **The balance email is the product's**, read from its spec. The shared
+  reader learned the `{{balance}}` token for it.
+- **The installment rule is quoted and not explained:** one sentence of
+  12 CFR 1026.2(a)(17), read at Cornell's Legal Information Institute, beside
+  the payment-plan letter. Whether it reaches a practice is a lawyer's answer
+  and the page says so; a test keeps the page from answering it.
+- **The closing block is conditional three times over.** A balance in this
+  product comes from the practice's own software, a pay link needs online
+  payments switched on, and the automatic reminder is off until chosen and
+  stops at three (`BALANCE_OUTREACH_DEFAULTS`). It says the product is not a
+  collection agency.
+- **Wiring.** Registry entry, footer link, a link from the reminder guide's
+  "what it may not carry" line, the search-notice key.
+- **Tests.** `tests/marketing/past-due-letters-guide.test.tsx` (fourteen);
+  thirty-one mutations, all caught (one was missed on the first pass — a
+  caveat said twice, the third time that shape has been missed, and now named
+  as a shape in the test).
+

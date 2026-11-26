@@ -589,6 +589,8 @@ ready to copy — not an article about it.
    (`docs/marketing-engine.md`, Part 12 slice 10).
 8. Unscheduled-treatment follow-up scripts.
 9. Past-due balance letters and scripts.
+   **Built 2026-11-26:** `/resources/dental-past-due-balance-letters`
+   (`docs/marketing-engine.md`, Part 12 slice 12).
 10. A free Google-review link and QR-card maker (a tool earns links that a
     page does not).
 11. The other five vendors' pricing, line by line; then comparisons for the

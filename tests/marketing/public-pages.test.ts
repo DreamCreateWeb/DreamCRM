@@ -92,6 +92,7 @@ describe('a content key moves exactly when the page’s content does', () => {
       'dental-appointment-reminder-templates',
       'dental-review-request-templates',
       'dental-new-patient-welcome-letter',
+      'dental-past-due-balance-letters',
       'how-to-get-more-dental-patients',
     ]
     for (const g of RESOURCE_GUIDES) {

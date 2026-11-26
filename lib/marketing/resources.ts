@@ -155,6 +155,25 @@ export const RESOURCE_GUIDES: ResourceGuide[] = [
     datePublished: '2026-11-26',
   },
   {
+    slug: 'dental-past-due-balance-letters',
+    title: 'Dental past-due balance letters & scripts (first reminder to final notice)',
+    description:
+      'Copy-ready past-due balance letters for a dental office: the balance email, three letters from first reminder to final notice, the phone script and a plan.',
+    // `money` — growth. The subject is what a practice is owed, and how to
+    // ask for it without losing the patient.
+    glyph: 'money',
+    contains: [
+      'The balance email, with a link to pay',
+      'The first reminder, the second notice and the final notice',
+      'The phone script and its voicemail',
+      'The payment-plan letter',
+      'Why there is no text template',
+      'The installment rule, in its own words',
+    ],
+    readMinutes: 5,
+    datePublished: '2026-11-26',
+  },
+  {
     slug: 'dental-membership-plan-pricing',
     title: 'How to price a dental membership plan (with the math)',
     description:

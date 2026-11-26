@@ -7,7 +7,9 @@ import NoShowPolicyGuide from '@/app/(marketing)/resources/dental-cancellation-n
 import ReminderTemplatesGuide from '@/app/(marketing)/resources/dental-appointment-reminder-templates/page'
 import ReviewRequestGuide from '@/app/(marketing)/resources/dental-review-request-templates/page'
 import WelcomeLetterGuide from '@/app/(marketing)/resources/dental-new-patient-welcome-letter/page'
+import PastDueLettersGuide from '@/app/(marketing)/resources/dental-past-due-balance-letters/page'
 import {
+  INSTALLMENT_RULE,
   LOCAL_RANKING,
   NO_SHOW_SOURCES,
   PRIVACY_NOTICE_RULE,
@@ -158,6 +160,7 @@ describe('the rule for the whole library', () => {
     'dental-cancellation-no-show-policy': NoShowPolicyGuide,
     'dental-review-request-templates': ReviewRequestGuide,
     'dental-new-patient-welcome-letter': WelcomeLetterGuide,
+    'dental-past-due-balance-letters': PastDueLettersGuide,
     'dental-membership-plan-pricing': MembershipPricingGuide,
     'how-to-get-more-dental-patients': MorePatientsGuide,
   }
@@ -169,6 +172,7 @@ describe('the rule for the whole library', () => {
     ...Object.values(REVIEW_RULES).flatMap((r) => Object.values(r.says)),
     ...Object.values(PRIVACY_NOTICE_RULE.says),
     ...Object.values(LOCAL_RANKING.says),
+    ...Object.values(INSTALLMENT_RULE.says),
   ]
 
   it('covers every guide written in prose (the pricing guide is built from the registry and has its own test)', () => {
