@@ -2429,3 +2429,33 @@ change: `subscription_status` is free text, and the new state is a value.
 - **Tests.** Weave's facts are pinned beside the generic rules in
   `tests/marketing/pricing-detail.test.tsx`; fifteen mutations, all caught.
 
+**Part 12 slice 10 — the new-patient welcome letter guide (2026-11-26, no migration).**
+
+- **The page.** `/resources/dental-new-patient-welcome-letter`, queue item 7:
+  the first phone call, a welcome email, a one-page letter for the patients a
+  practice mails, the forms request, the portal invitation, a what-to-bring
+  list, and when the privacy notice is due.
+- **Which emails are the product's is said on the page, and held.** The forms
+  request and the portal invitation are read from their specs, with the
+  senders' own buttons. The welcome email and the letter are hand-written —
+  the product has no "welcome" email — and a test keeps the page from
+  claiming them, which is the mistake the library hub carried until slice 7.
+- **The forms claim is conditional because the feature is.** Intake forms are
+  off until a practice switches them on (`patientFacingIntakeOpen`). The
+  closing block says "switch intake forms on"; a test fails if it ever says
+  forms go out with every booking.
+- **No card makes the patient wait, promises treatment or names a price.**
+  The opening paragraph quotes "please arrive fifteen minutes early to
+  complete paperwork" as the thing to avoid, and no card may say it. What
+  happens in the chair is the dentist's to promise.
+- **The privacy-notice timing is quoted, by citation:** six fragments of
+  45 CFR 164.520(c)(2), read at Cornell's Legal Information Institute. The
+  statute's four-letter name appears nowhere on the page — beside our product
+  it would read as a claim about our standing under it — and the same test
+  that pins the quotations holds that.
+- **Wiring.** Registry entry, footer link, links on to the reminder, review
+  and recall guides and one back from the review guide, the search-notice key
+  built from the rule and the two product emails.
+- **Tests.** `tests/marketing/welcome-letter-guide.test.tsx` (twelve);
+  twenty-seven mutations, all caught.
+

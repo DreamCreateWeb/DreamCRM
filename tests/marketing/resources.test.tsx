@@ -12,6 +12,7 @@ import PricingGuide from '@/app/(marketing)/resources/dental-software-pricing/pa
 import NoShowPolicyGuide from '@/app/(marketing)/resources/dental-cancellation-no-show-policy/page'
 import ReminderTemplatesGuide from '@/app/(marketing)/resources/dental-appointment-reminder-templates/page'
 import ReviewRequestGuide from '@/app/(marketing)/resources/dental-review-request-templates/page'
+import WelcomeLetterGuide from '@/app/(marketing)/resources/dental-new-patient-welcome-letter/page'
 
 /**
  * The practice-growth resource library (marketing-engine slice 4b). The
@@ -209,6 +210,7 @@ describe('the library reads as a shelf rather than three equal cards', () => {
       ['dental-cancellation-no-show-policy', NoShowPolicyGuide],
       ['dental-appointment-reminder-templates', ReminderTemplatesGuide],
       ['dental-review-request-templates', ReviewRequestGuide],
+      ['dental-new-patient-welcome-letter', WelcomeLetterGuide],
     ] as const) {
       const guide = getResourceGuide(name)!
       const { container, unmount } = render(<Page />)
@@ -247,6 +249,7 @@ describe('the library reads as a shelf rather than three equal cards', () => {
       NoShowPolicyGuide,
       ReminderTemplatesGuide,
       ReviewRequestGuide,
+      WelcomeLetterGuide,
     ]) {
       const { unmount } = render(<Page />)
       expect(

@@ -166,3 +166,31 @@ export const REVIEW_RULES = {
     },
   },
 } as const
+
+/**
+ * WHEN A NEW PATIENT IS OWED THE PRIVACY NOTICE — 45 CFR 164.520(c)(2), the
+ * welcome guide's one outside rule.
+ *
+ * Read at Cornell's Legal Information Institute and labelled so. Each string
+ * is a fragment of the regulation, word for word, pinned in
+ * `tests/marketing/welcome-letter-guide.test.tsx`. The guide names the rule
+ * by its citation and never by the statute's four-letter name: nothing on
+ * the marketing site may read as a claim about OUR standing under it
+ * (`docs/COMPLIANCE.md`), and a page that used the name beside our product
+ * would invite exactly that reading.
+ */
+export const PRIVACY_NOTICE_RULE = {
+  source: {
+    label: 'the federal privacy rule, 45 CFR 164.520(c)(2), as published by Cornell’s Legal Information Institute',
+    url: 'https://www.law.cornell.edu/cfr/text/45/164.520',
+    readOn: '2026-11-26',
+  } satisfies GuideSource,
+  says: {
+    who: 'A covered health care provider that has a direct treatment relationship with an individual must',
+    when: 'No later than the date of the first service delivery',
+    acknowledgment: 'make a good faith effort to obtain a written acknowledgment of receipt of the notice',
+    onSite: 'Have the notice available at the service delivery site for individuals to request to take with them',
+    posted: 'Post the notice in a clear and prominent location',
+    website: 'must prominently post its notice on the web site',
+  },
+} as const

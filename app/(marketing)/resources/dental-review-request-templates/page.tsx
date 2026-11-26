@@ -211,6 +211,13 @@ Scan to tell people about your visit on Google. Your honest take helps other pat
         <Link href="/resources/dental-recall-scripts" className="font-semibold text-teal-700 hover:underline">
           dental recall scripts
         </Link>
+        . For a patient’s very first visit, there is a{' '}
+        <Link
+          href="/resources/dental-new-patient-welcome-letter"
+          className="font-semibold text-teal-700 hover:underline"
+        >
+          new patient welcome letter
+        </Link>
         .
       </GuideP>
     </GuideShell>

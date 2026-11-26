@@ -585,6 +585,8 @@ ready to copy — not an article about it.
 5. What a dental practice website costs.
 6. NexHealth's pricing, line by line.
 7. New-patient welcome letter and first-visit email.
+   **Built 2026-11-26:** `/resources/dental-new-patient-welcome-letter`
+   (`docs/marketing-engine.md`, Part 12 slice 10).
 8. Unscheduled-treatment follow-up scripts.
 9. Past-due balance letters and scripts.
 10. A free Google-review link and QR-card maker (a tool earns links that a
