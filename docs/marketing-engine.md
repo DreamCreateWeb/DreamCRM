@@ -2244,3 +2244,57 @@ change: `subscription_status` is free text, and the new state is a value.
   our page credits it with both. That errs in their favour; re-read the whole
   entry before touching it.
 
+**Part 12 slice 6 — the cancellation and no-show policy guide (2026-11-25, no migration).**
+
+- **Why this page.** The first Search Console export showed what Google
+  already takes this site to be for: the front desk's own paperwork. The
+  recall guide was shown 505 times in three months for about two dozen
+  script-and-letter searches. This is the second page of that kind, and the
+  first item built off the queue in `docs/organic-go-live.md` Part 10.
+- **What is on it.** The policy a patient signs, with a three-step ladder
+  (first miss forgiven in writing, a fee on the second, a different way of
+  booking on the third); the phone script for a late cancellation; the
+  same-day voicemail; the first-miss email and the two letters that follow;
+  the codes that track a missed visit; and how to make the miss rarer.
+- **The first-miss email is the product's own, read rather than retyped.**
+  The card renders `EMAIL_AUTOMATION_SPECS.no_show_rebook` (the note the
+  product sends when a visit is marked a no-show, on by default) through
+  `lib/marketing/guide-templates.ts`, which respells the product's tokens as
+  blanks and throws on a token it has no blank for. An edit to the product's
+  copy moves the page, and moves the page's search-notice key with it; the
+  recall guide's typed email can do neither. The next guides that show a
+  product email use the same reader.
+- **It picks no numbers.** Every fee, notice period and look-back in a card is
+  a blank the practice fills. There is no first-hand source for what practices
+  charge, and no statistic about missed visits on the page. The one figure in
+  the prose, a full day's notice, is quoted from Open Dental's manual.
+- **Who may not be charged is quoted, not paraphrased.** North Carolina
+  Medicaid's own page and the California Dental Association's article on
+  Medi-Cal, each in its words, linked and dated; the data is
+  `lib/marketing/guide-sources.ts`, the first registry of outside pages a
+  guide quotes, with the comparison registry's rule (read first-hand, dated,
+  a refused page is never cited). The federal guidance both rest on, and two
+  other states' pages, refused the reader on the 25th and are not cited. A
+  search summary of a trade article said one state's rule differs, and that
+  article refused the reader too — so the page says "two" and sends the reader
+  to their own state's manual.
+- **No dismissal letter.** The ladder stops at booking differently. The page
+  says where that letter comes from (the malpractice carrier, the state
+  association) and why it is not here.
+- **The closing block is worded off the code.** Reminder emails three days
+  and one day ahead, on by default, with a button to confirm or cancel;
+  patients moving their own visit outside the notice window; a cancelled
+  slot offered by email to the waitlist; a missed visit sending the note and
+  opening a next-day follow-up for the team. The test ties each sentence to
+  the default or the rule that makes it true, so a change there fails here.
+  It says in words that the product charges no fee, sends no text today and
+  mails nothing.
+- **Wiring.** Registry entry (the hub, the sitemap and the search notice all
+  read it), the footer link, and a link each way with the recall guide.
+- **Tests.** `tests/marketing/no-show-policy-guide.test.tsx` (eighteen) and
+  `tests/marketing/guide-templates.test.ts` (four), each watched fail against
+  a broken page, a broken reader or a changed default: forty-two mutations,
+  all caught (two were missed on the first pass — a code named twice, a due
+  date shared with another rule — and both assertions were narrowed to the
+  sentence they protect).
+

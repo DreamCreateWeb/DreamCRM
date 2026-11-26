@@ -9,6 +9,7 @@ import RecallScriptsGuide, { metadata as recallMetadata } from '@/app/(marketing
 import MembershipPricingGuide from '@/app/(marketing)/resources/dental-membership-plan-pricing/page'
 import MorePatientsGuide from '@/app/(marketing)/resources/how-to-get-more-dental-patients/page'
 import PricingGuide from '@/app/(marketing)/resources/dental-software-pricing/page'
+import NoShowPolicyGuide from '@/app/(marketing)/resources/dental-cancellation-no-show-policy/page'
 
 /**
  * The practice-growth resource library (marketing-engine slice 4b). The
@@ -190,6 +191,7 @@ describe('the library reads as a shelf rather than three equal cards', () => {
       ['dental-membership-plan-pricing', MembershipPricingGuide],
       ['how-to-get-more-dental-patients', MorePatientsGuide],
       ['dental-software-pricing', PricingGuide],
+      ['dental-cancellation-no-show-policy', NoShowPolicyGuide],
     ] as const) {
       const guide = getResourceGuide(name)!
       const { container, unmount } = render(<Page />)
@@ -220,7 +222,7 @@ describe('the library reads as a shelf rather than three equal cards', () => {
     const price = `$${getQuotedPlan().price.toLocaleString('en-US')}/mo`
     // The pricing guide closes in its own words (it is not a how-to), and
     // its price is resolved from the same config — so it is held here too.
-    for (const Page of [RecallScriptsGuide, MembershipPricingGuide, MorePatientsGuide, PricingGuide]) {
+    for (const Page of [RecallScriptsGuide, MembershipPricingGuide, MorePatientsGuide, PricingGuide, NoShowPolicyGuide]) {
       const { unmount } = render(<Page />)
       expect(
         screen.getByText((_, el) => el?.textContent?.includes(price) === true, {

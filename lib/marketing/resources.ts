@@ -81,6 +81,24 @@ export const RESOURCE_GUIDES: ResourceGuide[] = [
     datePublished: '2026-11-25',
   },
   {
+    slug: 'dental-cancellation-no-show-policy',
+    title: 'Dental cancellation & no-show policy template (with the letters and scripts)',
+    description:
+      'A copy-ready dental cancellation and no-show policy, the phone scripts and missed-appointment letters that go with it, and the patients you may not charge.',
+    // `calendar` — brand. The subject is the appointment and what happens
+    // when it is not kept; the fee is one line of it and not the point.
+    glyph: 'calendar',
+    contains: [
+      'The policy patients sign, with the blanks to fill',
+      'The late-cancellation phone script and the voicemail',
+      'The missed-appointment letters, first to third',
+      'Who you may not charge, in each program’s own words',
+      'The codes that track a missed visit',
+    ],
+    readMinutes: 8,
+    datePublished: '2026-11-25',
+  },
+  {
     slug: 'dental-membership-plan-pricing',
     title: 'How to price a dental membership plan (with the math)',
     description:

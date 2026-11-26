@@ -206,6 +206,17 @@ Book a visit in about a minute at {booking link}, or call {phone}.
         </Link>{' '}
         — it takes thirty seconds and nothing you type leaves your browser.
       </GuideP>
+      <GuideP>
+        Recall is for the patient who never booked. For the one who booked and did not
+        come, there is a{' '}
+        <Link
+          href="/resources/dental-cancellation-no-show-policy"
+          className="font-semibold text-teal-700 hover:underline"
+        >
+          cancellation and no-show policy template
+        </Link>
+        , with the letters and the phone scripts that go with it.
+      </GuideP>
     </GuideShell>
   )
 }

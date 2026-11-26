@@ -181,6 +181,7 @@ export const FOOTER_COLUMNS: Array<{ title: string; links: Array<{ label: string
       { label: 'Grade your practice', href: '/grade' },
       { label: 'Recall ROI calculator', href: '/roi' },
       { label: 'Dental recall scripts', href: '/resources/dental-recall-scripts' },
+      { label: 'Cancellation & no-show policy', href: '/resources/dental-cancellation-no-show-policy' },
       { label: 'Membership plan pricing', href: '/resources/dental-membership-plan-pricing' },
       { label: 'Get more dental patients', href: '/resources/how-to-get-more-dental-patients' },
       { label: 'Dental software pricing', href: '/resources/dental-software-pricing' },

@@ -68,6 +68,7 @@ const GUIDE_HEADS: Record<string, () => Promise<PageModule>> = {
   'dental-membership-plan-pricing': () => import('@/app/(marketing)/resources/dental-membership-plan-pricing/page'),
   'how-to-get-more-dental-patients': () => import('@/app/(marketing)/resources/how-to-get-more-dental-patients/page'),
   'dental-software-pricing': () => import('@/app/(marketing)/resources/dental-software-pricing/page'),
+  'dental-cancellation-no-show-policy': () => import('@/app/(marketing)/resources/dental-cancellation-no-show-policy/page'),
 }
 
 /** The four things every head must carry, graded against the path it claims. */
