@@ -135,16 +135,20 @@ describe('the other entries re-read the same day', () => {
  * RevenueWell's Plans page shows none while an offer page elsewhere on its
  * site quotes one. Both lines say so now.
  */
-describe('all eight entries, re-read in a browser on 2026-11-25', () => {
-  const ALL: Array<[slug: string, host: string]> = [
-    ['weave', 'getweave.com'],
-    ['nexhealth', 'nexhealth.com'],
-    ['revenuewell', 'revenuewell.com'],
-    ['solutionreach', 'solutionreach.com'],
-    ['adit', 'adit.com'],
-    ['dental-intelligence', 'dentalintel.com'],
-    ['podium', 'podium.com'],
-    ['patientpop', 'tebra.com'],
+describe('all eight entries, each re-read in a browser on the day it says', () => {
+  // All eight were re-read on 2026-11-25. Weave was read again on the 26th,
+  // when its plans page, its pricing page and its terms of service were read
+  // out in full for the line-by-line section; an entry's stamp moves with
+  // its newest read, never ahead of it.
+  const ALL: Array<[slug: string, host: string, readOn: string]> = [
+    ['weave', 'getweave.com', '2026-11-26'],
+    ['nexhealth', 'nexhealth.com', '2026-11-25'],
+    ['revenuewell', 'revenuewell.com', '2026-11-25'],
+    ['solutionreach', 'solutionreach.com', '2026-11-25'],
+    ['adit', 'adit.com', '2026-11-25'],
+    ['dental-intelligence', 'dentalintel.com', '2026-11-25'],
+    ['podium', 'podium.com', '2026-11-25'],
+    ['patientpop', 'tebra.com', '2026-11-25'],
   ]
   const entry = (slug: string) => COMPARISONS.find((c) => c.slug === slug)!
   const contract = (slug: string) => entry(slug).matrix.find((r) => r.feature.startsWith('Month-to-month'))!
@@ -153,9 +157,9 @@ describe('all eight entries, re-read in a browser on 2026-11-25', () => {
     expect(ALL.map(([slug]) => slug).sort()).toEqual(COMPARISONS.map((c) => c.slug).sort())
   })
 
-  it.each(ALL)('%s: dated that day, against a page on %s', (slug, host) => {
+  it.each(ALL)('%s: against a page on %s, dated %s', (slug, host, readOn) => {
     const c = entry(slug)
-    expect(c.pricingChecked?.on).toBe('2026-11-25')
+    expect(c.pricingChecked?.on).toBe(readOn)
     expect(new URL(c.pricingChecked!.url).hostname.endsWith(host)).toBe(true)
   })
 
