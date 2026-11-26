@@ -370,9 +370,96 @@ export const COMPARISONS: VendorComparison[] = [
     category: 'Patient booking & sync platform',
     whatItIs:
       'NexHealth is a patient booking and sync platform. Its synchronizer connects to Dentrix, Eaglesoft and most other practice management systems, and it sells online booking, forms, reminders and payments on top of that connection, along with a public API.',
+    // The line ended "third-party reviews report ~$300+/mo per location" until
+    // 2026-11-26: a figure nobody could name the source of, on an entry whose
+    // new pricing section says no third party's figure is repeated. The search
+    // of NexHealth's own domain that the "no price" rule requires found what
+    // the line points at now.
     reportedPricing:
-      'Custom quote only — its own pricing page shows no price and asks for your details; third-party reviews report ~$300+/mo per location (2025–2026)',
-    pricingChecked: { on: '2026-11-25', source: 'NexHealth’s own pricing page', url: 'https://www.nexhealth.com/pricing' },
+      'Custom quote only — its own pricing page shows no price and asks for your details; its help centre publishes what extra texts, insurance checks and patient payments cost',
+    pricingChecked: { on: '2026-11-26', source: 'NexHealth’s own pricing page', url: 'https://www.nexhealth.com/pricing' },
+    pricingDetail: {
+      intro:
+        'NexHealth’s pricing page shows no price: it is a choice of products and a form. What NexHealth does publish is on three other pages of its own: what extra texts, insurance checks and patient payments cost, how annual billing works, and what its developer API costs per call. This is what each page said on the day it was read.',
+      groups: [
+        {
+          id: 'the-subscription',
+          title: 'The subscription, as its pricing page describes it',
+          source: { label: 'NexHealth’s pricing page', url: 'https://www.nexhealth.com/pricing', readOn: '2026-11-26' },
+          // Not "How much does NexHealth cost?": every entry's FAQ already asks
+          // that of the dated pricing line, and a second answer to the same
+          // question would be two answers.
+          question: 'Does NexHealth list its prices online?',
+          answer:
+            'NexHealth’s pricing page shows no price. It asks you to choose from six products and fill in a form, and says custom plans are available on request. What the page does state is how billing works: a month-to-month option charged every month, or a yearly subscription paid up front, with no cancellation fees and 90 days of notice to end an annual contract.',
+          lines: [
+            { label: 'The price', value: 'None on the page: “Get pricing for your practice”, a choice of products and a form' },
+            { label: 'The products you choose from', value: 'Scheduling, Forms, Communications, Payments, Verification and Insights' },
+            { label: 'Custom plans', value: '“Custom plans available. Contact us to discuss your needs.”' },
+            { label: 'Billing options', value: '“When you choose the month-to-month option, you’ll be charged every month. For our yearly subscription, you’ll pay the full year up front.”' },
+            { label: 'Cancellation fees', value: '“There are no cancellation fees.”' },
+            { label: 'Ending a monthly contract', value: 'Give notice of non-renewal “before your next full billing cycle and then the next billing cycle is your last”' },
+            { label: 'Ending an annual contract', value: '“provide 90 days prior notice to not renew”' },
+            { label: 'A contract with another vendor', value: '“We’ll buy out your contract with your existing vendor”, with “exclusions apply”' },
+            { label: 'Adding locations', value: '“Contact your sales rep to increase your locations and upgrade your package.”' },
+          ],
+        },
+        {
+          id: 'usage-and-overage-fees',
+          title: 'Included usage and overage fees',
+          source: {
+            label: 'NexHealth’s help centre, “Included Usage & Overage Fees”',
+            url: 'https://help.nexhealth.com/en/articles/11584920-included-usage-overage-fees',
+            readOn: '2026-11-26',
+            pageSays: 'Updated this week',
+          },
+          question: 'Does NexHealth charge overage fees?',
+          answer:
+            'Its help centre lists two. A plan with Campaigns includes 5,000 campaign texts per location each month, and more are $0.012 a message. A plan with Insurance Verification includes 800 checks a month, and more are $0.20 each, which a practice can switch off. Patient payments carry a processing fee of 2.9% + $0.30 per transaction.',
+          lines: [
+            { label: 'Campaign texts included', value: '5,000 SMS messages per location every month, on a plan that includes Campaigns; “Unused SMS messages do not rollover into following months.”' },
+            { label: 'Extra campaign texts', value: '$0.012 per SMS message; “Overage charges are added to your next monthly NexHealth invoice.”' },
+            { label: 'Texts that do not count', value: 'Template-based texts, which it lists as form requests, reminders, reviews and payments, and two-way messaging with patients' },
+            { label: 'Insurance verifications included', value: '800 a month, on a plan that includes Insurance Verification' },
+            { label: 'Extra verifications', value: '$0.20 each; overages can be switched off under Settings, Usage management' },
+            { label: 'Patient payments', value: '“A payment processing fee of 2.9% + $0.30 is deducted for each patient payment transaction.”' },
+          ],
+        },
+        {
+          id: 'paying-annually',
+          title: 'Paying annually',
+          source: {
+            label: 'NexHealth’s help centre, “How do I manage billing in NexHealth?”',
+            url: 'https://help.nexhealth.com/en/articles/10046607-how-do-i-manage-billing-in-nexhealth',
+            readOn: '2026-11-26',
+            pageSays: 'September 28, 2026',
+          },
+          question: 'Does NexHealth cost less paid annually?',
+          answer:
+            'Its billing help article says switching to annual gives a 12-month subscription for the price of 11: the account is charged for 11 months up front at the current monthly rate, and the subscription is set to renew in 12 months.',
+          lines: [
+            { label: 'Switching to annual', value: '“a 12-month subscription (for the price of 11!)”' },
+            { label: 'What is charged', value: '“11 months upfront (at your current monthly rate)”' },
+            { label: 'Renewal', value: '“your subscription will be set to renew in 12 months”' },
+            { label: 'Ways to pay', value: 'A card or autopay in its billing portal, or a check by mail' },
+          ],
+        },
+        {
+          id: 'developer-api',
+          title: 'The developer API (not a practice’s subscription)',
+          source: { label: 'NexHealth’s developer pricing page', url: 'https://synchronizer.nexhealth.com/pricing', readOn: '2026-11-26' },
+          lines: [
+            { label: 'Starter', value: '$0 a month: “Free sandbox with every endpoint”' },
+            { label: 'Builder', value: '$0.10 per API call; “No minimums, no setup fee”' },
+            { label: 'Webhooks', value: '$0.05 per delivery' },
+            { label: 'Scale', value: 'Custom, for “High-volume platforms and enterprise groups”' },
+          ],
+        },
+      ],
+      reported: [],
+      notRead: ['G2', 'Capterra', 'Software Advice', 'GetApp', 'TrustRadius'],
+      versusUs: `NexHealth’s pricing page shows no subscription price, so there is no number of theirs to set beside ours: ${RATE_MONTHLY}/mo, published, month-to-month. On what it does publish, two things are in NexHealth’s favour: a plan with insurance verification includes 800 checks a month where ours includes ${INCLUDED_MONTHLY_INSURANCE_CHECKS}, and a plan with campaigns includes texts, which DreamCRM does not send today.`,
+    },
     summary:
       'NexHealth built an impressive real-time synchronizer across many PMSs and sells booking, forms, reminders, and payments on top of it. Its breadth of PMS coverage is real, and the sync infrastructure is genuinely strong engineering. The trade-offs are scope and terms: no practice website, no clinic-branded portal, no shop or memberships, and custom pricing. DreamCRM is the whole patient-facing stack — website through recall — on one published price.',
     theirStrengths: [

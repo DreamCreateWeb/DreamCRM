@@ -72,7 +72,12 @@ describe('the registry’s readers the guide is built on', () => {
     for (const c of COMPARISONS.filter((x) => !publishesPrice(x))) {
       const [vendorsOwnHalf] = c.reportedPricing.split(';')
       expect(vendorsOwnHalf, c.slug).not.toMatch(/\$\d/)
-      expect(c.reportedPricing, c.slug).toMatch(/third-party reviews report/)
+      // A figure after the semicolon says whose it is. An entry that has been
+      // read out in full (`pricingDetail`) carries none it cannot name the
+      // source of, so the "third-party reviews report" shorthand is required
+      // only where nobody has done that yet, and forbidden where they have.
+      if (c.pricingDetail) expect(c.reportedPricing, c.slug).not.toMatch(/third-party reviews report/)
+      else expect(c.reportedPricing, c.slug).toMatch(/third-party reviews report/)
     }
   })
 

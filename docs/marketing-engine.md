@@ -2653,3 +2653,33 @@ change: `subscription_status` is free text, and the new state is a value.
      test.
 - **Tests.** `tests/marketing/website-cost-guide.test.tsx` (twenty); forty
   mutations, all caught after the one above.
+
+**Part 12 slice 16 — NexHealth's pricing, line by line (2026-11-26, no migration).**
+
+- **The section.** `/compare/nexhealth#pricing`, queue item 6: the third
+  entry read out in full, and the first whose pricing page shows no price.
+- **What it publishes is not on its pricing page.** The search of NexHealth's
+  own domain that the "no price published" rule requires found three pages
+  that do carry numbers: a help-centre article pricing extra campaign texts,
+  extra insurance verifications and patient payments; a second on annual
+  billing ("for the price of 11"); and a developer site pricing the API per
+  call. Each is its own group, under its own page, with the page's own date
+  where it states one. The API group is labelled as not a practice's
+  subscription.
+- **The shared rules grew a second branch.** Rule 4 assumed every detailed
+  entry lists a price in its first group. For a vendor whose page shows none,
+  the first group must print none, and the comparison may not conjure a
+  number to be lower or higher than. "The vendor's own site" now includes
+  names under it (`help.`, `synchronizer.`) and still refuses a look-alike.
+- **The unnamed third-party figure is gone from this entry's top line.** It
+  read "third-party reviews report ~$300+/mo": a figure nobody could name
+  the source of, on a page whose new section says no third party's figure is
+  repeated. The shorthand is now required only on entries nobody has read
+  out, and forbidden on those that have been.
+- **What is in their favour is said:** 800 included insurance checks a month
+  against ours, and campaign texts, which we do not send.
+- **A question was nearly asked twice.** The first draft asked "How much does
+  NexHealth cost?" of the pricing page, which every entry's FAQ already asks
+  of its dated line. Renamed, and no page's FAQ may repeat a question.
+- **Tests.** One pinned block for NexHealth and the adapted shared rules in
+  `pricing-detail.test.tsx`; twenty-seven mutations, all caught.

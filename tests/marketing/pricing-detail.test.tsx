@@ -39,6 +39,7 @@ import {
   COMPARISONS,
   buildComparisonFaq,
   formatCheckedOn,
+  publishesPrice,
   searchName,
   type VendorComparison,
 } from '@/lib/marketing/comparisons'
@@ -51,6 +52,18 @@ const plain = COMPARISONS.filter((c) => !c.pricingDetail)
 /** The site a vendor's own facts must come from: the host its dated check names. */
 function vendorSite(c: VendorComparison): string {
   return new URL(c.pricingChecked!.url).hostname.replace(/^www\./, '')
+}
+
+/**
+ * Is this URL on the vendor's own site? The site, or a name under it: a
+ * vendor's help centre and developer site are its own pages
+ * (`help.nexhealth.com`, `synchronizer.nexhealth.com`), and they are where
+ * NexHealth publishes the only prices it publishes. A look-alike that merely
+ * ENDS with the name is not (`notnexhealth.com`), hence the dot.
+ */
+function onVendorSite(c: VendorComparison, url: string): boolean {
+  const host = new URL(url).hostname.replace(/^www\./, '')
+  return host === vendorSite(c) || host.endsWith(`.${vendorSite(c)}`)
 }
 
 /** Every money figure, percentage and day-count in a sentence. */
@@ -67,7 +80,88 @@ describe('the registry', () => {
     expect(detailed.map((c) => c.slug)).toContain('patientpop')
     // Weave: the largest name a dentist searches, read out on 2026-11-26.
     expect(detailed.map((c) => c.slug)).toContain('weave')
+    // NexHealth: the first entry read out in full whose pricing page shows no
+    // price at all. What it publishes is on two other sites of its own.
+    expect(detailed.map((c) => c.slug)).toContain('nexhealth')
     expect(plain.length).toBeGreaterThan(0)
+  })
+
+  /**
+   * NEXHEALTH, PINNED — and the reason rule 4 below has two branches.
+   *
+   * Its pricing page is a product picker and a form: no number. The search of
+   * its own domain that the "no price published" rule requires (CLAUDE.md) is
+   * what found the rest: a help-centre article that prices extra texts,
+   * extra insurance checks and patient payments, a second that describes
+   * annual billing, and a developer site that prices the API per call. So
+   * the entry says "no subscription price" and then prints what IS priced,
+   * each under the page it came from. Read 2026-11-26.
+   */
+  it('NexHealth: no subscription price, and the three places it does publish a number', () => {
+    const nx = COMPARISONS.find((c) => c.slug === 'nexhealth')!
+    const d = nx.pricingDetail!
+    const line = (group: string, label: string) =>
+      d.groups.find((g) => g.id === group)!.lines.find((l) => l.label === label)!.value
+
+    // The pricing page: no number, its own words about billing and leaving.
+    expect(publishesPrice(nx)).toBe(false)
+    expect(line('the-subscription', 'The price')).toBe(
+      'None on the page: “Get pricing for your practice”, a choice of products and a form',
+    )
+    expect(line('the-subscription', 'Custom plans')).toBe('“Custom plans available. Contact us to discuss your needs.”')
+    expect(line('the-subscription', 'Billing options')).toBe(
+      '“When you choose the month-to-month option, you’ll be charged every month. For our yearly subscription, you’ll pay the full year up front.”',
+    )
+    expect(line('the-subscription', 'Cancellation fees')).toBe('“There are no cancellation fees.”')
+    expect(line('the-subscription', 'Ending an annual contract')).toBe('“provide 90 days prior notice to not renew”')
+    expect(JSON.stringify(d.groups.find((g) => g.id === 'the-subscription')!.lines)).not.toMatch(/\$\d/)
+
+    // The help centre: the three fees, to the cent.
+    expect(line('usage-and-overage-fees', 'Extra campaign texts')).toMatch(/^\$0\.012 per SMS message/)
+    expect(line('usage-and-overage-fees', 'Campaign texts included')).toMatch(/^5,000 SMS messages per location every month/)
+    expect(line('usage-and-overage-fees', 'Insurance verifications included')).toMatch(/^800 a month/)
+    expect(line('usage-and-overage-fees', 'Extra verifications')).toMatch(/^\$0\.20 each/)
+    expect(line('usage-and-overage-fees', 'Patient payments')).toBe(
+      '“A payment processing fee of 2.9% + $0.30 is deducted for each patient payment transaction.”',
+    )
+
+    // Annual billing, in its own arithmetic.
+    expect(line('paying-annually', 'Switching to annual')).toBe('“a 12-month subscription (for the price of 11!)”')
+
+    // The developer API is priced, and is labelled as not a practice's price.
+    const api = d.groups.find((g) => g.id === 'developer-api')!
+    expect(api.title).toMatch(/not a practice’s subscription/)
+    expect(line('developer-api', 'Builder')).toMatch(/^\$0\.10 per API call/)
+    expect(line('developer-api', 'Webhooks')).toBe('$0.05 per delivery')
+
+    // Where each group was read: three sites, all NexHealth's own.
+    expect(d.groups.map((g) => [g.id, new URL(g.source.url).hostname])).toEqual([
+      ['the-subscription', 'www.nexhealth.com'],
+      ['usage-and-overage-fees', 'help.nexhealth.com'],
+      ['paying-annually', 'help.nexhealth.com'],
+      ['developer-api', 'synchronizer.nexhealth.com'],
+    ])
+    // The two help articles carry their own dates, as the pages state them.
+    expect(d.groups.find((g) => g.id === 'usage-and-overage-fees')!.source.pageSays).toBe('Updated this week')
+    expect(d.groups.find((g) => g.id === 'paying-annually')!.source.pageSays).toBe('September 28, 2026')
+
+    // No third party's figure — in the section OR on the entry's top line,
+    // which used to carry one nobody could name the source of.
+    expect(d.reported).toEqual([])
+    expect(nx.reportedPricing).not.toMatch(/third-party|reviews report/)
+    // And what is in THEIR favour is said: more included checks, and texting.
+    expect(d.versusUs).toMatch(/shows no subscription price/)
+    expect(d.versusUs).toMatch(/in NexHealth’s favour/)
+    expect(d.versusUs).toMatch(/800 checks a month/)
+    expect(d.versusUs).toMatch(/does not send today/)
+  })
+
+  it('an entry read out in full repeats no figure it cannot name the source of', () => {
+    // The top line of the four entries that show no price ends "third-party
+    // reviews report ~$N". That is tolerable shorthand on an entry nobody has
+    // read out; on one that has a section saying "no third party’s figure is
+    // repeated here", it is a contradiction a reader can see.
+    for (const c of detailed) expect(c.reportedPricing, c.slug).not.toMatch(/third-party reviews report|reported by reviewers/)
   })
 
   /**
@@ -129,7 +223,7 @@ describe('the registry', () => {
         expect(g.lines.length, where).toBeGreaterThan(0)
         const url = new URL(g.source.url)
         expect(url.protocol, where).toBe('https:')
-        expect(url.hostname.replace(/^www\./, ''), `${where}: not the vendor’s own site`).toBe(vendorSite(c))
+        expect(onVendorSite(c, g.source.url), `${where}: ${url.hostname} is not the vendor’s own site`).toBe(true)
         expect(g.source.readOn, where).toMatch(/^\d{4}-\d{2}-\d{2}$/)
         expect(g.source.label.length, where).toBeGreaterThan(5)
         for (const line of g.lines) {
@@ -159,7 +253,7 @@ describe('the registry', () => {
         expect(figures(r.says).length, `${where}: reports no figure`).toBeGreaterThan(0)
         expect(r.caveat.length, `${where}: no caveat`).toBeGreaterThan(20)
         const host = new URL(r.source.url).hostname.replace(/^www\./, '')
-        expect(host, `${where}: cited to the vendor’s own site`).not.toBe(vendorSite(c))
+        expect(onVendorSite(c, r.source.url), `${where}: cited to the vendor’s own site`).toBe(false)
         expect(host, where).not.toMatch(/dreamcreatestudio/)
         expect(r.source.readOn, where).toMatch(/^\d{4}-\d{2}-\d{2}$/)
       }
@@ -187,6 +281,15 @@ describe('the registry', () => {
       const theirs = figures(d.groups[0]!.lines.map((l) => l.value).join(' '))
         .filter((f) => f.startsWith('$'))
         .map((f) => Number(f.replace(/[$,]/g, '')))
+      if (!publishesPrice(c)) {
+        // THE OTHER BRANCH: a vendor whose pricing page shows no price. Its
+        // first group must not print one, and the comparison may not conjure
+        // a number of theirs to be lower or higher than.
+        expect(theirs, `${c.slug}: the registry says its page shows no price, and the first group prints one`).toEqual([])
+        expect(d.versusUs, c.slug).toMatch(/shows no subscription price/)
+        expect(d.versusUs, c.slug).not.toMatch(/lower than ours|higher than ours|cheaper|costs more/)
+        continue
+      }
       expect(theirs.length, `${c.slug}: the first group lists no price`).toBeGreaterThan(0)
       if (Math.min(...theirs) < ours) {
         expect(d.versusUs, `${c.slug}: their price is lower and the page does not say so`).toMatch(/lower than ours/)
@@ -313,6 +416,12 @@ describe('the page', () => {
   it('the pricing questions are in the FAQ — on the page and in its data twin — each carrying its citation', async () => {
     for (const c of detailed) {
       const faq = buildComparisonFaq(c)
+      // No question is asked twice. NexHealth's first draft asked "How much
+      // does NexHealth cost?" of its pricing page — the question every entry
+      // already asks of its dated pricing line — and the page would have
+      // answered it two ways.
+      const questions = faq.map((f) => f.q)
+      expect(new Set(questions).size, `${c.slug}: a question is asked twice`).toBe(questions.length)
       const asked = c.pricingDetail!.groups.filter((g) => g.question)
       for (const g of asked) {
         const item = faq.find((f) => f.q === g.question)
