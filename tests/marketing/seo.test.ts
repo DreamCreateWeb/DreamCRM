@@ -98,6 +98,15 @@ describe('the comparison FAQ (slice 4a — derived, honest, schema-twinned)', ()
       // The when-they-win answer concedes their real strengths — the
       // honesty bar, machine-checkable.
       expect(faq[3].a.toLowerCase()).toContain(c.theirStrengths[0].title.toLowerCase())
+      // …and concedes them as they are spelled. The answer used to lower-case
+      // each strength whole, which turned NPS, PMS, API, SEO and AI into
+      // words in an answer a search engine is handed verbatim.
+      for (const s of c.theirStrengths) {
+        for (const acronym of s.title.match(/\b[A-Z]{2,}\b/g) ?? []) {
+          expect(faq[3].a, `${c.slug}: “${acronym}” was lower-cased`).toContain(acronym)
+        }
+      }
+      expect(faq[3].a, c.slug).not.toMatch(/\b(pms|nps|api|seo|ai|voip|sms|tebra)\b/)
       // Every answer survives the FAQPage builder.
       expect(faqPageLd(faq).mainEntity).toHaveLength(5 + pricingQuestions)
     }

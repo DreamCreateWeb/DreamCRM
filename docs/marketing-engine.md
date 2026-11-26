@@ -2712,3 +2712,59 @@ change: `subscription_status` is free text, and the new state is a value.
   be given its line back. Sixteen mutations, all caught.
 - **For the owner** (`docs/organic-go-live.md` Part 8, row 8): the stronger
   fix is to build the export. That is app work.
+
+**Part 12 slice 18 — Solutionreach, read from its own sitemap (2026-11-26, no migration).**
+
+- **What was wrong, first.** The entry's top line said "every package priced
+  by quote". Solutionreach's own site has a second pricing page, with a
+  checkout, that prints a monthly price for four packages. The read of the
+  25th stopped at the page the menu links to. The line was wrong in the
+  competitor's favour, and it was still wrong.
+- **What was wrong, second.** The correction was written from two pricing
+  pages and the Master Service Agreement, and was a commit away from going
+  out when the entry's own description stopped agreeing with the page above
+  it ("comms-only", beside a list of payments and insurance packages). The
+  check that followed was the one that should have come first: the list of
+  pages its own sitemap publishes. **Eighty-six pages; every one downloaded
+  and searched for a price.** Two more print figures: a page of offer terms
+  (a per-location price for its packages with phones and an AI receptionist,
+  for orders signed by December 18, 2026) and the fee schedule in its
+  payments agreement.
+- **The method, from now on** (`docs/organic-go-live.md` Part 9): a
+  line-by-line read begins at the vendor's sitemap, not its menu. The three
+  entries read before this one (Weave, NexHealth, Tebra) were not read that
+  way and are queued for the same sweep (Part 10, item 15).
+- **What the page prints now.** Six groups, each from one page of its own
+  site: the checkout prices; the main pricing page (with the texts each
+  package includes); the dated offer, titled as one, with its end date in
+  the first line; its payment fee schedule under its own row names; and the
+  agreement's clauses on fees and on renewal. Thirty-five distinct quotations,
+  each checked by script against the saved copy of the page it came from.
+- **What the entry stopped saying.** "Comms-only", "dated", "a legacy
+  portal" (three times), scheduling "request-based in places", phones as a
+  partial add-on, texting "best-in-class", insurance "not verified here".
+  Its site sells a phone system, an AI receptionist, payments, insurance
+  checks and scheduling from live openings, and names no patient portal: the
+  word appears once, to say a patient pays "without logging in to a portal".
+  Each row of the table now quotes a page of its own or says its site lists
+  none. A fourth strength was added in its favour (phones and the AI
+  receptionist, which we do not sell), and the bottom line concedes it.
+- **Two things deliberately not made into search answers.** The offer (it
+  ends on a stated day) and the payment fees. The second because this site
+  still states nowhere what the platform keeps of a patient's payment
+  (`docs/organic-go-live.md` Part 8, row 7): their schedule is printed,
+  nothing of ours is set beside it, and a test holds the comparison silent
+  on payments until that is ruled.
+- **Three small things found on the way.** The "better choice" answer on all
+  eight pages lower-cased each strength whole ("pms breadth", "surveys & nps
+  tooling") in text handed to search engines verbatim: it now loses its
+  first capital and nothing else. "A dollar lower than ours" (Weave and
+  Solutionreach) is arithmetic on a price that is the owner's to change: a
+  test now names the sentence if either number moves. And the "not read"
+  note said each source "refuses an automated visit"; one of them simply
+  would not load, and the sentence now covers both.
+- **Tests.** `tests/marketing/pricing-detail.test.tsx` (the pinned block),
+  `comparison-pricing-check.test.tsx`, `seo.test.ts`. Fifty-nine mutations,
+  all caught.
+- **Dated.** The offer ends 2026-12-18. The page says so and stays true as a
+  record, but the offer-terms page may change or go: Part 10, item 16.

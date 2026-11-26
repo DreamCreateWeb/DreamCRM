@@ -148,7 +148,7 @@ describe('all eight entries, each re-read in a browser on the day it says', () =
     ['weave', 'getweave.com', '2026-11-26'],
     ['nexhealth', 'nexhealth.com', '2026-11-26'],
     ['revenuewell', 'revenuewell.com', '2026-11-25'],
-    ['solutionreach', 'solutionreach.com', '2026-11-25'],
+    ['solutionreach', 'solutionreach.com', '2026-11-26'],
     ['adit', 'adit.com', '2026-11-25'],
     ['dental-intelligence', 'dentalintel.com', '2026-11-25'],
     ['podium', 'podium.com', '2026-11-25'],

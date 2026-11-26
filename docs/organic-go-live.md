@@ -513,7 +513,7 @@ anything sent to customers, external communications).
 | 4 | **Where a clinic's site really lives** (`NEXT_PUBLIC_SITE_USE_SUBDOMAIN`) | Clinic pages declare their address on the marketing domain. Until this is settled, clinic sites cannot be announced to the search engines and the Search Console baseline mixes them with ours |
 | 5 | **Your name on `/about`** | The page exists and says "Dream Create, in Ward, Arkansas". A named founder is a stronger answer to "which DreamCRM is this?", and the Privacy Policy already names you — but a marketing page is a different thing to put a name on. One line to add if you say yes |
 | 6 | **An email to a signup who stops at the card step** | Not built — it is a new message to customers |
-| 7 | **The 1% the platform keeps of each patient payment** — say it in public, or stop taking it? | It has been taken on every payment through a practice's own Stripe account since 2026-07-03 (migration 0115, `shop_config.platform_fee_bps`, default 100): shop orders, memberships, balance payments, booking deposits, payment-plan installments. The pricing page answers "Do you take a cut of my shop or membership revenue?" with "your subscription covers the platform". The Terms do not mention it and no screen in the app shows it. Found 2026-11-26 while the website-cost guide was answering its own questions; **nothing was changed**, because what a surface quotes for the price is yours (rulebook §8, item 1). **If kept:** the pricing answer, the Terms (which promise an email before a significant change), the shop help article and the screen where a practice connects Stripe should all say it, from one number. **If dropped:** the default and the existing rows go to 0, and the pricing answer becomes true as written. Until you rule, the website-cost guide calls its own total "the subscription" and says nothing about what a payment costs |
+| 7 | **The 1% the platform keeps of each patient payment** — say it in public, or stop taking it? | It has been taken on every payment through a practice's own Stripe account since 2026-07-03 (migration 0115, `shop_config.platform_fee_bps`, default 100): shop orders, memberships, balance payments, booking deposits, payment-plan installments. The pricing page answers "Do you take a cut of my shop or membership revenue?" with "your subscription covers the platform". The Terms do not mention it and no screen in the app shows it. Found 2026-11-26 while the website-cost guide was answering its own questions; **nothing was changed**, because what a surface quotes for the price is yours (rulebook §8, item 1). **If kept:** the pricing answer, the Terms (which promise an email before a significant change), the shop help article and the screen where a practice connects Stripe should all say it. **It now shows from the outside too:** the NexHealth and Solutionreach pages print what those vendors charge on a patient's payment, from their own fee schedules, and say nothing about ours — on purpose, and a test holds them silent — because there is no public sentence of ours to set beside theirs, from one number. **If dropped:** the default and the existing rows go to 0, and the pricing answer becomes true as written. Until you rule, the website-cost guide calls its own total "the subscription" and says nothing about what a payment costs |
 | 8 | **A website export** — build one? | The site promised "your website content exports with you" in nine places (home, why, pricing three times, a comparison entry, the comparison FAQ, two help articles). The product has no export of a site; what exports is the patient list, leads, appointments, orders and payments. On 2026-11-26 every one of those lines was corrected to say what is true, and the pricing page's "Is my data locked in?" now names the website as the one thing that does not travel. That is the honest version of today. The stronger answer to "Leaving is allowed" is to build the export (the site's text and images as a download), after which the old line would be true again. Yours to decide; it is app work, not marketing |
 
 ---
@@ -526,6 +526,13 @@ anything sent to customers, external communications).
 - **A competitor changes its site** → re-read it, update its entry in
   `lib/marketing/comparisons.ts` with the new date, and the page, the sitemap
   and the search notice follow.
+- **A vendor's pricing is read out line by line** → the read starts at the
+  vendor's own sitemap, not its menu: every page it lists is downloaded and
+  searched for a price, in the text and in the structured data, before a
+  word is written. Solutionreach's menu led to one pricing page; its sitemap
+  listed 86 pages, and four of them print prices (2026-11-26). Each page is
+  saved as it was read, and every quotation is checked against the saved
+  copy by script before the entry is written.
 - **A new comparison is added without a read** → it shows no date, gets no ad,
   and is still listed. `tests/marketing/unchecked-comparison.test.tsx` holds
   that on a planted entry.
@@ -604,6 +611,10 @@ ready to copy — not an article about it.
 11. The other five vendors' pricing, line by line; then comparisons for the
     vendors dentists search that we do not cover yet (website makers,
     reminder services, membership-plan software).
+    **Solutionreach built 2026-11-26:** `/compare/solutionreach#pricing`
+    (`docs/marketing-engine.md`, Part 12 slice 18), and its whole entry
+    corrected against its own site. Still to do: RevenueWell, Adit, Dental
+    Intelligence, Podium.
 12. The search scoreboard: the app saves what Search Console reports each
     week, so results can be read without an export.
 13. Re-read the two September guides (patient growth, membership pricing)
@@ -614,6 +625,16 @@ ready to copy — not an article about it.
     was being typed into the footer by hand; the list reached fourteen links.
     **Done 2026-11-26** (`docs/marketing-engine.md`, Part 12 slice 13): the
     guides have their own column, built from the guide registry.
+
+15. Re-read Weave, NexHealth and Tebra from their own sitemaps. Each was
+    read "line by line" from the pages its menu and its terms link to. The
+    Solutionreach read was done the same way at first, and its sitemap then
+    turned up two more pages that print prices. The same sweep is owed to
+    the three entries already published. Before item 11's next vendor.
+16. After 2026-12-18, re-read Solutionreach's offer terms
+    (`/practice-complete-offer-terms`). Its Practice Complete offer ends that
+    day; our page gives the date and stays true as a record, but the source
+    page may change or be taken down.
 
 A text template is content a practice may use anywhere; it is never a
 statement that this product sends texts (the recall guide's closing block is

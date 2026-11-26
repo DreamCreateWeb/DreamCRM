@@ -537,39 +537,187 @@ export const COMPARISONS: VendorComparison[] = [
     category: 'Patient reminders & engagement (the category veteran)',
     whatItIs:
       'Solutionreach is patient reminder and engagement software. It has sent automated appointment reminders by text and email for about twenty years, and it includes patient satisfaction surveys.',
+    // This said "every package priced by quote ... setup fees reported by
+    // reviewers" until 2026-11-26. The first half was wrong in Solutionreach's
+    // favour: its main pricing page sends every package to a quote, and a
+    // second pricing page on its own site has a checkout that prints prices.
+    // The read of the 25th stopped at the page the menu links to. The second
+    // half named no reviewer, and went with it.
     reportedPricing:
-      'Published as “pricing starts at $199” for its entry package, with every package priced by quote and yearly contract options; setup fees reported by reviewers (2025–2026)',
-    pricingChecked: { on: '2026-11-25', source: 'Solutionreach’s own pricing page', url: 'https://www.solutionreach.com/pricing' },
+      'Published from $199/mo billed yearly, or $219/mo billed monthly, for its Essentials patient communications package on a checkout page of its own site, where a Plus package is $249/mo and an optional revenue-cycle package $199 or $349/mo; its main pricing page says “Pricing starts at $199” and sends every package to a quote',
+    pricingChecked: { on: '2026-11-26', source: 'Solutionreach’s own pricing pages', url: 'https://www.solutionreach.com/pricing' },
+    pricingDetail: {
+      intro:
+        'Solutionreach prints prices in four places on its own site. The pricing page its menu links to names three packages and sends each to a quote. A second pricing page, with a checkout, prints monthly prices for four packages. A page of offer terms prints a per-location price for its Practice Complete packages, which add phones and its AI receptionist, for orders signed by December 18, 2026. Its payments agreement lists what it charges on a patient’s payment. The rules on fees and renewal are in its Master Service Agreement. This is what each page said on the day it was read.',
+      groups: [
+        {
+          id: 'published-prices',
+          title: 'The prices on its checkout page',
+          source: {
+            label: 'Solutionreach’s pricing page with checkout',
+            url: 'https://www.solutionreach.com/pricing-package-with-checkout',
+            readOn: '2026-11-26',
+          },
+          question: 'How much does Solutionreach cost per month?',
+          answer:
+            'A checkout page on Solutionreach’s own site prices its Essentials patient-communications package at $199 a month billed yearly, or $219 billed monthly, and its Plus package at $249 or $279. Two optional revenue-cycle packages are $199 or $219 for Essentials and $349 or $379 for Plus. The page says annual plans save up to 10%.',
+          lines: [
+            { label: 'Patient Communications, Essentials', value: '$199/mo billed yearly, or $219/mo billed monthly: two-way texting, appointment reminders, recall and its basic online scheduler' },
+            { label: 'Patient Communications & Retention, Plus', value: '$249/mo billed yearly, or $279/mo billed monthly: everything in Essentials, plus its pro online scheduler, digital intake, patient surveys, batch messaging, reputation management and outreach campaigns' },
+            { label: 'The revenue-cycle packages', value: 'An add-on: “Add a Revenue Cycle Messaging™ Package (OPTIONAL)”' },
+            { label: 'Revenue Cycle Messaging, Essentials', value: '$199/mo billed yearly, or $219/mo billed monthly: Insurance Pro, Secure Docs Basic and Payment Technology' },
+            { label: 'Revenue Cycle Messaging, Plus', value: '$349/mo billed yearly, or $379/mo billed monthly: everything in Essentials, plus Insurance Premium and Secure Docs Pro' },
+            { label: 'Paying yearly', value: '“Save up to 10% with annual plans”' },
+            { label: 'Enterprise', value: '“Enterprise packages available. Contact us to discuss your needs.”' },
+          ],
+        },
+        {
+          id: 'the-main-pricing-page',
+          title: 'The pricing page its menu links to',
+          source: { label: 'Solutionreach’s pricing page', url: 'https://www.solutionreach.com/pricing', readOn: '2026-11-26' },
+          lines: [
+            { label: 'The headline', value: '“Pricing starts at $199”' },
+            { label: 'Its packages', value: 'Patient Connect, Practice Efficiency and Practice Growth, each with a “Request a Quote” button' },
+            { label: 'Enterprise', value: 'For “6+ LOCATIONS”, with a “Get in Touch” button' },
+            { label: 'Texts included each month', value: '1,750 on Patient Connect, 3,500 on Practice Efficiency and 4,500 on Practice Growth; “TAILORED” on Enterprise' },
+            { label: 'Contract options', value: '“We offer yearly contract options.”' },
+          ],
+        },
+        // The two groups below were found on the second read of 2026-11-26,
+        // by taking the list of pages its own sitemap publishes (86) and
+        // searching every one for a price. No question is asked of either: an
+        // offer with an end date does not belong in an answer a search engine
+        // keeps, and what a patient's payment costs is not yet stated for our
+        // own product (docs/organic-go-live.md Part 8, row 7), so their fee
+        // schedule is printed and nothing of ours is set beside it.
+        // RE-READ AFTER 2026-12-18: the offer ends that day.
+        {
+          id: 'practice-complete-offer',
+          title: 'A dated offer: the Practice Complete packages',
+          source: {
+            label: 'Solutionreach’s Practice Complete year-end offer terms',
+            url: 'https://www.solutionreach.com/practice-complete-offer-terms',
+            readOn: '2026-11-26',
+            pageSays: 'Effective November 16, 2026',
+          },
+          lines: [
+            { label: 'What the offer adds', value: 'For order forms signed “on or before December 18, 2026”: “unlimited calls answered by SR AI Receptionist, up to five (5) SR Phones Standard lines, and up to five (5) phones per Location”' },
+            { label: 'Practice Complete Efficiency Package', value: '$599.00 per location per month, with 3,500 texts a month' },
+            { label: 'Practice Complete Growth Package (Dental)', value: '$799.00 per location per month, with 4,500 texts a month and Insurance Premium' },
+            { label: 'Practice Complete Growth Package (Eye Care, Medical)', value: '$699.00 per location per month, with 4,500 texts a month' },
+            { label: 'Extra phone lines', value: '“Additional SR Phones Standard lines are $21 per line per month.”' },
+            { label: 'How the price is counted', value: '“Prices are per Location, per month, for Order Forms signed under the Offer. Each Location includes up to 5 Providers.”' },
+            { label: 'Who can take it', value: 'Practices with “fewer than six (6) Locations” that sign “an initial term of at least twelve (12) months”' },
+            { label: 'Not in the price', value: '“Taxes and applicable fees are not included.”' },
+            { label: 'It can change', value: '“Solutionreach may change or end the Offer at any time; a change does not affect an Order Form already signed.”' },
+          ],
+        },
+        {
+          id: 'patient-payments',
+          title: 'Patient payments: the fee schedule in its SR Pay Agreement',
+          source: {
+            label: 'Solutionreach’s SR Pay Agreement',
+            url: 'https://www.solutionreach.com/legal/sr-pay-agreement',
+            readOn: '2026-11-26',
+            pageSays: 'Last updated: May 21, 2026',
+          },
+          // The first eight labels are the rows of its fee schedule, as named.
+          lines: [
+            { label: 'Transaction Fee via Terminal (Swiped/Insert Chip/Tap)', value: '2.40%' },
+            { label: 'Transaction Auth Fee via Terminal (Swiped/Insert Chip/Tap)', value: '$0.20' },
+            { label: 'Transaction Fee', value: '2.89%' },
+            { label: 'Transaction Auth Fee', value: '$0.30' },
+            { label: 'ACH Transaction Fee', value: '1.00%' },
+            { label: 'ACH Failure (Incl. Payout Failure)', value: '$5.00' },
+            { label: 'ACH Refund Fee', value: '$0.75' },
+            { label: 'ACH Return Fee', value: '$25.00' },
+            { label: 'What those fees leave out', value: '“Unless expressly stated otherwise, all Fees are exclusive of taxes, interchange, and Payment Network assessments.”' },
+            { label: 'Its processor’s own fees', value: '“Payrix may charge additional fees pursuant to the Sub-Merchant Agreement and other Payrix Documents; those fees are in addition to the Fees set forth here.”' },
+            { label: 'Fee changes', value: '“Solutionreach may change the Fees on at least thirty (30) days’ prior notice”' },
+          ],
+        },
+        {
+          id: 'fees-and-price-changes',
+          title: 'Fees and price changes',
+          source: { label: 'Solutionreach’s Master Service Agreement', url: 'https://www.solutionreach.com/msa-terms', readOn: '2026-11-26' },
+          question: 'Can Solutionreach raise its price?',
+          answer:
+            'Its Master Service Agreement says Solutionreach “may modify the License Fees associated with any product or service at any time upon reasonable notice”. It also says all fees paid are non-refundable, and that a payment more than thirty days late accrues interest of 1.5% a month or the highest lawful rate, whichever is lower.',
+          lines: [
+            { label: 'How fees are counted', value: '“License Fees for Services may be charged per Location, per Provider, or by usage.”' },
+            { label: 'Price changes', value: '“Company may modify the License Fees associated with any product or service at any time upon reasonable notice.”' },
+            { label: 'Third-party technology fees', value: '“Company may charge a fee to Client as reasonably necessary to offset third party technology fees.”' },
+            { label: 'Refunds', value: '“All fees paid are non-refundable.”' },
+            { label: 'Late payment', value: 'After thirty days: interest of “one and one-half percent (1.5%) per month or the highest rate allowed by applicable law, whichever is lower”' },
+            { label: 'If you fall behind', value: 'Solutionreach may “require full payment of all fees under such Order Form for the remainder of the Order Form Term”, and suspend the service until it is paid' },
+            { label: 'Taxes', value: 'Yours, on top of the fees' },
+          ],
+        },
+        {
+          id: 'the-contract',
+          title: 'The contract',
+          source: { label: 'Solutionreach’s Master Service Agreement', url: 'https://www.solutionreach.com/msa-terms', readOn: '2026-11-26' },
+          question: 'Does Solutionreach require a contract?',
+          answer:
+            'Its pricing page answers “What are your contract options?” with “We offer yearly contract options.” Its Master Service Agreement says an order renews automatically, for one-year periods unless the order form says otherwise, and that stopping a renewal takes written notice at least thirty days before the term ends.',
+          lines: [
+            { label: 'The term', value: 'The period stated on the order form' },
+            { label: 'Renewal', value: 'Automatic: for the periods on the order form or, if it names none, “for successive additional one-year periods”' },
+            { label: 'To stop a renewal', value: 'Written notice “at least thirty (30) days prior to the end of the then-current” term' },
+            { label: 'Ending an order before its term is up', value: 'The agreement lists mutual written agreement; a material breach that “remains uncured thirty (30) days after” written notice; and, for the service affected, an integration failure Solutionreach does not correct within ten days of notice' },
+            { label: 'When an order ends', value: 'Access stops, and everything owed up to that date is due' },
+          ],
+        },
+      ],
+      reported: [],
+      notRead: ['G2', 'Capterra', 'Software Advice', 'GetApp', 'TrustRadius', 'Solutionreach’s community help site'],
+      versusUs: `Solutionreach’s Essentials package, billed yearly, is a dollar lower than ours; billed monthly it is higher. Add its optional revenue-cycle package for insurance checks and the two come to $398 a month billed yearly. ${RATE_MONTHLY}/mo here is month-to-month and includes ${INCLUDED_MONTHLY_INSURANCE_CHECKS} insurance checks a month, the website, the patient portal and online booking, with no yearly term. Two things are in Solutionreach’s favour: its packages send texts, which DreamCRM does not do today, and it sells a phone system and an AI receptionist, which we do not sell.`,
+    },
+    // "…and reviewer complaints about contracts and sync misfires" stood in
+    // this sentence until 2026-11-26: a claim about a competitor attributed
+    // to reviewers nobody named. What its own pages say about contracts is
+    // in the pricing section below, in its own words.
+    //
+    // THE SAME DAY, the rest of this entry was read against the 86 pages its
+    // own sitemap lists. It had called the product "comms-only" and "dated",
+    // with "a legacy portal", scheduling "request-based in places" and phones
+    // a partial add-on. Its site sells a phone system, an AI receptionist,
+    // payments and scheduling from live openings; and it names no patient
+    // portal at all (the word appears once, to say a patient pays without
+    // logging in to one). Every line below now says what a page of its own
+    // says, or says that its site lists none.
     summary:
-      'Solutionreach effectively invented automated patient reminders and still runs reliable SMS at serious scale. Twenty years in, the product is deep on messaging and surveys but dated around it: no website product, a legacy portal, and reviewer complaints about contracts and sync misfires. DreamCRM is the modern stack around the same jobs — with the website and portal included and month-to-month terms.',
+      'Solutionreach effectively invented automated patient reminders and still runs reliable SMS at serious scale. Its site lists texting, recall, surveys, online scheduling, payments, a phone system and an AI receptionist, and no website or patient portal. DreamCRM is built around those two: the website and the portal are included, on month-to-month terms.',
     theirStrengths: [
       { title: 'Reminder reliability at scale', body: 'Battle-tested SMS/email reminder infrastructure with two decades of dental cadence built in.' },
       { title: 'Surveys & NPS tooling', body: 'Built-in patient satisfaction surveys are more developed than anything we ship today.' },
-      { title: 'Broad PMS sync', body: 'Mature sync agents across the major server PMSs.' },
+      { title: 'Broad PMS sync', body: 'Its integrations page lists “400+ native PM/EHR integrations”, with appointments written back to the practice’s system.' },
+      { title: 'A phone system with an AI receptionist', body: 'It sells a phone system, SR Phones, and an AI receptionist that answers calls and books appointments when the front desk cannot. DreamCRM sells neither.' },
     ],
     ourStrengths: [
-      { glyph: 'people', title: 'The modern patient surface', body: 'A warm, mobile-first portal with self-reschedule, forms, and online payments — versus a legacy portal experience.' },
-      { glyph: 'globe', title: 'Website + SEO + careers + shop included', body: 'Solutionreach is comms-only; we replace the website vendor, the job board, and the storefront too.' },
+      { glyph: 'people', title: 'A patient portal in your brand', body: 'Confirm, reschedule, fill in forms and pay online, under your logo. Solutionreach’s site lists no patient portal; its payments page says patients pay “without logging in to a portal”.' },
+      { glyph: 'globe', title: 'Website + SEO + careers + shop included', body: 'Solutionreach’s site lists no website product, careers page or shop. DreamCRM includes all three.' },
       { glyph: 'door', title: 'No contract', body: 'Solutionreach’s pricing page answers “What are your contract options?” with yearly contracts. DreamCRM is month-to-month, and you can cancel whenever you like.' },
       { glyph: 'chat', title: 'One inbox', body: 'Portal messages and patient email merge per patient; reminders are one thread of a relationship, not the product.' },
     ],
     matrix: baseMatrix({
       website: ['no'],
-      booking: ['partial', 'Request-based scheduling in places'],
-      portal: ['partial', 'Legacy portal'],
+      booking: ['yes', 'Its scheduling page: “Show patients real-time openings on your schedule”'],
+      portal: ['no', 'None listed on its site; its payments page says patients pay “without logging in to a portal”'],
       inbox: ['partial', 'SMS-centric'],
       reviews: ['yes'],
       recall: ['yes', 'Their heritage'],
-      social: ['partial', 'Reviews; social via add-ons'],
+      social: ['partial', 'Reads and answers reviews across business listings; no social posting listed on its site'],
       shop: ['no'],
       careers: ['no'],
-      pms: ['yes'],
-      phones: ['partial', 'Add-on offerings'],
-      sms: ['yes', 'Best-in-class depth'],
-      contract: ['no', 'Yearly contract options, per its pricing page'],
+      pms: ['yes', '“400+ native PM/EHR integrations”, per its integrations page'],
+      insurance: ['yes', 'Its pricing page lists “Insurance Eligibility (Dental Only)”; on its checkout page it is in the optional revenue-cycle packages'],
+      phones: ['yes', 'SR Phones, the phone system it sells'],
+      sms: ['yes', '1,750 to 4,500 texts a month by package, per its pricing page'],
+      contract: ['no', 'Yearly contract options, per its pricing page; its checkout page bills them yearly or monthly'],
     }),
     bottomLine:
-      'For pure reminder volume over SMS today, the veteran still delivers. For everything a patient actually touches — your website, booking, portal, reviews — and a price you can cancel monthly, DreamCRM is the modern answer.',
+      'If you want texting, a phone system and an AI receptionist from one vendor, Solutionreach sells all three and DreamCRM does not. If you want the website and the patient portal in the same product as booking, reviews and recall, at a price you can cancel monthly, that is DreamCRM.',
   },
   {
     slug: 'adit',
@@ -914,7 +1062,10 @@ export function latestPricingCheck(comparisons: readonly VendorComparison[] = CO
  * answer can carry a fact the honesty bar above didn't already admit.
  */
 export function buildComparisonFaq(c: VendorComparison): Array<{ q: string; a: string }> {
-  const leadTitles = c.theirStrengths.map((s) => s.title.toLowerCase()).join(', ')
+  // Mid-sentence, a title loses its capital and nothing else: lower-casing
+  // the whole of it turned NPS, PMS, API, SEO and AI into words.
+  const midSentence = (title: string) => (/^[A-Z](?![A-Z])/.test(title) ? title[0]!.toLowerCase() + title.slice(1) : title)
+  const leadTitles = c.theirStrengths.map((s) => midSentence(s.title)).join(', ')
   return [
     {
       // First, and the only answer with nothing about us in it: a reader who
