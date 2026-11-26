@@ -581,9 +581,11 @@ export const COMPARISONS: VendorComparison[] = [
       'RevenueWell is a dental marketing and communication suite: campaigns, reminders, two-way texting, phones and a patient portal. It also has an in-house marketing team that runs SEO, paid ads, social media and website design for a practice.',
     // The line ended "third-party reviews report ~$349/mo for a single
     // location" until 2026-11-26: a figure nobody could name the source of.
-    // It went when the pages its own sitemap lists were read (682, and the
-    // 218 articles of its help centre), which is also where the prices this
-    // line points at were found. The offer headline's free period is still
+    // It went when its site was read from its own sitemap (682 pages listed,
+    // 202 read: every page that is not a blog article, and the articles whose
+    // address names a price, a cost or a plan) and all 218 articles of its
+    // help centre, which is also where the prices this line points at were
+    // found. The offer headline's free period is still
     // not typed as a length: `tests/marketing/trial-copy.test.ts` reads any
     // digit beside "free" as OUR trial.
     reportedPricing:
@@ -981,8 +983,8 @@ export const COMPARISONS: VendorComparison[] = [
     // The line ended "third-party reviews report ~$399/mo bundles per location"
     // until 2026-11-26: a figure nobody could name the source of, and the
     // basis for two claims that DreamCRM was the cheaper of the two. Its own
-    // FAQ page, found when the pages its sitemap lists were read (938), states
-    // a starting price below ours. The claims went; the price is quoted.
+    // FAQ page, found when its sitemap was read (938 pages listed, 913 read;
+    // the rest are videos), states a starting price below ours. The claims went; the price is quoted.
     //
     // NOT PRINTED, on purpose: the banner across its site that day (a
     // percentage off the first year and a gift card for taking a demo). Its
@@ -1131,12 +1133,15 @@ export const COMPARISONS: VendorComparison[] = [
       'Dental Intelligence is practice analytics and patient engagement software. It is known for morning-huddle dashboards and production numbers read from the practice management system, and Modento, which joined the company, added a patient app for forms and messages.',
     // The line ended "third-party reviews report ~$300–$600+/mo per location"
     // until 2026-11-26: a figure nobody could name the source of. It went
-    // when the pages its sitemap lists were read (1,227), which is also where
-    // what it does publish was found: not a price, but its terms.
+    // when its site was read from its sitemap: 1,227 pages listed, 419 read.
+    // The rest are blog posts, podcasts, webinars, ebooks and case studies,
+    // which were read only when the address named a price, a cost, a fee or
+    // a plan. That is also where what it does publish was found: not a
+    // price, but its terms.
     //
     // "NO PRICE" TOOK THE THREE READS. Its home page rendered in a browser;
     // its sitemap and its menu searched for a pricing page (there is none);
-    // and the structured data of every page read (no price in any).
+    // and the structured data of every page read (no price in any of the 419).
     reportedPricing:
       'No price published — its site has no pricing page, and its home page asks you to get a demo; its terms publish how an agreement renews, a five percent rise in fees at each renewal, and what texts and call minutes beyond a subscription’s limits cost',
     pricingChecked: { on: '2026-11-26', source: 'Dental Intelligence’s own home page', url: 'https://www.dentalintel.com/' },
@@ -1403,7 +1408,7 @@ export const COMPARISONS: VendorComparison[] = [
       'Published from $49 per provider per month — the non-physician starting price for Patient Experience + Marketing, the package with online scheduling, reviews, 80+ web profiles and Google Business Profile; a physician starts at $99, and both are starter prices for practices submitting fewer than 100 claims a month. Its main pricing page shows no number and asks for your details: the figures are on its pricing overview page',
     // Re-checked 2026-11-26: every figure and quotation in the groups read on
     // the 25th was compared by script with that day's copy of the page it
-    // cites, when the pages its sitemap lists were read. All were present.
+    // cites, when its site was read from its sitemap. All were present.
     pricingChecked: { on: '2026-11-26', source: 'Tebra’s own pricing overview page', url: 'https://www.tebra.com/pricing/overview' },
     summary:
       'PatientPop — now part of Tebra after merging with Kareo — is the closest thing to a direct overlap: it sells healthcare practice websites, SEO, online scheduling, and reputation as a growth suite, alongside Tebra’s EHR and billing. It’s a capable, established product for medical private practices. The differences are focus and terms: Tebra’s home and pricing pages do not mention dentistry at all; it prices per provider and bills website hosting as its own line; its agreements renew automatically for the same term unless you give sixty days’ notice, with no early cancellation; and it lists no online store, memberships, or dental PMS sync. DreamCRM is dental-native, self-serve, edit-it-yourself, one flat price, and month-to-month.',

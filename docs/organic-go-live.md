@@ -515,6 +515,7 @@ anything sent to customers, external communications).
 | 6 | **An email to a signup who stops at the card step** | Not built — it is a new message to customers |
 | 7 | **The 1% the platform keeps of each patient payment** — say it in public, or stop taking it? | It has been taken on every payment through a practice's own Stripe account since 2026-07-03 (migration 0115, `shop_config.platform_fee_bps`, default 100): shop orders, memberships, balance payments, booking deposits, payment-plan installments. The pricing page answers "Do you take a cut of my shop or membership revenue?" with "your subscription covers the platform". The Terms do not mention it and no screen in the app shows it. Found 2026-11-26 while the website-cost guide was answering its own questions; **nothing was changed**, because what a surface quotes for the price is yours (rulebook §8, item 1). **If kept:** the pricing answer, the Terms (which promise an email before a significant change), the shop help article and the screen where a practice connects Stripe should all say it. **It now shows from the outside too:** the NexHealth and Solutionreach pages print what those vendors charge on a patient's payment, from their own fee schedules, and say nothing about ours — on purpose, and a test holds them silent — because there is no public sentence of ours to set beside theirs, from one number. **If dropped:** the default and the existing rows go to 0, and the pricing answer becomes true as written. Until you rule, the website-cost guide calls its own total "the subscription" and says nothing about what a payment costs |
 | 8 | **A website export** — build one? | The site promised "your website content exports with you" in nine places (home, why, pricing three times, a comparison entry, the comparison FAQ, two help articles). The product has no export of a site; what exports is the patient list, leads, appointments, orders and payments. On 2026-11-26 every one of those lines was corrected to say what is true, and the pricing page's "Is my data locked in?" now names the website as the one thing that does not travel. That is the honest version of today. The stronger answer to "Leaving is allowed" is to build the export (the site's text and images as a download), after which the old line would be true again. Yours to decide; it is app work, not marketing |
+| 9 | **A copy of the intake form in the PMS chart** — build it? | The product page, a comparison entry and a help article said a completed form is mirrored into the patient's chart. The write exists in the code, but the only PMS connection a practice can make today (NexHealth) refuses it, so it runs for no practice. On 2026-11-26 all three lines were corrected: the form stays on the patient's record in DreamCRM and is not copied to the PMS today. A test holds the claim at zero until the write works. Building it is app work; yours to decide |
 
 ---
 
@@ -538,7 +539,15 @@ anything sent to customers, external communications).
   Two more things the RevenueWell read met: a help centre may answer only a
   real browser, and a fee schedule may be a picture inside a PDF. Read the
   first rendered; read the second by eye and pin every figure in a test,
-  because no script can check it.
+  because no script can check it. **Say how much was read.** On a large
+  site the blog is filtered: every product, legal and resource page is
+  downloaded, and a blog article only when its address names a price, a
+  cost, a fee or a plan (Dental Intelligence: 419 of 1,227 pages; Podium:
+  528 of 2,312). The note beside the entry gives both numbers, never the
+  sitemap's size alone. And **read the feature rows while you are there**:
+  the same pages that print a price say what the product does, and the
+  Dental Intelligence and Podium reads corrected five rows in the
+  vendors' favour.
 - **A new comparison is added without a read** → it shows no date, gets no ad,
   and is still listed. `tests/marketing/unchecked-comparison.test.tsx` holds
   that on a planted entry.
@@ -572,8 +581,8 @@ be tagged as sponsored. What can be bought is listed below.
 
 | Who is searching | What they type | Our page for it | Where it stands |
 |---|---|---|---|
-| The front desk, looking for wording to copy | "dental recall script", "… letter template", "appointment reminder text", "no-show policy template", "review request template" | The practice-growth guides | The recall guide is on page two for about two dozen searches, and it is the only one built. **Google already shows us here — the fastest ground to take** |
-| An owner pricing a vendor | "{vendor} pricing", "{vendor} cost" | Each comparison page's pricing section | Tebra (PatientPop) is read out in full; the other seven carry one dated line |
+| The front desk, looking for wording to copy | "dental recall script", "… letter template", "appointment reminder text", "no-show policy template", "review request template" | The practice-growth guides | The recall guide is on page two for about two dozen searches. Seven more guides were built on 2026-11-25 and 26 (the queue below). **Google already shows us here — the fastest ground to take** |
+| An owner pricing a vendor | "{vendor} pricing", "{vendor} cost" | Each comparison page's pricing section | All eight are read out line by line from the vendor's own pages (2026-11-26) |
 | An owner leaving a vendor | "{vendor} alternatives", "{vendor} vs …" | The comparison pages | Eight vendors; four of them had no showings at all in three months |
 | An owner sizing up a purchase | "how much does a dental website cost", "dental patient portal", "dental membership plan software" | Not built, except membership pricing | Part 6 lists them |
 | Anyone who heard the name | "dreamcrm", "dream crm", "dream create" | Home, `/about` | Fifth and thirteenth for our own name. Mostly fixed off the site: profiles and reviews |
@@ -624,9 +633,11 @@ ready to copy — not an article about it.
     (`docs/marketing-engine.md`, Part 12 slice 20).
     **Adit built 2026-11-26:** `/compare/adit#pricing` (Part 12 slice 21).
     Its page had claimed we were the cheaper of the two; its own FAQ page
-    states a starting price below ours, and the claim was withdrawn. Still
-    to do: Dental Intelligence, Podium. Their sites were downloaded on
-    2026-11-26 for the read.
+    states a starting price below ours, and the claim was withdrawn.
+    **Dental Intelligence and Podium built 2026-11-26:**
+    `/compare/dental-intelligence#pricing`, `/compare/podium#pricing`
+    (Part 12 slice 22). All eight vendors are now read out. **Still to do
+    in this item:** comparisons for the vendors we do not cover yet.
 12. The search scoreboard: the app saves what Search Console reports each
     week, so results can be read without an export.
 13. Re-read the two September guides (patient growth, membership pricing)

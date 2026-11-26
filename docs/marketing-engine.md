@@ -2826,9 +2826,13 @@ live (`docs/organic-go-live.md` Part 10, item 15).
 
 **Part 12 slice 20 — RevenueWell, line by line (2026-11-26, no migration).**
 
-- **Read from** the 682 pages its sitemap lists and the 218 articles of its
-  help centre. The help centre answers a real browser and refuses anything
-  else (403), so its articles were read rendered.
+- **Read from** its own sitemap and its help centre's. The sitemap lists
+  682 pages and 202 were read: every page that is not a blog article, and
+  the articles whose address names a price, a cost or a plan. All 218
+  articles of the help centre were read. The help centre answers a real browser and refuses
+  anything else (403), so its articles were read rendered. (This line said
+  "the 682 pages its sitemap lists" until slice 22 counted what was
+  downloaded.)
 - **Its Plans page shows no price; six other pages of its own print one, or
   a fee, or a term.** A tiers page with a footnote ("Annual contract
   required for Starter, Professional, or Premium plans"); a price for one
@@ -2871,7 +2875,8 @@ live (`docs/organic-go-live.md` Part 10, item 15).
   two, twice: a strength titled "Lower flat price" ("versus reported ~$399
   bundles") and a bottom line ending "at half the reported price". Both
   rested on a figure no one could name the source of. Adit's own FAQ page,
-  found when the 938 pages its sitemap lists were read, says "We offer a
+  found when its sitemap was read (938 pages listed, 913 read; the rest are
+  videos), says "We offer a
   technology bundle that starts at $99 per month, per location". That is
   below our price. Both claims are gone; the page now says theirs starts
   lower, in the comparison, in a strength of theirs and in the bottom line.
@@ -2910,3 +2915,91 @@ live (`docs/organic-go-live.md` Part 10, item 15).
   the whole-figure rule), `comparison-pricing-check.test.tsx`. Thirty-nine
   mutations, all caught after that fix.
 
+**Part 12 slice 22 — Dental Intelligence and Podium, line by line; a claim about our own product, removed (2026-11-26, no migration).**
+
+With these two, all eight comparison pages read their vendor's pricing out
+line by line from the vendor's own pages. Queue item 11's first half is done.
+
+- **Dental Intelligence publishes no price anywhere, and its terms publish
+  the rest.** No pricing page, no pricing link in its menu, none among the
+  1,227 addresses its sitemap lists, no price in the structured data of any
+  page read. The entry's top line had ended "third-party reviews report
+  ~$300–$600+/mo per location", which named nobody; it is gone. Five groups
+  now, each from a page of its own: the home page, its Customer Terms of
+  Service (fees "will automatically increase by five percent (5%)" at each
+  renewal), its cancellation policy (an agreement renews "for the
+  agreed-upon term, typically annually", and cancelling mid-term leaves the
+  remaining payments owed), its SMS policy (5,000 segments a month, then
+  $0.04 each) and its Voice terms. The contract row had said "terms not
+  stated" while linking the policy that states them. It says "no" now, in
+  the vendor's words.
+- **Podium publishes two prices and its add-ons on one page; its terms set
+  the term.** The contract row had said "terms not stated on its pricing
+  page; annual terms commonly reported", which named nobody either. Its
+  terms of service state a twelve-month initial term and subscription fees
+  "paid annually in advance". Both are DEFAULTS: one sentence opens "Unless
+  otherwise stated in Client's Subscription Documentation", the other
+  "Unless otherwise specified in the applicable Subscription Documentation".
+  The first draft printed them as rules. The qualifier is now on both lines,
+  the answer, the comparison sentence and the matrix row, and a test holds
+  it on each.
+- **Feature rows corrected, five of them in the vendors' favour.** Reading
+  for prices turned up what the tables had understated. Dental Intelligence's
+  inbox row said "patient chat + reminders"; its own page describes one
+  thread "across text, email, and the app". Its reviews row named only a
+  partner; its product descriptions list its own "Online Reviews". Its
+  Google row said "none listed"; its pages list social media templates and
+  a "Book Now" button on a Google Business Profile. Podium's inbox row said
+  "no portal/email patient threads"; its pricing page lists email in the
+  inbox. One of Podium's guides names Dentrix Enterprise; the PMS row now
+  does too. One row moved the other way: Podium's insurance row said "not
+  verified here"; its pricing page lists every feature by plan and none is
+  an insurance check, so the row says that. The remaining notes on both
+  entries ("their origin product — excellent", "strong reactivation
+  tooling") became quotations.
+- **What the two entries stopped saying.** "Many practices run one for the
+  numbers and the other for the front door" (no practice was counted). "The
+  analytics leader in the category", "best-in-class", "built the category",
+  "it's excellent" (ranks nobody measured, even in a competitor's favour).
+  "Its acquisition of Modento" (its About page says the companies "joined
+  forces"). "FTC-clean reviews … clean under the FTC fake-reviews rule" (a
+  legal conclusion about our own product; the card now says what the product
+  does: the same request to every patient, nobody filtered by rating).
+- **A claim about our own product that the code does not support.** "An OD
+  chart mirror" was on the product page and in the Podium entry, and a help
+  article said "a copy of the completed form is mirrored into the patient's
+  chart". The mirror is a comm-log write. The only PMS door is NexHealth,
+  and `lib/services/pms/nexhealth.ts` refuses that write ("NexHealth does
+  not support comm-log mirroring."), so it runs for no practice. All three
+  are corrected; the help article now says the form stays on the patient's
+  record here and is not copied to the PMS today.
+  `tests/marketing/no-chart-mirror-claim.test.ts` holds the claim at zero
+  across the product page, every comparison entry and the help articles,
+  and is anchored on the refusal string: when the write is built, the test
+  fails and names what may be said again.
+- **The pricing guide's key explains only the words on the page.** With
+  every vendor's terms read, nobody is "Not clear", and the key went on
+  explaining the word. It is built from the words the list uses.
+- **What "read from its sitemap" meant, counted.** On a large site the blog
+  was filtered: every product, legal and resource page was downloaded, and
+  a blog article only when its address named a price, a cost, a fee or a
+  plan. Dental Intelligence: 419 of 1,227. Podium: 528 of 2,312 (four
+  more refused with a rate limit). Two earlier entries in this log and
+  three code comments had given the sitemap's size as the number read; they
+  now give both (`docs/organic-go-live.md` Part 9 carries the rule).
+- **Not printed, on purpose.** Podium's "Best Value" badge on its Pro plan:
+  a superlative, and theirs. Both vendors' card rates stay off the FAQ and
+  out of the comparison sentence, as on every entry (Part 8, row 7).
+- **Tests.** `pricing-detail.test.tsx` (a block for each vendor; the
+  no-pricing-section page test now plants an entry, since no real entry
+  lacks one), `comparison-pricing-check.test.tsx`, `pricing-guide.test.tsx`,
+  `no-chart-mirror-claim.test.ts` (new), and one reasoned allowance in
+  `plan-price-literals.ts` for Podium's "$500 network optimization fee",
+  which lands on the same integer as our list price by coincidence.
+  Sixty-four quotations checked by script against the saved pages;
+  seventy mutations, all caught.
+- **One more sentence that had gone stale.** The pricing guide said the
+  figures of the vendors with no published price came from "third-party
+  reviewers, or some other corner of the vendor's own site". With every
+  entry read out, no line carries a reviewer's figure. The sentence now
+  reads its sources off the lines and names reviewers only while one does.

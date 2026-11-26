@@ -178,6 +178,21 @@ describe('2 — it never puts a number in a vendor’s mouth', () => {
     // price the vendor quotes.
     expect(no).toMatch(/says where it came from/)
     expect(no).toMatch(/not a price the vendor’s pricing page gives a buyer\./)
+    // WHOSE figures those are is read off the lines, not typed. Once every
+    // entry had been read out, no line carried a reviewer's figure, and the
+    // sentence went on naming "third-party reviewers" as a source of the
+    // figures above it. It names them only while some line does.
+    const someLineIsAReviewers = read
+      .filter((c) => !publishesPrice(c))
+      .some((c) => /third-party/i.test(c.reportedPricing))
+    if (someLineIsAReviewers) expect(no).toMatch(/third-party reviewers/)
+    else {
+      expect(no).not.toMatch(/third-party|reviewers/)
+      // "Corner", not "page": Adit's second figure is in its pricing page's
+      // own structured data, which is no other page.
+      expect(no).toMatch(/some other corner of the vendor’s own site/)
+    }
+    expect(someLineIsAReviewers).toBe(false)
   })
 
   it('the count in the opening sentence is computed from those same lists', () => {

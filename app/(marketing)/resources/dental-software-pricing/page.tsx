@@ -97,6 +97,18 @@ function ContractKey({ words }: { words: readonly string[] }) {
   return <GuideP>{`${parts.join(' ')} Either way, ask for the terms in writing.`}</GuideP>
 }
 
+/**
+ * Whose figures the lines of the vendors with no published price carry — read
+ * off the lines, never typed. Once every entry had been read from the
+ * vendor's own pages no line cited a reviewer, and a sentence that still
+ * named "third-party reviewers" was describing figures that were not there.
+ */
+function whoseFigures(silent: readonly VendorComparison[]): string {
+  return silent.some((c) => /third-party/i.test(c.reportedPricing))
+    ? 'third-party reviewers, or some other corner of the vendor’s own site'
+    : 'some other corner of the vendor’s own site'
+}
+
 function names(list: readonly VendorComparison[]): string {
   const all = list.map((c) => c.name)
   if (all.length <= 1) return all.join('')
@@ -191,8 +203,7 @@ export default function DentalSoftwarePricingGuide() {
       {silent.length > 0 && (
         <GuideP>
           <strong>No price on their pricing page:</strong> {names(silent)}. For these, each figure in the list above
-          says where it came from — third-party reviewers, or some other corner of the vendor’s own site. It is not a
-          price the vendor’s pricing page gives a buyer.
+          says where it came from — {whoseFigures(silent)}. It is not a price the vendor’s pricing page gives a buyer.
         </GuideP>
       )}
       <GuideP>

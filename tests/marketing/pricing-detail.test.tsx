@@ -521,8 +521,8 @@ describe('the registry', () => {
   })
 
   /**
-   * ADIT, PINNED. Read on 2026-11-26 from the pages its own sitemap lists
-   * (938). Its pricing page shows no price in its text. Its FAQ page states
+   * ADIT, PINNED. Read on 2026-11-26 from its own sitemap (938 pages
+   * listed, 913 read). Its pricing page shows no price in its text. Its FAQ page states
    * one, and it is LOWER than ours: the entry had said the opposite, twice,
    * on the strength of a figure no one could name the source of.
    */
@@ -610,8 +610,9 @@ describe('the registry', () => {
   })
 
   /**
-   * DENTAL INTELLIGENCE, PINNED. Read on 2026-11-26 from the pages its own
-   * sitemap lists (1,227). It publishes no subscription price anywhere: no
+   * DENTAL INTELLIGENCE, PINNED. Read on 2026-11-26 from its own sitemap
+   * (1,227 pages listed; the 419 that are not blog, podcast, webinar, ebook
+   * or case-study content read). It publishes no subscription price: no
    * pricing page, no pricing link in its menu, none in structured data. Its
    * terms hub publishes the rest, and the entry had said its terms were "not
    * stated" while linking the policy that states them.
@@ -695,7 +696,9 @@ describe('the registry', () => {
   })
 
   /**
-   * PODIUM, PINNED. It publishes two plan prices and its add-ons on one
+   * PODIUM, PINNED. Read on 2026-11-26 from its own sitemap (2,312 pages
+   * listed; 528 read, the rest being articles, webinars, ebooks and
+   * customer stories). It publishes two plan prices and its add-ons on one
    * page. Its terms state a twelve-month term paid annually in advance; the
    * entry had said its terms were "not stated", with "annual terms commonly
    * reported" beside it, which named nobody.
