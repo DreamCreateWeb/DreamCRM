@@ -14,6 +14,7 @@ import ReminderTemplatesGuide from '@/app/(marketing)/resources/dental-appointme
 import ReviewRequestGuide from '@/app/(marketing)/resources/dental-review-request-templates/page'
 import WelcomeLetterGuide from '@/app/(marketing)/resources/dental-new-patient-welcome-letter/page'
 import PastDueLettersGuide from '@/app/(marketing)/resources/dental-past-due-balance-letters/page'
+import TreatmentFollowUpGuide from '@/app/(marketing)/resources/dental-unscheduled-treatment-follow-up/page'
 
 /**
  * The practice-growth resource library (marketing-engine slice 4b). The
@@ -63,8 +64,13 @@ describe('the hub', () => {
     const { container } = render(<ResourcesIndexPage />)
     const text = container.textContent ?? ''
     expect(text).not.toMatch(/the scripts are the ones our own platform sends/i)
-    expect(text).toMatch(/The emails are the ones our own platform sends/)
-    expect(text).toMatch(/the letters, the texts and the phone scripts are written to the same rules/)
+    // And on 2026-11-26 "the emails are the ones our own platform sends"
+    // stopped being true as well: the treatment follow-up guide carries two
+    // emails nobody's platform sends. The claim is now per card — a page says
+    // so where a message is the product's — which no new guide can break.
+    expect(text).not.toMatch(/The emails are the ones our own platform sends/)
+    expect(text).toMatch(/Where an email or a message is one our own platform sends, the page says so/)
+    expect(text).toMatch(/everything else is written to the same rules/)
   })
 })
 
@@ -213,6 +219,7 @@ describe('the library reads as a shelf rather than three equal cards', () => {
       ['dental-review-request-templates', ReviewRequestGuide],
       ['dental-new-patient-welcome-letter', WelcomeLetterGuide],
       ['dental-past-due-balance-letters', PastDueLettersGuide],
+      ['dental-unscheduled-treatment-follow-up', TreatmentFollowUpGuide],
     ] as const) {
       const guide = getResourceGuide(name)!
       const { container, unmount } = render(<Page />)
@@ -253,6 +260,7 @@ describe('the library reads as a shelf rather than three equal cards', () => {
       ReviewRequestGuide,
       WelcomeLetterGuide,
       PastDueLettersGuide,
+      TreatmentFollowUpGuide,
     ]) {
       const { unmount } = render(<Page />)
       expect(

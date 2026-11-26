@@ -11,12 +11,15 @@ import {
   PRIVACY_NOTICE_RULE,
   REMINDER_RULE,
   REVIEW_RULES,
+  TREATMENT_FOLLOWUP,
 } from '@/lib/marketing/guide-sources'
 import {
   productEmail,
   REMINDER_GUIDE_EMAILS,
   REMINDER_TEXTS,
   REVIEW_REQUEST_TEXT,
+  savedReply,
+  TREATMENT_CHECKIN_TEXT,
 } from '@/lib/marketing/guide-templates'
 import { MARKETING_PUBLIC_PATHS, TRIAL } from '@/lib/marketing/site'
 import { contentKey } from '@/lib/indexnow'
@@ -109,6 +112,13 @@ const GUIDE_SOURCES: Record<string, () => unknown> = {
     INSTALLMENT_RULE,
     REMINDER_RULE.conditions.noBilling,
     productEmail('balance_pay_link'),
+  ],
+  // The treatment follow-up guide: the four pages it quotes, the product's
+  // saved reply it shows, and its one hand-written text.
+  'dental-unscheduled-treatment-follow-up': () => [
+    TREATMENT_FOLLOWUP,
+    savedReply('Following up on your treatment plan'),
+    TREATMENT_CHECKIN_TEXT,
   ],
   // The growth guide quotes one line of Google's review policy and five of
   // its page on local ranking.

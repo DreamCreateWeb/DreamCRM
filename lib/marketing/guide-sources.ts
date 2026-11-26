@@ -244,3 +244,75 @@ export const INSTALLMENT_RULE = {
       'A person who regularly extends consumer credit that is subject to a finance charge or is payable by written agreement in more than four installments (not including a down payment)',
   },
 } as const
+
+/**
+ * WHAT THE TREATMENT FOLLOW-UP GUIDE QUOTES — four pages, each for one thing.
+ *
+ *  - The ADA's code of conduct, for WHY a practice follows up at all: the
+ *    patient is owed what they need to decide, and the decision is theirs.
+ *    One sentence of section 1.A, read on ada.org.
+ *  - MouthHealthy, the ADA's site for patients, for the year-end benefits
+ *    note. TWO sentences, and the second is the one the note is built on: the
+ *    page itself says plans differ and tells the patient to check. So the
+ *    template asks ("if your dental plan runs on the calendar year") and
+ *    never tells.
+ *  - Open Dental's manual and the Dentrix Enterprise blog, for WHERE THE LIST
+ *    COMES FROM and who has benefits left: each vendor's own sentences about
+ *    its own report. The guide names only the two systems whose own pages
+ *    were read. The Dentrix post is from 2020 and the guide says so.
+ *
+ * Every string under `says` is word for word, pinned in
+ * `tests/marketing/treatment-follow-up-guide.test.tsx`.
+ */
+export const TREATMENT_FOLLOWUP = {
+  adaCode: {
+    source: {
+      label: 'the American Dental Association’s Code of Professional Conduct, section 1.A',
+      url: 'https://www.ada.org/about/principles/code-of-ethics/patient-autonomy',
+      readOn: '2026-11-26',
+    } satisfies GuideSource,
+    says: {
+      involvement:
+        'The dentist should inform the patient of the proposed treatment, and any reasonable alternatives, in a manner that allows the patient to become involved in treatment decisions.',
+    },
+  },
+  benefits: {
+    source: {
+      label: 'MouthHealthy, “Use Dental Insurance Before the End of the Year”',
+      url: 'https://www.mouthhealthy.org/dental-care/using-dental-benefits',
+      readOn: '2026-11-26',
+    } satisfies GuideSource,
+    says: {
+      deadline:
+        'Many insurance companies have a benefit deadline of December 31, and this means that any of your unused benefits don’t roll over into the New Year for most dental plans.',
+      varies:
+        'Still, some plans may end at different times of the year, so check your plan document or ask your employer to be sure.',
+    },
+  },
+  openDental: {
+    source: {
+      label: 'Open Dental’s manual, “Treatment Finder Report”',
+      url: 'https://opendental.com/manual/reporttreatfinder.html',
+      readOn: '2026-11-26',
+    } satisfies GuideSource,
+    says: {
+      report: 'Use the Treatment Finder report to identify active patients who have treatment planned procedures.',
+      remaining:
+        'Enter an amount to filter the report to only include patients that have insurance benefits remaining over the specified amount.',
+    },
+  },
+  dentrix: {
+    source: {
+      label: 'the Dentrix Enterprise blog, “Following Up On Your Unscheduled Treatment Plans”',
+      url: 'https://blog.dentrixenterprise.com/following-up-on-your-unscheduled-treatment-plans/',
+      readOn: '2026-11-26',
+      pageSays: 'June 10, 2020',
+    } satisfies GuideSource,
+    says: {
+      report:
+        'Use the Unscheduled Treatment Plan Report to find and schedule treatment plans that have been added to the Chart but not scheduled in the Appointment Book.',
+      remaining:
+        'The report displays patient insurance benefits remaining, which you can use to find patients who still have insurance benefits available but have not yet scheduled an appointment for their treatment plans.',
+    },
+  },
+} as const

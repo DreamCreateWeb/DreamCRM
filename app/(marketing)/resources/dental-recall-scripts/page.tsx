@@ -215,7 +215,15 @@ Book a visit in about a minute at {booking link}, or call {phone}.
         >
           cancellation and no-show policy template
         </Link>
-        , with the letters and the phone scripts that go with it.
+        , with the letters and the phone scripts that go with it. And for the one who was
+        told they need treatment and has not scheduled it, there are{' '}
+        <Link
+          href="/resources/dental-unscheduled-treatment-follow-up"
+          className="font-semibold text-teal-700 hover:underline"
+        >
+          follow-up scripts for unscheduled treatment
+        </Link>
+        .
       </GuideP>
     </GuideShell>
   )
