@@ -137,7 +137,7 @@ export default function HuddleBoard({
         group="Daily"
         clinicName={clinicName}
         title="The Huddle"
-        subtitle={`${view.today.dayLabel} — ${todaySummary(view.today)}`}
+        subtitle={`${view.today.dayLabel} · ${todaySummary(view.today)}`}
         actions={
           <>
             <ActionButton variant="secondary" onClick={toggleQuiet}>

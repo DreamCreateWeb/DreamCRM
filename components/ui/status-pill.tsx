@@ -40,7 +40,7 @@ export function StatusPill({
       // contract without coupling to color-class strings that change on a restyle.
       data-tone={tone}
       title={title}
-      className={`inline-flex items-center font-medium ${size === 'lg' ? 'px-3 py-1 text-base' : 'px-2 py-0.5 text-xs'} ${wrap ? 'rounded-[var(--r-sm)] text-left' : 'rounded-full whitespace-nowrap'} ${TONE_PILL[tone]} ${className}`}
+      className={`inline-flex items-center font-medium ${size === 'lg' ? 'px-3.5 py-1.5 text-lg' : 'px-2 py-0.5 text-xs'} ${wrap ? 'rounded-[var(--r-sm)] text-left' : 'rounded-full whitespace-nowrap'} ${TONE_PILL[tone]} ${className}`}
     >
       {children ?? label}
     </span>

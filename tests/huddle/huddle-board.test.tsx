@@ -94,7 +94,7 @@ describe('the Huddle page', () => {
     const sections = screen.getAllByRole('region').map((s) => s.getAttribute('aria-label'))
     expect(sections).toEqual(['Yesterday', 'Today', 'Tomorrow', 'Before you go'])
     // The header reads the day in one line.
-    expect(screen.getByText(/Wednesday, November 25 — 3 visits today — 1 needs a little prep\./)).toBeInTheDocument()
+    expect(screen.getByText('Wednesday, November 25 · 3 visits today — 1 needs a little prep.')).toBeInTheDocument()
   })
 
   it('says where the facts come from and when they were read (law 2)', () => {
