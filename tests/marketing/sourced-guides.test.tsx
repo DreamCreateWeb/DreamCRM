@@ -9,6 +9,7 @@ import ReviewRequestGuide from '@/app/(marketing)/resources/dental-review-reques
 import WelcomeLetterGuide from '@/app/(marketing)/resources/dental-new-patient-welcome-letter/page'
 import PastDueLettersGuide from '@/app/(marketing)/resources/dental-past-due-balance-letters/page'
 import TreatmentFollowUpGuide from '@/app/(marketing)/resources/dental-unscheduled-treatment-follow-up/page'
+import WebsiteCostGuide from '@/app/(marketing)/resources/dental-website-cost/page'
 import {
   INSTALLMENT_RULE,
   LOCAL_RANKING,
@@ -19,6 +20,7 @@ import {
   TREATMENT_FOLLOWUP,
 } from '@/lib/marketing/guide-sources'
 import { RESOURCE_GUIDES, getResourceGuide } from '@/lib/marketing/resources'
+import { WEBSITE_COST_REFERENCES, WEBSITE_SELLERS } from '@/lib/marketing/website-costs'
 import { publicPages } from '@/lib/marketing/public-pages'
 import { contentKey } from '@/lib/indexnow'
 
@@ -164,6 +166,7 @@ describe('the rule for the whole library', () => {
     'dental-new-patient-welcome-letter': WelcomeLetterGuide,
     'dental-past-due-balance-letters': PastDueLettersGuide,
     'dental-unscheduled-treatment-follow-up': TreatmentFollowUpGuide,
+    'dental-website-cost': WebsiteCostGuide,
     'dental-membership-plan-pricing': MembershipPricingGuide,
     'how-to-get-more-dental-patients': MorePatientsGuide,
   }
@@ -177,6 +180,11 @@ describe('the rule for the whole library', () => {
     ...Object.values(LOCAL_RANKING.says),
     ...Object.values(INSTALLMENT_RULE.says),
     ...Object.values(TREATMENT_FOLLOWUP).flatMap((r) => Object.values(r.says)),
+    // The website-cost guide: the sellers' own lines and the two reference
+    // figures. Three of them carry a percentage (a budget rule of thumb and
+    // two sellers' offers), which is why they are here.
+    ...WEBSITE_SELLERS.flatMap((s) => [...s.lines.map((l) => l.text), ...(s.offerShown ? [s.offerShown] : [])]),
+    ...Object.values(WEBSITE_COST_REFERENCES).flatMap((r) => Object.values(r.says)),
   ]
 
   it('covers every guide written in prose (the pricing guide is built from the registry and has its own test)', () => {

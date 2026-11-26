@@ -94,6 +94,7 @@ describe('a content key moves exactly when the page’s content does', () => {
       'dental-new-patient-welcome-letter',
       'dental-past-due-balance-letters',
       'dental-unscheduled-treatment-follow-up',
+      'dental-website-cost',
       'how-to-get-more-dental-patients',
     ]
     for (const g of RESOURCE_GUIDES) {

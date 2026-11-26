@@ -156,7 +156,11 @@ export const DOCS: DocArticle[] = [
       {
         heading: 'Ownership, in plain terms',
         paragraphs: [
-          'Your content is yours. There is no agency queue and no "contact support to change a word" — and if you ever leave, your text and images export with you.',
+          // This said "if you ever leave, your text and images export with
+          // you" from the day it was written. The product has no export of a
+          // site. Corrected 2026-11-26 (found while the website-cost guide
+          // was answering its own question about leaving).
+          'Your content is yours. There is no agency queue and no "contact support to change a word". There is no export of the site itself today, so keep your own copies of the photos you upload.',
         ],
       },
     ],
@@ -410,7 +414,7 @@ export const DOCS: DocArticle[] = [
       {
         paragraphs: [
           `One plan, everything included: the website and edit-in-place studio, AI copy help, lead capture, patients, agenda, leads queue, messages, intake forms, reviews, the patient portal, blog and SEO, recall campaigns, analytics, the shop and memberships, careers, and the PMS sync. ${usd(PLAN.price)}/mo at the founding practice rate (regularly ${usd(PLAN.listPrice ?? 0)}); annual billing gives you two months free.`,
-          'Manage billing any time under Settings → Plan & billing — add a card, switch between monthly and annual, or cancel; changes prorate through Stripe. Cancelling stops the next renewal — there is no term contract, and your website content exports with you.',
+          'Manage billing any time under Settings → Plan & billing — add a card, switch between monthly and annual, or cancel; changes prorate through Stripe. Cancelling stops the next renewal, and there is no term contract. Your website content is yours, though there is no export of the site itself today.',
         ],
       },
     ],

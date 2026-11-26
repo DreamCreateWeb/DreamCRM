@@ -75,6 +75,7 @@ const GUIDE_HEADS: Record<string, () => Promise<PageModule>> = {
   'dental-past-due-balance-letters': () => import('@/app/(marketing)/resources/dental-past-due-balance-letters/page'),
   'dental-unscheduled-treatment-follow-up': () =>
     import('@/app/(marketing)/resources/dental-unscheduled-treatment-follow-up/page'),
+  'dental-website-cost': () => import('@/app/(marketing)/resources/dental-website-cost/page'),
 }
 
 /** The four things every head must carry, graded against the path it claims. */

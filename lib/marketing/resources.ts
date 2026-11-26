@@ -69,6 +69,7 @@ export const GUIDE_SHORT_TITLES = {
   'dental-past-due-balance-letters': 'Past-due balance letters',
   'dental-membership-plan-pricing': 'Membership plan pricing',
   'how-to-get-more-dental-patients': 'Get more dental patients',
+  'dental-website-cost': 'Dental website cost',
   'dental-software-pricing': 'Dental software pricing',
 } as const satisfies Record<string, string>
 
@@ -274,6 +275,25 @@ export const RESOURCE_GUIDES: ResourceGuide[] = [
     readMinutes: 10,
     // Revised 2026-11-26: every figure sourced, softened or cut
     // (`tests/marketing/sourced-guides.test.tsx`).
+    datePublished: '2026-11-26',
+  },
+  {
+    slug: 'dental-website-cost',
+    title: 'How much does a dental website cost? Published prices, read and dated',
+    description:
+      'What the American Dental Association says to expect, the prices sellers publish on their own websites with the day each was read, the same three years worked out for each way of buying, and the questions that make two quotes comparable.',
+    // `globe` — brand. The subject is the practice's website. Not `money`:
+    // that tone says "what it earns you", and this page is about what it
+    // costs.
+    glyph: 'globe',
+    contains: [
+      'What the ADA says to expect',
+      'Prices from sellers’ own pages, each with its date',
+      'The same three years, worked out for each',
+      'The questions that make two quotes comparable',
+      'The same questions, answered for our own',
+    ],
+    readMinutes: 6,
     datePublished: '2026-11-26',
   },
   {

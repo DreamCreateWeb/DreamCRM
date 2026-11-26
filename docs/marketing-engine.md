@@ -2606,3 +2606,44 @@ change: `subscription_status` is free text, and the new state is a value.
 - **Wiring.** Registry entry and footer name, the search-notice key (sources,
   saved reply, text), links to and from the recall guide, a link to the
   membership pricing guide.
+
+**Part 12 slice 15 — what a dental website costs (2026-11-26, no migration).**
+
+- **The page.** `/resources/dental-website-cost`, queue item 5: what the ADA
+  says to expect, the prices five sellers publish on their own pages, the
+  same three years worked out for each, the questions that make two quotes
+  comparable, and the same questions answered for our own product.
+- **Every outside price is a line from the seller's own page**, read in a
+  rendered browser on 2026-11-26, held in `lib/marketing/website-costs.ts`
+  and pinned word for word by the test. Squarespace and Wix (site builders),
+  DocSites (ready-made dental designs), InfoStar Productions and Whiteboard
+  Marketing (built for you). Nobody is listed whose page showed no price, and
+  the page never says of anybody that they publish none: that claim takes
+  three reads, and this page makes none.
+- **The arithmetic is tied to the quotes.** Each number in a three-year total
+  must appear in that seller's own lines; the sums are written out on the
+  page and labelled as ours.
+- **It says we are not the cheapest**, because on its own numbers a site
+  builder is. The test checks the sentence against the registry.
+- **The ADA's page carries no date and the page says so.** The trade
+  magazine's figures are a seller's (the author founded a dental website
+  firm) and are labelled in the magazine's own description of that firm.
+- **Our own answers are read, not typed:** the price sentence from the listing
+  kit, three paragraphs from the Terms, both totals from the plan config.
+- **A guard stopped one quotation.** Squarespace's page states its own free
+  trial's length; `trial-copy.test.ts` reads any typed trial length in the
+  public trees as ours. The guard is right to be blunt, and only the billing
+  sentence is quoted.
+- **Two things found while fact-checking our own answers:**
+  1. Two help articles said a practice's website content "exports with you".
+     The product has no such export. Both corrected, and the guide says so
+     too (the first version of the test read one article; a mutation found
+     the second).
+  2. The platform keeps 1% of each patient payment, and nothing a buyer or
+     a customer reads says so; the pricing page's answer reads as "no".
+     **Not changed** — pricing copy is the owner's. Recorded as ruling 7 in
+     `docs/organic-go-live.md` Part 8. Until it is ruled, this guide calls
+     its own total "the subscription" and says nothing about payments, by
+     test.
+- **Tests.** `tests/marketing/website-cost-guide.test.tsx` (twenty); forty
+  mutations, all caught after the one above.
