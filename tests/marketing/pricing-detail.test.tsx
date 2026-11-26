@@ -45,6 +45,7 @@ import {
 } from '@/lib/marketing/comparisons'
 import { usd } from '@/lib/marketing/site'
 import { getQuotedPlan } from '@/lib/stripe-config'
+import { INCLUDED_MONTHLY_INSURANCE_CHECKS } from '@/lib/insurance-eligibility'
 
 const detailed = COMPARISONS.filter((c) => c.pricingDetail)
 const plain = COMPARISONS.filter((c) => !c.pricingDetail)
@@ -83,6 +84,9 @@ describe('the registry', () => {
     // NexHealth: the first entry read out in full whose pricing page shows no
     // price at all. What it publishes is on two other sites of its own.
     expect(detailed.map((c) => c.slug)).toContain('nexhealth')
+    // Solutionreach: read out on the day its "priced by quote" line turned
+    // out to be wrong in its favour.
+    expect(detailed.map((c) => c.slug)).toContain('solutionreach')
     expect(plain.length).toBeGreaterThan(0)
   })
 
@@ -156,6 +160,165 @@ describe('the registry', () => {
     expect(d.versusUs).toMatch(/does not send today/)
   })
 
+  /**
+   * SOLUTIONREACH, PINNED — and a correction in its favour.
+   *
+   * The registry said "every package priced by quote". Its main pricing page
+   * does send every package to a quote. A second pricing page on its own
+   * site has a checkout, and prints four prices, each two ways (billed yearly
+   * and billed monthly). The search of its own domain that the rule requires
+   * found it on 2026-11-26; the read of the 25th had stopped at the page the
+   * menu links to. The contract terms are its Master Service Agreement's.
+   */
+  it('Solutionreach: the prices its checkout page prints, and the agreement’s clauses on price and renewal', () => {
+    const sr = COMPARISONS.find((c) => c.slug === 'solutionreach')!
+    const d = sr.pricingDetail!
+    const line = (group: string, label: string) =>
+      d.groups.find((g) => g.id === group)!.lines.find((l) => l.label === label)!.value
+
+    // The four packages, each at both prices.
+    expect(publishesPrice(sr)).toBe(true)
+    expect(line('published-prices', 'Patient Communications, Essentials')).toMatch(/^\$199\/mo billed yearly, or \$219\/mo billed monthly/)
+    expect(line('published-prices', 'Patient Communications & Retention, Plus')).toMatch(/^\$249\/mo billed yearly, or \$279\/mo billed monthly/)
+    expect(line('published-prices', 'Revenue Cycle Messaging, Essentials')).toMatch(/^\$199\/mo billed yearly, or \$219\/mo billed monthly/)
+    expect(line('published-prices', 'Revenue Cycle Messaging, Plus')).toMatch(/^\$349\/mo billed yearly, or \$379\/mo billed monthly/)
+    expect(line('published-prices', 'The revenue-cycle packages')).toMatch(/OPTIONAL/)
+    expect(line('published-prices', 'Paying yearly')).toBe('“Save up to 10% with annual plans”')
+
+    // The page its menu links to says something else, and both are printed.
+    expect(line('the-main-pricing-page', 'The headline')).toBe('“Pricing starts at $199”')
+    expect(line('the-main-pricing-page', 'Its packages')).toMatch(/Patient Connect, Practice Efficiency and Practice Growth, each with a “Request a Quote” button/)
+    expect(line('the-main-pricing-page', 'Contract options')).toBe('“We offer yearly contract options.”')
+
+    // The agreement: price changes, refunds, late interest — its own words.
+    expect(line('fees-and-price-changes', 'Price changes')).toBe(
+      '“Company may modify the License Fees associated with any product or service at any time upon reasonable notice.”',
+    )
+    expect(line('fees-and-price-changes', 'Refunds')).toBe('“All fees paid are non-refundable.”')
+    expect(line('fees-and-price-changes', 'Late payment')).toContain(
+      '“one and one-half percent (1.5%) per month or the highest rate allowed by applicable law, whichever is lower”',
+    )
+    // Renewal: automatic, a year at a time, thirty days' written notice.
+    expect(line('the-contract', 'Renewal')).toMatch(/“for successive additional one-year periods”/)
+    expect(line('the-contract', 'To stop a renewal')).toMatch(/“at least thirty \(30\) days prior to the end of the then-current”/)
+
+    // Five pages, all its own, found by reading the list of pages its own
+    // sitemap publishes (86 of them) and searching each one for a price. A
+    // read that stopped at the two pricing pages missed two more that print
+    // figures: a dated offer, and the fee schedule in its payments agreement.
+    expect(d.groups.map((g) => [g.id, new URL(g.source.url).pathname])).toEqual([
+      ['published-prices', '/pricing-package-with-checkout'],
+      ['the-main-pricing-page', '/pricing'],
+      ['practice-complete-offer', '/practice-complete-offer-terms'],
+      ['patient-payments', '/legal/sr-pay-agreement'],
+      ['fees-and-price-changes', '/msa-terms'],
+      ['the-contract', '/msa-terms'],
+    ])
+    for (const g of d.groups) expect(new URL(g.source.url).hostname).toBe('www.solutionreach.com')
+    // A page's own date is given where the page states one, and only there.
+    expect(d.groups.map((g) => [g.id, g.source.pageSays ?? null])).toEqual([
+      ['published-prices', null],
+      ['the-main-pricing-page', null],
+      ['practice-complete-offer', 'Effective November 16, 2026'],
+      ['patient-payments', 'Last updated: May 21, 2026'],
+      ['fees-and-price-changes', null],
+      ['the-contract', null],
+    ])
+
+    // What each package on the main page includes in texts.
+    expect(line('the-main-pricing-page', 'Texts included each month')).toBe(
+      '1,750 on Patient Connect, 3,500 on Practice Efficiency and 4,500 on Practice Growth; “TAILORED” on Enterprise',
+    )
+
+    // THE DATED OFFER. It is the only place its site prints a price for the
+    // packages with phones and its AI receptionist, so it is on the page; and
+    // it ends on a stated day, so the title says it is an offer and the first
+    // line says the day.
+    const offer = d.groups.find((g) => g.id === 'practice-complete-offer')!
+    expect(offer.title).toMatch(/dated offer/i)
+    expect(line('practice-complete-offer', 'What the offer adds')).toMatch(/^For order forms signed “on or before December 18, 2026”/)
+    expect(line('practice-complete-offer', 'Practice Complete Efficiency Package')).toMatch(/^\$599\.00 per location per month/)
+    expect(line('practice-complete-offer', 'Practice Complete Growth Package (Dental)')).toMatch(/^\$799\.00 per location per month/)
+    expect(line('practice-complete-offer', 'Practice Complete Growth Package (Eye Care, Medical)')).toMatch(/^\$699\.00 per location per month/)
+    expect(line('practice-complete-offer', 'Extra phone lines')).toBe('“Additional SR Phones Standard lines are $21 per line per month.”')
+    expect(line('practice-complete-offer', 'Who can take it')).toMatch(
+      /“fewer than six \(6\) Locations”.*“an initial term of at least twelve \(12\) months”/,
+    )
+
+    // ITS PAYMENT FEES, under its fee schedule's own row names.
+    const pay = d.groups.find((g) => g.id === 'patient-payments')!
+    expect(pay.lines.slice(0, 8).map((l) => [l.label, l.value])).toEqual([
+      ['Transaction Fee via Terminal (Swiped/Insert Chip/Tap)', '2.40%'],
+      ['Transaction Auth Fee via Terminal (Swiped/Insert Chip/Tap)', '$0.20'],
+      ['Transaction Fee', '2.89%'],
+      ['Transaction Auth Fee', '$0.30'],
+      ['ACH Transaction Fee', '1.00%'],
+      ['ACH Failure (Incl. Payout Failure)', '$5.00'],
+      ['ACH Refund Fee', '$0.75'],
+      ['ACH Return Fee', '$25.00'],
+    ])
+    expect(line('patient-payments', 'What those fees leave out')).toBe(
+      '“Unless expressly stated otherwise, all Fees are exclusive of taxes, interchange, and Payment Network assessments.”',
+    )
+    expect(line('patient-payments', 'Fee changes')).toBe('“Solutionreach may change the Fees on at least thirty (30) days’ prior notice”')
+    // Neither becomes a question of its own. An offer that ends on a stated
+    // day does not belong in an answer a search engine keeps. And what a
+    // patient's payment costs is something this site does not yet state about
+    // its OWN product (`docs/organic-go-live.md` Part 8, row 7): until it
+    // does, their fee schedule is printed and nothing of ours is set beside it.
+    expect(offer.question).toBeUndefined()
+    expect(pay.question).toBeUndefined()
+    expect(d.versusUs).not.toMatch(/payment|processing|card fee|surcharg/i)
+
+    // WHAT ITS OWN SITE SELLS. The entry called it "comms-only" with a
+    // "legacy portal", scheduling that was "request-based in places" and
+    // phones as a partial add-on. Its site sells a phone system, an AI
+    // receptionist, payments and scheduling from live openings, and names no
+    // patient portal: the one time the word appears, it is to say a patient
+    // pays without one.
+    expect(JSON.stringify(sr)).not.toMatch(
+      /comms-only|legacy portal|dated around it|Request-based scheduling|social via add-ons|Best-in-class|Add-on offerings/i,
+    )
+    const row = (starts: string) => sr.matrix.find((r) => r.feature.startsWith(starts))!
+    expect([row('VoIP phones').vendor, row('VoIP phones').vendorNote]).toEqual(['yes', 'SR Phones, the phone system it sells'])
+    expect(row('Online booking').vendor).toBe('yes')
+    expect(row('Online booking').vendorNote).toContain('“Show patients real-time openings on your schedule”')
+    expect(row('Patient portal').vendor).toBe('no')
+    expect(row('Patient portal').vendorNote).toContain('“without logging in to a portal”')
+    expect(row('Two-way SMS').vendorNote).toMatch(/1,750 to 4,500 texts a month/)
+    expect(row('PMS').vendorNote).toContain('“400+ native PM/EHR integrations”')
+    // The table said its insurance checks were "not verified here". They are
+    // on its pricing page, and its checkout page prices the package they
+    // come in — so the comparison adds the two packages up, as it does for
+    // Weave's bundle, and sets beside the sum what ours includes.
+    expect(row('Insurance eligibility').vendor).toBe('yes')
+    expect(row('Insurance eligibility').vendorNote).toContain('“Insurance Eligibility (Dental Only)”')
+    expect(199 + 199).toBe(398)
+    expect(d.versusUs).toMatch(/Add its optional revenue-cycle package for insurance checks and the two come to \$398 a month billed yearly\./)
+    expect(d.versusUs).toContain(`includes ${INCLUDED_MONTHLY_INSURANCE_CHECKS} insurance checks a month`)
+    // And the page says what is in its favour that we do not sell.
+    expect(d.versusUs).toMatch(/a phone system and an AI receptionist, which we do not sell/)
+    expect(sr.theirStrengths.map((s) => s.title)).toContain('A phone system with an AI receptionist')
+    expect(sr.bottomLine).toMatch(/Solutionreach sells all three and DreamCRM does not/)
+
+    // The retracted line, the reviewers nobody could name, and the entry's
+    // own description of itself.
+    expect(sr.reportedPricing).not.toMatch(/every package priced by quote/)
+    expect(JSON.stringify(sr)).not.toMatch(/reported by reviewers|reviewer complaints/)
+    expect(sr.reportedPricing).toMatch(/^Published from \$199\/mo billed yearly, or \$219\/mo billed monthly/)
+    // Its community help site would not load, and is named rather than cited.
+    expect(d.notRead).toContain('Solutionreach’s community help site')
+    expect(d.reported).toEqual([])
+    // A dollar lower than ours on the cheapest package, and the page says so.
+    // That is arithmetic on two prices, and one of them is ours to change: if
+    // either moves, this names the sentence that stopped being true instead
+    // of leaving it on the page.
+    expect(d.versusUs).toMatch(/Essentials package, billed yearly, is a dollar lower than ours; billed monthly it is higher/)
+    const ours = getQuotedPlan().price
+    expect(ours - 199, 'solutionreach: “a dollar lower than ours” no longer adds up; rewrite the sentence').toBe(1)
+    expect(219, 'solutionreach: “billed monthly it is higher” no longer adds up; rewrite the sentence').toBeGreaterThan(ours)
+  })
+
   it('an entry read out in full repeats no figure it cannot name the source of', () => {
     // The top line of the four entries that show no price ends "third-party
     // reviews report ~$N". That is tolerable shorthand on an entry nobody has
@@ -208,7 +371,9 @@ describe('the registry', () => {
 
     // No third party's figure is repeated, and the page says where theirs is lower.
     expect(d.reported).toEqual([])
-    expect(d.versusUs).toMatch(/a dollar lower than ours/)
+    expect(d.versusUs).toMatch(/Weave’s base plan is a dollar lower than ours/)
+    // The same arithmetic as Solutionreach's, against the base plan above.
+    expect(getQuotedPlan().price - 199, 'weave: “a dollar lower than ours” no longer adds up; rewrite the sentence').toBe(1)
   })
 
   it('1 — every group cites ONE page on the vendor’s own site, read on a stated day', () => {
@@ -404,6 +569,11 @@ describe('the page', () => {
       expect(empty, `${c.slug}: nothing says no figure is repeated`).toBeTruthy()
       expect(empty!.textContent).toContain(`${c.name}’s own pages`)
       expect(section.textContent).toContain(`Not read: ${c.pricingDetail!.notRead.join(', ')}.`)
+      // WHY, in words true of every name on the list. It said "each refuses
+      // an automated visit"; one of them (a vendor's help site) never
+      // refused anything, it just would not load from here.
+      expect(section.textContent).toContain('Each turned away an automated visit or did not load')
+      expect(section.textContent).not.toContain('Each refuses an automated visit')
       unmount()
     }
     for (const c of some) {

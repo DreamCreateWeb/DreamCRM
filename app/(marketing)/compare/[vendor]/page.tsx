@@ -295,8 +295,8 @@ function PricingDetailSection({ c }: { c: VendorComparison }) {
             )}
             {d.notRead.length > 0 && (
               <p className="mt-4 text-[0.8rem] leading-relaxed text-gray-600">
-                Not read: {d.notRead.join(', ')}. Each refuses an automated visit, so nothing on this page is taken
-                from them.
+                Not read: {d.notRead.join(', ')}. Each turned away an automated visit or did not load, so nothing on
+                this page is taken from them.
               </p>
             )}
           </div>
