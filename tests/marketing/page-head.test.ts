@@ -71,6 +71,7 @@ const GUIDE_HEADS: Record<string, () => Promise<PageModule>> = {
   'dental-cancellation-no-show-policy': () => import('@/app/(marketing)/resources/dental-cancellation-no-show-policy/page'),
   'dental-appointment-reminder-templates': () => import('@/app/(marketing)/resources/dental-appointment-reminder-templates/page'),
   'dental-review-request-templates': () => import('@/app/(marketing)/resources/dental-review-request-templates/page'),
+  'dental-new-patient-welcome-letter': () => import('@/app/(marketing)/resources/dental-new-patient-welcome-letter/page'),
 }
 
 /** The four things every head must carry, graded against the path it claims. */

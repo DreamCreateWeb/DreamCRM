@@ -4,7 +4,7 @@ import { CHANGELOG_ENTRIES } from '@/lib/marketing/changelog'
 import { DOCS } from '@/lib/marketing/docs'
 import { LEGAL_UPDATED } from '@/lib/marketing/legal'
 import { RESOURCE_GUIDES } from '@/lib/marketing/resources'
-import { NO_SHOW_SOURCES, REMINDER_RULE, REVIEW_RULES } from '@/lib/marketing/guide-sources'
+import { NO_SHOW_SOURCES, PRIVACY_NOTICE_RULE, REMINDER_RULE, REVIEW_RULES } from '@/lib/marketing/guide-sources'
 import {
   productEmail,
   REMINDER_GUIDE_EMAILS,
@@ -88,6 +88,13 @@ const GUIDE_SOURCES: Record<string, () => unknown> = {
   // The review guide: the rules it quotes, its one text, the product's
   // review request email.
   'dental-review-request-templates': () => [REVIEW_RULES, REVIEW_REQUEST_TEXT, productEmail('review_request')],
+  // The welcome guide: the privacy-notice rule it quotes and the product's
+  // two new-patient emails.
+  'dental-new-patient-welcome-letter': () => [
+    PRIVACY_NOTICE_RULE,
+    productEmail('intake_request'),
+    productEmail('portal_invite'),
+  ],
   // The growth guide quotes one line of Google's policy from the same data.
   'how-to-get-more-dental-patients': () => REVIEW_RULES.googlePolicy.says.gating,
   'dental-appointment-reminder-templates': () => [
