@@ -22,6 +22,7 @@ import {
   TREATMENT_CHECKIN_TEXT,
 } from '@/lib/marketing/guide-templates'
 import { MARKETING_PUBLIC_PATHS, TRIAL } from '@/lib/marketing/site'
+import { WEBSITE_COST_REFERENCES, WEBSITE_SELLERS, ourWebsiteAnswers } from '@/lib/marketing/website-costs'
 import { contentKey } from '@/lib/indexnow'
 import { getQuotedPlan } from '@/lib/stripe-config'
 
@@ -120,6 +121,13 @@ const GUIDE_SOURCES: Record<string, () => unknown> = {
     savedReply('Following up on your treatment plan'),
     TREATMENT_CHECKIN_TEXT,
   ],
+  // The website-cost guide is the seller registry, the two reference
+  // figures, our own answers (the listing kit's price sentence and three of
+  // the Terms' paragraphs) and both of our prices carried over three years.
+  'dental-website-cost': () => {
+    const plan = getQuotedPlan()
+    return [WEBSITE_SELLERS, WEBSITE_COST_REFERENCES, ourWebsiteAnswers(), plan.price, plan.annualPrice]
+  },
   // The growth guide quotes one line of Google's review policy and five of
   // its page on local ranking.
   'how-to-get-more-dental-patients': () => [REVIEW_RULES.googlePolicy.says.gating, LOCAL_RANKING],

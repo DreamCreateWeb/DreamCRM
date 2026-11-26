@@ -212,6 +212,14 @@ export default function DentalSoftwarePricingGuide() {
         ]}
       />
 
+      <GuideP>
+        What a practice website alone costs, from a site builder to an agency build, is{' '}
+        <Link href="/resources/dental-website-cost" className="text-teal-700 underline underline-offset-2">
+          a guide of its own
+        </Link>
+        , read the same way.
+      </GuideP>
+
       <GuideNote>
         We make one of the products in this market, which is a reason to check our work rather than take it. Each line
         above links to the page it was read from. This is a record of what those pages said on the days named; it is

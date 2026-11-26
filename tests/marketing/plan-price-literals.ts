@@ -497,6 +497,17 @@ export const ALLOWED_QUOTES: AllowedQuote[] = [
       'clearinghouse’s per-check price rather than with the plan — landing on the plan’s ' +
       'monthly price is a coincidence.',
   },
+  {
+    file: 'lib/marketing/website-costs.ts',
+    value: 500,
+    near: 'all-inclusive packages from',
+    why:
+      "ANOTHER SELLER'S PUBLISHED PRICE, quoted word for word. InfoStar Productions' own pricing " +
+      'page says "all-inclusive packages from $500 a month"; the website-cost guide prints that ' +
+      'sentence whole and pins it in `website-cost-guide.test.tsx`. Landing on the same integer ' +
+      'as our list price is a coincidence, and a reprice must not touch it. The figure is a ' +
+      '"from", not one end of a band, so `isBand` cannot see it.',
+  },
 ]
 
 const allows = (entry: AllowedQuote, hit: PriceHit): boolean =>

@@ -15,6 +15,7 @@ import ReviewRequestGuide from '@/app/(marketing)/resources/dental-review-reques
 import WelcomeLetterGuide from '@/app/(marketing)/resources/dental-new-patient-welcome-letter/page'
 import PastDueLettersGuide from '@/app/(marketing)/resources/dental-past-due-balance-letters/page'
 import TreatmentFollowUpGuide from '@/app/(marketing)/resources/dental-unscheduled-treatment-follow-up/page'
+import WebsiteCostGuide from '@/app/(marketing)/resources/dental-website-cost/page'
 
 /**
  * The practice-growth resource library (marketing-engine slice 4b). The
@@ -220,6 +221,7 @@ describe('the library reads as a shelf rather than three equal cards', () => {
       ['dental-new-patient-welcome-letter', WelcomeLetterGuide],
       ['dental-past-due-balance-letters', PastDueLettersGuide],
       ['dental-unscheduled-treatment-follow-up', TreatmentFollowUpGuide],
+      ['dental-website-cost', WebsiteCostGuide],
     ] as const) {
       const guide = getResourceGuide(name)!
       const { container, unmount } = render(<Page />)
@@ -231,12 +233,14 @@ describe('the library reads as a shelf rather than three equal cards', () => {
       // its place: it is the difference between the two heroes.
       expect(h1?.className, `${name}: not the shared hero's type`).toContain('lg:text-[3.6rem]')
       expect(screen.getByText(`${guide.readMinutes}-minute read`)).toBeInTheDocument()
-      // The script guides say what a reader may do with them; the reference
-      // guide says something else, because it has nothing to copy.
+      // The script guides say what a reader may do with them; the two
+      // reference guides say something else, because they have nothing to
+      // copy.
+      const reference: readonly string[] = ['dental-software-pricing', 'dental-website-cost']
       expect(
         screen.queryByText('Free to copy and use in your practice') !== null,
         `${name}: the hero's last line`,
-      ).toBe(name !== 'dental-software-pricing')
+      ).toBe(!reference.includes(name))
       unmount()
     }
   })
@@ -261,6 +265,7 @@ describe('the library reads as a shelf rather than three equal cards', () => {
       WelcomeLetterGuide,
       PastDueLettersGuide,
       TreatmentFollowUpGuide,
+      WebsiteCostGuide,
     ]) {
       const { unmount } = render(<Page />)
       expect(

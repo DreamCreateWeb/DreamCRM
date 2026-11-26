@@ -513,6 +513,7 @@ anything sent to customers, external communications).
 | 4 | **Where a clinic's site really lives** (`NEXT_PUBLIC_SITE_USE_SUBDOMAIN`) | Clinic pages declare their address on the marketing domain. Until this is settled, clinic sites cannot be announced to the search engines and the Search Console baseline mixes them with ours |
 | 5 | **Your name on `/about`** | The page exists and says "Dream Create, in Ward, Arkansas". A named founder is a stronger answer to "which DreamCRM is this?", and the Privacy Policy already names you — but a marketing page is a different thing to put a name on. One line to add if you say yes |
 | 6 | **An email to a signup who stops at the card step** | Not built — it is a new message to customers |
+| 7 | **The 1% the platform keeps of each patient payment** — say it in public, or stop taking it? | It has been taken on every payment through a practice's own Stripe account since 2026-07-03 (migration 0115, `shop_config.platform_fee_bps`, default 100): shop orders, memberships, balance payments, booking deposits, payment-plan installments. The pricing page answers "Do you take a cut of my shop or membership revenue?" with "your subscription covers the platform". The Terms do not mention it and no screen in the app shows it. Found 2026-11-26 while the website-cost guide was answering its own questions; **nothing was changed**, because what a surface quotes for the price is yours (rulebook §8, item 1). **If kept:** the pricing answer, the Terms (which promise an email before a significant change), the shop help article and the screen where a practice connects Stripe should all say it, from one number. **If dropped:** the default and the existing rows go to 0, and the pricing answer becomes true as written. Until you rule, the website-cost guide calls its own total "the subscription" and says nothing about what a payment costs |
 
 ---
 
@@ -583,6 +584,8 @@ ready to copy — not an article about it.
    **Built 2026-11-26:** `/compare/weave#pricing`
    (`docs/marketing-engine.md`, Part 12 slice 9).
 5. What a dental practice website costs.
+   **Built 2026-11-26:** `/resources/dental-website-cost`
+   (`docs/marketing-engine.md`, Part 12 slice 15).
 6. NexHealth's pricing, line by line.
 7. New-patient welcome letter and first-visit email.
    **Built 2026-11-26:** `/resources/dental-new-patient-welcome-letter`
