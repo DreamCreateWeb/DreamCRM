@@ -2565,3 +2565,44 @@ change: `subscription_status` is free text, and the new state is a value.
   no page twice, and gives the columns their own row; a guide's entry carries
   only content fields; and renaming every label moves no page's key.
   Twenty-five mutations, all caught.
+
+**Part 12 slice 14 — the unscheduled-treatment follow-up guide (2026-11-26, no migration).**
+
+- **The page.** `/resources/dental-unscheduled-treatment-follow-up`, queue
+  item 8: the handoff before the patient leaves, the plan in writing, the
+  check-in message and text, the follow-up call and its voicemail, answers
+  for cost, nerves, "it doesn't hurt" and time, the year-end benefits note,
+  the letter that closes the loop, and a cadence that ends.
+- **The one guide about a decision that is somebody else's**, so the cards
+  are held to that first. None presses: no deadline of ours, no "before it
+  gets worse", no exclamation mark. The first rule on the page is the ADA's
+  own sentence about involving the patient in the decision.
+- **The front desk never says what happens if the patient waits**, by test:
+  no card carries a clinical word of ours. The one script that needs the
+  consequence carries a blank for the dentist's sentence, and the note under
+  it gives the script for a chart that has none.
+- **The voicemail and the text name no treatment and no cost.** The text is
+  one segment on the sample fill.
+- **The check-in message is the product's**: the saved reply every practice's
+  Messages is seeded with, read by name (`savedReply`), which throws if the
+  product stops shipping it.
+- **The year-end note asks and does not tell.** The ADA's patient site says
+  unused benefits do not roll over for most plans AND that plans differ; the
+  page quotes both sentences and the template says "if your dental plan runs
+  on the calendar year". Who it goes to (patients with benefits left) is in
+  each vendor's own words about its own report.
+- **Where the list comes from** is the practice software, and the page says
+  so in Open Dental's and Dentrix Enterprise's own sentences (the Dentrix
+  post is dated 2020 on the page). The close opens with what the product
+  does not do: it does not read treatment plans (`NEVER_TOUCHED`).
+- **The hub's claim was corrected again.** "The emails are the ones our own
+  platform sends" stopped being true with this guide (two hand-written
+  emails). It now reads "where an email or a message is one our own platform
+  sends, the page says so", which no later guide can break.
+- **Noticed and not touched (the app's lane):** the product's own year-end
+  campaign email has the subject "Your dental benefits reset January 1",
+  stated to every insured patient; the ADA page above says some plans end at
+  other times. Reported to the owner.
+- **Wiring.** Registry entry and footer name, the search-notice key (sources,
+  saved reply, text), links to and from the recall guide, a link to the
+  membership pricing guide.

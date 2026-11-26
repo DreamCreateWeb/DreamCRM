@@ -588,6 +588,8 @@ ready to copy — not an article about it.
    **Built 2026-11-26:** `/resources/dental-new-patient-welcome-letter`
    (`docs/marketing-engine.md`, Part 12 slice 10).
 8. Unscheduled-treatment follow-up scripts.
+   **Built 2026-11-26:** `/resources/dental-unscheduled-treatment-follow-up`
+   (`docs/marketing-engine.md`, Part 12 slice 14).
 9. Past-due balance letters and scripts.
    **Built 2026-11-26:** `/resources/dental-past-due-balance-letters`
    (`docs/marketing-engine.md`, Part 12 slice 12).

@@ -1,4 +1,5 @@
 import { EMAIL_AUTOMATION_SPECS, type EmailAutomationKey, type EmailSlots } from '@/lib/types/email-automations'
+import { DEFAULT_MESSAGE_TEMPLATES } from '@/lib/types/message-templates'
 
 /**
  * THE PRODUCT'S OWN EMAILS, AS A GUIDE SHOWS THEM — read, never retyped.
@@ -121,3 +122,31 @@ export function fillSample(template: string): string {
  */
 export const REVIEW_REQUEST_TEXT =
   '{practice name}: Thanks for coming in, {first name}. Would you share how it went, good or bad? {link} Reply STOP to opt out.'
+
+/**
+ * ONE OF THE PRODUCT'S SAVED REPLIES, AS A GUIDE SHOWS IT — read by name from
+ * the starter set every practice's Messages is seeded with
+ * (`DEFAULT_MESSAGE_TEMPLATES`), tokens respelled as blanks.
+ *
+ * It THROWS when the product no longer ships a reply by that name. A guide
+ * that says "this is the saved reply that ships in Messages" over a card the
+ * product stopped shipping is the exact drift this module exists to prevent,
+ * and the place to find it out is the build.
+ */
+export function savedReply(name: string): { name: string; body: string } {
+  const hit = DEFAULT_MESSAGE_TEMPLATES.find((t) => t.name === name)
+  if (!hit) throw new Error(`guide-templates: No saved reply named “${name}” ships with the product`)
+  return { name: hit.name, body: asBlanks(hit.body) }
+}
+
+/**
+ * THE TREATMENT CHECK-IN TEXT — hand-written, one message on the sample fill.
+ *
+ * Not the product's (it sends no text today). It names no treatment, no tooth
+ * and no cost: a phone screen is read by whoever is holding the phone. The
+ * practice's name first and the STOP line last, like every text in this
+ * library, and straight punctuation only (one curly quote reprices the whole
+ * message).
+ */
+export const TREATMENT_CHECKIN_TEXT =
+  '{practice name}: Hi {first name}, checking in after your visit, as promised. Any questions? Call {phone} or reply here. Reply STOP to opt out.'

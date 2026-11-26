@@ -63,6 +63,7 @@ export const GUIDE_SHORT_TITLES = {
   'dental-recall-scripts': 'Dental recall scripts',
   'dental-appointment-reminder-templates': 'Appointment reminder templates',
   'dental-cancellation-no-show-policy': 'Cancellation & no-show policy',
+  'dental-unscheduled-treatment-follow-up': 'Treatment follow-up scripts',
   'dental-review-request-templates': 'Review request templates',
   'dental-new-patient-welcome-letter': 'New patient welcome letter',
   'dental-past-due-balance-letters': 'Past-due balance letters',
@@ -154,6 +155,26 @@ export const RESOURCE_GUIDES: ResourceGuide[] = [
     ],
     readMinutes: 8,
     datePublished: '2026-11-25',
+  },
+  {
+    slug: 'dental-unscheduled-treatment-follow-up',
+    title: 'Unscheduled treatment follow-up scripts for dental offices (call, email & letter)',
+    description:
+      'What to say when treatment was recommended and never booked: the handoff before the patient leaves, the check-in, the follow-up call, plain answers about cost and nerves, the year-end benefits note, and the letter that closes the loop.',
+    // `tooth` — brand. The subject is the care itself and the patient's
+    // decision about it; the production it represents is not the point, and
+    // a growth tone would say that it was.
+    glyph: 'tooth',
+    contains: [
+      'The handoff before the patient leaves',
+      'The check-in message and the follow-up call',
+      'Answers for cost, nerves, time and “it doesn’t hurt”',
+      'The year-end benefits note',
+      'The letter that closes the loop',
+      'Where the list comes from, in the vendors’ own words',
+    ],
+    readMinutes: 8,
+    datePublished: '2026-11-26',
   },
   {
     slug: 'dental-review-request-templates',

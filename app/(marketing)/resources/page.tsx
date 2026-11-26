@@ -86,7 +86,7 @@ export default function ResourcesIndexPage() {
       <PageHero
         eyebrow="Practice growth library"
         title="Free guides, real scripts, honest math."
-        sub="Everything here is copy-ready and works whether or not you ever use DreamCRM. The emails are the ones our own platform sends; the letters, the texts and the phone scripts are written to the same rules; and the math is the math."
+        sub="Everything here is copy-ready and works whether or not you ever use DreamCRM. Where an email or a message is one our own platform sends, the page says so; everything else is written to the same rules; and the math is the math."
       />
 
       {/* ── THE SHELF ─────────────────────────────────────────────────────
