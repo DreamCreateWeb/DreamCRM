@@ -5,7 +5,7 @@ import { render } from '@testing-library/react'
 import ReviewRequestGuide, { metadata } from '@/app/(marketing)/resources/dental-review-request-templates/page'
 import ReminderTemplatesGuide from '@/app/(marketing)/resources/dental-appointment-reminder-templates/page'
 import MorePatientsGuide from '@/app/(marketing)/resources/how-to-get-more-dental-patients/page'
-import { REVIEW_RULES } from '@/lib/marketing/guide-sources'
+import { LOCAL_RANKING, REVIEW_RULES } from '@/lib/marketing/guide-sources'
 import { productEmail, REVIEW_REQUEST_TEXT, fillSample } from '@/lib/marketing/guide-templates'
 import { getResourceGuide } from '@/lib/marketing/resources'
 import { FOOTER_COLUMNS, TRIAL } from '@/lib/marketing/site'
@@ -244,7 +244,7 @@ describe('the growth guide’s line about gating says what was read', () => {
     // And its search-notice key follows the quoted line.
     const growth = getResourceGuide('how-to-get-more-dental-patients')!
     const page = publicPages([]).find((p) => p.path === '/resources/how-to-get-more-dental-patients')!
-    expect(page.contentKey).toBe(contentKey([growth, REVIEW_RULES.googlePolicy.says.gating]))
+    expect(page.contentKey).toBe(contentKey([growth, [REVIEW_RULES.googlePolicy.says.gating, LOCAL_RANKING]]))
   })
 })
 
