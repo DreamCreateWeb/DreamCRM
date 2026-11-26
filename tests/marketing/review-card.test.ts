@@ -129,6 +129,8 @@ describe('checkReviewLink — a Google link is printed, anything else is refused
       ['our google reviews', 'not-a-link'],
       ['javascript:alert(1)', 'not-a-link'],
       ['mailto:desk@example.com', 'not-a-link'],
+      // A Google host is not enough: the scheme has to be one a phone opens as a web page.
+      ['ftp://g.page/r/CabcDEF123/review', 'not-a-link'],
       ['https://user:pass@g.page/r/x/review', 'not-a-link'],
       ['https://localhost/review', 'not-a-link'],
       ['https://www.yelp.com/writeareview/biz/acme', 'not-google'],

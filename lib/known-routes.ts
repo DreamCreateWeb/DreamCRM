@@ -39,6 +39,7 @@ export const KNOWN_TOP_LEVEL_SEGMENTS: ReadonlySet<string> = new Set([
   'changelog',
   'compare',
   'docs',
+  'google-review-card',
   'grade',
   'partner-program',
   'pricing',

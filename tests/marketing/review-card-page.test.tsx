@@ -321,6 +321,13 @@ describe('the page', () => {
     expect(css).toMatch(/header/)
     expect(css).toMatch(/footer/)
     expect(css).toMatch(/\.no-print/)
+    // …but only once there is a card. A visitor who prints before pasting a
+    // link gets the page, not a blank sheet: every hiding rule is scoped to a
+    // sheet that is ready, and so is the rule that shows the sheet.
+    const ready = 'body:has([data-print-sheet][data-ready="true"])'
+    for (const what of ['header', 'footer', 'nav', '.no-print']) expect(css).toContain(`${ready} ${what}`)
+    expect(css).toContain('[data-print-sheet][data-ready="true"] { display: grid !important')
+    expect(css).not.toMatch(/^\s*(?:body )?(?:header|footer|nav|\.no-print)[ ,{]/m)
     expect(container.querySelectorAll('.no-print').length).toBeGreaterThanOrEqual(3)
     // The maker is NOT inside a hidden wrapper, or the sheet could never print.
     expect(container.querySelector('[data-print-sheet]')!.closest('.no-print')).toBeNull()
