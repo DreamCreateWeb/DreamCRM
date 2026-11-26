@@ -380,7 +380,7 @@ export const COMPARISONS: VendorComparison[] = [
     pricingChecked: { on: '2026-11-26', source: 'NexHealth’s own pricing page', url: 'https://www.nexhealth.com/pricing' },
     pricingDetail: {
       intro:
-        'NexHealth’s pricing page shows no price: it is a choice of products and a form. What NexHealth does publish is on three other pages of its own: what extra texts, insurance checks and patient payments cost, how annual billing works, and what its developer API costs per call. This is what each page said on the day it was read.',
+        'NexHealth’s pricing page shows no price: it is a choice of products and a form. What NexHealth does publish is on other pages of its own: what extra texts and insurance checks cost, what it deducts from a patient’s payment, how annual billing works, how much notice it takes to stop, the terms of its service agreement, and what its developer API costs per call. This is what each page said on the day it was read.',
       groups: [
         {
           id: 'the-subscription',
@@ -415,7 +415,7 @@ export const COMPARISONS: VendorComparison[] = [
           },
           question: 'Does NexHealth charge overage fees?',
           answer:
-            'Its help centre lists two. A plan with Campaigns includes 5,000 campaign texts per location each month, and more are $0.012 a message. A plan with Insurance Verification includes 800 checks a month, and more are $0.20 each, which a practice can switch off. Patient payments carry a processing fee of 2.9% + $0.30 per transaction.',
+            'Its help centre lists two. A plan with Campaigns includes 5,000 campaign texts per location each month, and more are $0.012 a message. A plan with Insurance Verification includes 800 checks a month, and more are $0.20 each, which a practice can switch off.',
           lines: [
             { label: 'Campaign texts included', value: '5,000 SMS messages per location every month, on a plan that includes Campaigns; “Unused SMS messages do not rollover into following months.”' },
             { label: 'Extra campaign texts', value: '$0.012 per SMS message; “Overage charges are added to your next monthly NexHealth invoice.”' },
@@ -423,6 +423,29 @@ export const COMPARISONS: VendorComparison[] = [
             { label: 'Insurance verifications included', value: '800 a month, on a plan that includes Insurance Verification' },
             { label: 'Extra verifications', value: '$0.20 each; overages can be switched off under Settings, Usage management' },
             { label: 'Patient payments', value: '“A payment processing fee of 2.9% + $0.30 is deducted for each patient payment transaction.”' },
+          ],
+        },
+        // Found on 2026-11-26, when the help centre's own sitemap (141
+        // articles) was read. No question is asked of it: this site does not
+        // yet state what a patient's payment costs on its own product
+        // (docs/organic-go-live.md Part 8, row 7), so their rates are printed
+        // and nothing of ours is set beside them.
+        {
+          id: 'patient-payments',
+          title: 'What it deducts from a patient’s payment',
+          source: {
+            label: 'NexHealth’s help centre, “Payouts and processing fees”',
+            url: 'https://help.nexhealth.com/en/articles/10141685-payouts-and-processing-fees',
+            readOn: '2026-11-26',
+            pageSays: 'September 22, 2026',
+          },
+          lines: [
+            { label: 'On a terminal', value: '“In person (terminal): 2.6% + $0.07 per transaction”' },
+            { label: 'Online or by text', value: '“Online and text-to-pay: 2.9% + $0.30 per transaction”' },
+            { label: 'Paid over time', value: '“Pay Later with Affirm: 6% + $0.30 per transaction”' },
+            { label: 'Faster payouts', value: '“An expedited payout schedule is available for a 0.2% increase to your processing rates.”' },
+            { label: 'How the fee is taken', value: 'Before the deposit: “NexHealth issues net payouts”' },
+            { label: 'Custom rates', value: '“If you have a custom fee configuration, your rates may differ from those above.”' },
           ],
         },
         {
@@ -444,6 +467,54 @@ export const COMPARISONS: VendorComparison[] = [
             { label: 'Ways to pay', value: 'A card or autopay in its billing portal, or a check by mail' },
           ],
         },
+        // The two groups below were also found on the sitemap read. The
+        // pricing page says "month-to-month" and "no cancellation fees"; these
+        // are the pages that say what month-to-month comes with.
+        {
+          id: 'cancelling',
+          title: 'Stopping a subscription',
+          source: {
+            label: 'NexHealth’s help centre, “How do I cancel my NexHealth subscription?”',
+            url: 'https://help.nexhealth.com/en/articles/10562265-how-do-i-cancel-my-nexhealth-subscription',
+            readOn: '2026-11-26',
+            pageSays: 'September 23, 2026',
+          },
+          question: 'How much notice does NexHealth need to cancel?',
+          answer:
+            'Its help centre says a month-to-month subscription includes a minimum commitment of the first 3 billing cycles, and takes written notice at least 30 days before the next invoice date. An annual subscription takes written notice at least 90 days before the term ends; without it, the subscription renews for another 12-month term.',
+          lines: [
+            { label: 'Month-to-month: the minimum', value: '“All month-to-month subscriptions include a minimum commitment of your first 3 billing cycles.”' },
+            { label: 'Month-to-month: notice', value: '“you must provide written notice at least 30 days before your next invoice date”' },
+            { label: 'Annual: notice', value: '“you must provide written notice at least 90 days before your current subscription term end date”' },
+            { label: 'Annual: if the notice is late', value: '“your subscription will automatically renew for another 12-month term under the same terms”' },
+            { label: 'When invoices go out', value: '“NexHealth issues invoices on the 29th of each month”' },
+            { label: 'Your own agreement', value: '“Specific cancellation terms may differ based on your original agreement”' },
+          ],
+        },
+        {
+          id: 'the-agreement',
+          title: 'The service agreement',
+          source: {
+            label: 'NexHealth’s service agreement',
+            url: 'https://www.nexhealth.com/legal/customer-service-agreement',
+            readOn: '2026-11-26',
+            pageSays: 'Version: Oct. 27, 2026',
+          },
+          question: 'Does NexHealth require a contract?',
+          answer:
+            'Its service agreement says a month-to-month agreement has a minimum initial term of 90 days, then renews a month at a time until either side gives written notice at least 30 days before the next invoice. A term of a year or more renews for another year unless notice is given at least 90 days before it ends. It says payment obligations are non-cancelable and non-refundable, except as an order states.',
+          lines: [
+            { label: 'Month-to-month', value: '“For month-to-month agreements, the minimum initial term is 90 days.”' },
+            { label: 'Renewal, under a year', value: 'Automatic: it “renews for additional one-month terms, until either party provides written notice of non-renewal to the other party at least 30 days before the next scheduled invoice”' },
+            { label: 'Renewal, a year or more', value: 'Automatic: it “renews for additional one-year terms, until either party provides written notice of non-renewal to the other party at least 90 days before the end of the relevant Subscription Term”' },
+            { label: 'Refunds', value: '“Except as specified in an Order or the Documentation, payment obligations are non-cancelable and non-refundable.”' },
+            { label: 'Reducing a subscription', value: '“subscriptions and quantities purchased may not be decreased during the applicable Subscription Term”' },
+            { label: 'Paying an invoice by card', value: '“Invoices paid by payment cards and paper checks may incur a processing fee of 2.9% + $0.30 per transaction, where permitted by law. No additional fee applies to auto-debit ACH payments.”' },
+            { label: 'Late payment', value: 'Interest “at 1.5% per month (or the maximum rate permitted by law, if lower)”' },
+            { label: 'The synchronizer', value: '“The NexHealth Synchronizer is provided at no cost to you.”' },
+            { label: 'Taxes', value: 'Yours, on top of the fees' },
+          ],
+        },
         {
           id: 'developer-api',
           title: 'The developer API (not a practice’s subscription)',
@@ -458,10 +529,10 @@ export const COMPARISONS: VendorComparison[] = [
       ],
       reported: [],
       notRead: ['G2', 'Capterra', 'Software Advice', 'GetApp', 'TrustRadius'],
-      versusUs: `NexHealth’s pricing page shows no subscription price, so there is no number of theirs to set beside ours: ${RATE_MONTHLY}/mo, published, month-to-month. On what it does publish, two things are in NexHealth’s favour: a plan with insurance verification includes 800 checks a month where ours includes ${INCLUDED_MONTHLY_INSURANCE_CHECKS}, and a plan with campaigns includes texts, which DreamCRM does not send today.`,
+      versusUs: `NexHealth’s pricing page shows no subscription price, so there is no number of theirs to set beside ours: ${RATE_MONTHLY}/mo, published, month-to-month. Its own month-to-month option carries a minimum of three billing cycles and 30 days’ notice, per its help centre; ours has neither. On what it does publish, two things are in NexHealth’s favour: a plan with insurance verification includes 800 checks a month where ours includes ${INCLUDED_MONTHLY_INSURANCE_CHECKS}, and a plan with campaigns includes texts, which DreamCRM does not send today.`,
     },
     summary:
-      'NexHealth built an impressive real-time synchronizer across many PMSs and sells booking, forms, reminders, and payments on top of it. Its breadth of PMS coverage is real, and the sync infrastructure is genuinely strong engineering. The trade-offs are scope and terms: no practice website, no clinic-branded portal, no shop or memberships, and custom pricing. DreamCRM is the whole patient-facing stack — website through recall — on one published price.',
+      'NexHealth built an impressive real-time synchronizer across many PMSs and sells booking, forms, reminders, and payments on top of it. Its breadth of PMS coverage is real, and the sync infrastructure is genuinely strong engineering. The trade-offs are scope and terms: no practice website, no patient portal, no shop or memberships, and custom pricing. DreamCRM is the whole patient-facing stack — website through recall — on one published price.',
     theirStrengths: [
       { title: 'PMS breadth', body: 'NexHealth built the synchronizer that reaches Dentrix, Eaglesoft, and most other PMSs — genuinely strong engineering. DreamCRM connects through that same class of bridge, so the practical coverage overlaps.' },
       { title: 'Real-time sync', body: 'Their first-party product surfaces changes near-instantly. Our PMS sync is scheduled polling plus instant write-backs — honest minutes, not seconds.' },
@@ -470,13 +541,13 @@ export const COMPARISONS: VendorComparison[] = [
     ourStrengths: [
       { glyph: 'layers', title: 'The whole front office, not booking + comms', body: 'NexHealth stops at booking, forms, reminders, and payments. DreamCRM adds the practice website, a clinic-branded portal, reviews that become website testimonials, recall campaigns, and an online store — the jobs around booking that otherwise stay with other vendors.' },
       { glyph: 'globe', title: 'The storefront comes with it', body: 'Website, blog, SEO dashboard, careers page, shop — NexHealth assumes you have vendors for all of that. We replace them.' },
-      { glyph: 'people', title: 'A portal patients recognize', body: 'NexHealth’s patient pages run under its own brand. DreamCRM’s portal wears your logo, your colors, your voice — with clinic-controlled feature toggles.' },
+      { glyph: 'people', title: 'A portal patients recognize', body: 'NexHealth’s own site says “NexHealth doesn’t have a patient portal.” DreamCRM’s portal wears your logo, your colors, your voice — with clinic-controlled feature toggles.' },
       { glyph: 'tag', title: 'Published flat pricing', body: `${RATE_MONTHLY}/mo on the pricing page, month-to-month. No discovery call required to learn the number.` },
     ],
     matrix: baseMatrix({
       website: ['no'],
       booking: ['yes', 'Their core strength'],
-      portal: ['partial', 'NexHealth-branded patient pages, not clinic-branded'],
+      portal: ['no', 'Its own site says “NexHealth doesn’t have a patient portal.”'],
       inbox: ['partial', 'Messaging tied to reminders'],
       reviews: ['yes'],
       recall: ['yes'],
@@ -484,9 +555,9 @@ export const COMPARISONS: VendorComparison[] = [
       shop: ['no'],
       careers: ['no'],
       pms: ['yes', 'Many PMSs via its Synchronizer'],
-      phones: ['no'],
+      phones: ['partial', 'Its “NexHealth Phones” page lists “Mobile app, call routing, ringtones based on caller type, reports”'],
       sms: ['yes'],
-      contract: ['yes', 'A month-to-month option, per its pricing page; yearly plans are paid up front and need 90 days’ notice not to renew'],
+      contract: ['partial', 'A month-to-month option with a minimum of three billing cycles and 30 days’ notice, per its help centre; yearly plans are paid up front and need 90 days’ notice not to renew'],
     }),
     bottomLine:
       'If you’re a DSO building custom tooling on the sync API, NexHealth-direct is the pragmatic pick. If you want the whole patient-facing stack — site, booking, portal, reviews, shop — riding the same class of PMS bridge at a flat published price, that’s DreamCRM.',
@@ -849,7 +920,10 @@ export const COMPARISONS: VendorComparison[] = [
       'PatientPop is practice-growth software for healthcare practices: practice websites, SEO, online scheduling and reputation management. It merged with Kareo and is now part of Tebra, which sells it alongside its own EHR and billing.',
     reportedPricing:
       'Published from $49 per provider per month — the non-physician starting price for Patient Experience + Marketing, the package with online scheduling, reviews, 80+ web profiles and Google Business Profile; a physician starts at $99, and both are starter prices for practices submitting fewer than 100 claims a month. Its main pricing page shows no number and asks for your details: the figures are on its pricing overview page',
-    pricingChecked: { on: '2026-11-25', source: 'Tebra’s own pricing overview page', url: 'https://www.tebra.com/pricing/overview' },
+    // Re-checked 2026-11-26: every figure and quotation in the groups read on
+    // the 25th was compared by script with that day's copy of the page it
+    // cites, when the pages its sitemap lists were read. All were present.
+    pricingChecked: { on: '2026-11-26', source: 'Tebra’s own pricing overview page', url: 'https://www.tebra.com/pricing/overview' },
     summary:
       'PatientPop — now part of Tebra after merging with Kareo — is the closest thing to a direct overlap: it sells healthcare practice websites, SEO, online scheduling, and reputation as a growth suite, alongside Tebra’s EHR and billing. It’s a capable, established product for medical private practices. The differences are focus and terms: Tebra’s home and pricing pages do not mention dentistry at all; it prices per provider and bills website hosting as its own line; its agreements renew automatically for the same term unless you give sixty days’ notice, with no early cancellation; and it lists no online store, memberships, or dental PMS sync. DreamCRM is dental-native, self-serve, edit-it-yourself, one flat price, and month-to-month.',
     theirStrengths: [
@@ -958,6 +1032,44 @@ export const COMPARISONS: VendorComparison[] = [
             { label: 'Your website', value: 'You may export its text and overall structure, at the fee in the pricing policy; Tebra’s templates and everything that is not your own content stay Tebra’s' },
             { label: 'Images Tebra licensed for the site', value: 'The licences end; to keep using them you license them yourself' },
             { label: 'Your domain name', value: 'If Tebra registered it, Tebra “will take reasonable measures to assign its rights” to you; if you supplied it, you keep it' },
+          ],
+        },
+        // The two groups below were found on 2026-11-26, when the pages its
+        // own sitemap lists were read (529 product, legal and resource
+        // pages; the other 70,000 are its provider directory). No question
+        // is asked of the payment fees: see the same note on NexHealth and
+        // Solutionreach.
+        {
+          id: 'payment-processing',
+          title: 'Tebra’s payment processing (a separate service)',
+          source: {
+            label: 'Tebra’s payment processing pricing policy',
+            url: 'https://www.tebra.com/tebra-payment-processing-pricing-policy',
+            readOn: '2026-11-26',
+          },
+          lines: [
+            { label: 'Card present', value: '“2.75% + $0.30 per Card Present transaction”' },
+            { label: 'Card not present', value: '“3.25% + $0.30 per Card Not Present transaction”' },
+            { label: 'Annual fees', value: 'None: the page says it “has no annual fees”' },
+            { label: 'Refunds to a patient', value: '“Original processing fees are taken out of all refunds.”' },
+            { label: 'A disputed charge', value: '“A $15 fee will be charged anytime a patient disputes a charge and receives money back from the issuing bank.”' },
+            { label: 'High chargebacks', value: '“5.5% + $0.60 Processing Fee”, “For customers whose chargebacks exceed 0.6% per month for three months.”' },
+          ],
+        },
+        {
+          id: 'your-records-if-you-leave',
+          title: 'Your records, if you leave',
+          source: {
+            label: 'Tebra’s term, termination and return of data FAQ',
+            url: 'https://www.tebra.com/term-termination-return-data-faq',
+            readOn: '2026-11-26',
+            pageSays: 'This policy was last updated on October 26, 2023',
+          },
+          lines: [
+            { label: 'The format', value: '“The Customer data will only be provided in Microsoft Excel (.XLS) or Comma Separated Values (.CSV) file format”, and covers patient records and claim records' },
+            { label: 'How long it is kept afterwards', value: '“an additional minimum 60 days (Data Retention Period)”' },
+            { label: 'Help after support has ended', value: '“Tebra may charge the Customer the standard rate of $100 an hour (minimum 30 minutes)”' },
+            { label: 'Part-months', value: '“Tebra does not refund or credit subscription fees for partial months or for any portion of a prepaid plan”' },
           ],
         },
       ],

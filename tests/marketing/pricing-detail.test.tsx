@@ -46,6 +46,7 @@ import {
 import { usd } from '@/lib/marketing/site'
 import { getQuotedPlan } from '@/lib/stripe-config'
 import { INCLUDED_MONTHLY_INSURANCE_CHECKS } from '@/lib/insurance-eligibility'
+import { TERMS_OF_SERVICE } from '@/lib/marketing/legal'
 
 const detailed = COMPARISONS.filter((c) => c.pricingDetail)
 const plain = COMPARISONS.filter((c) => !c.pricingDetail)
@@ -101,7 +102,7 @@ describe('the registry', () => {
    * the entry says "no subscription price" and then prints what IS priced,
    * each under the page it came from. Read 2026-11-26.
    */
-  it('NexHealth: no subscription price, and the three places it does publish a number', () => {
+  it('NexHealth: no subscription price, and the pages where it does publish a number or a term', () => {
     const nx = COMPARISONS.find((c) => c.slug === 'nexhealth')!
     const d = nx.pricingDetail!
     const line = (group: string, label: string) =>
@@ -128,6 +129,62 @@ describe('the registry', () => {
     expect(line('usage-and-overage-fees', 'Patient payments')).toBe(
       '“A payment processing fee of 2.9% + $0.30 is deducted for each patient payment transaction.”',
     )
+    // What a payment costs BY METHOD is in another article, found when the
+    // help centre's own sitemap (141 articles) was read on 2026-11-26.
+    const pay = d.groups.find((g) => g.id === 'patient-payments')!
+    expect(pay.lines.slice(0, 4).map((l) => l.value)).toEqual([
+      '“In person (terminal): 2.6% + $0.07 per transaction”',
+      '“Online and text-to-pay: 2.9% + $0.30 per transaction”',
+      '“Pay Later with Affirm: 6% + $0.30 per transaction”',
+      '“An expedited payout schedule is available for a 0.2% increase to your processing rates.”',
+    ])
+    // Their payment fees are printed and are nobody's search answer: this
+    // site does not yet state its own (`docs/organic-go-live.md` Part 8, row
+    // 7), so nothing of ours is set beside them either.
+    expect(pay.question).toBeUndefined()
+    expect(d.groups.find((g) => g.id === 'usage-and-overage-fees')!.answer).not.toMatch(/payment/i)
+    expect(d.versusUs).not.toMatch(/payment|processing|card fee|surcharg/i)
+
+    // LEAVING. Its pricing page says "month-to-month" and "no cancellation
+    // fees". Its help centre and its agreement say what that comes with: a
+    // minimum of three billing cycles (ninety days), thirty days' notice,
+    // and an annual term that renews itself. The page printed the first and
+    // not the second until its sitemap was read.
+    expect(line('cancelling', 'Month-to-month: the minimum')).toBe(
+      '“All month-to-month subscriptions include a minimum commitment of your first 3 billing cycles.”',
+    )
+    expect(line('cancelling', 'Month-to-month: notice')).toBe(
+      '“you must provide written notice at least 30 days before your next invoice date”',
+    )
+    expect(line('cancelling', 'Annual: if the notice is late')).toBe(
+      '“your subscription will automatically renew for another 12-month term under the same terms”',
+    )
+    expect(line('the-agreement', 'Month-to-month')).toBe('“For month-to-month agreements, the minimum initial term is 90 days.”')
+    expect(line('the-agreement', 'Refunds')).toBe(
+      '“Except as specified in an Order or the Documentation, payment obligations are non-cancelable and non-refundable.”',
+    )
+    expect(line('the-agreement', 'Paying an invoice by card')).toMatch(
+      /^“Invoices paid by payment cards and paper checks may incur a processing fee of 2\.9% \+ \$0\.30 per transaction/,
+    )
+    expect(line('the-agreement', 'Late payment')).toBe('Interest “at 1.5% per month (or the maximum rate permitted by law, if lower)”')
+    // The comparison says it, and what it says of us is what our Terms say.
+    expect(d.versusUs).toMatch(/a minimum of three billing cycles and 30 days’ notice/)
+    expect(TERMS_OF_SERVICE.sections.find((s) => s.id === 'billing')!.paragraphs![1]).toMatch(/^You can cancel at any time/)
+
+    // WHAT ITS OWN SITE SAYS IT IS. The table called its patient pages a
+    // partial portal and said it sells no phones. Its site says, in so many
+    // words, that it has no patient portal; and it has a page for a phone
+    // product.
+    const row = (starts: string) => nx.matrix.find((r) => r.feature.startsWith(starts))!
+    expect([row('Patient portal').vendor, row('Patient portal').vendorNote]).toEqual([
+      'no',
+      'Its own site says “NexHealth doesn’t have a patient portal.”',
+    ])
+    expect(row('VoIP phones').vendor).toBe('partial')
+    expect(row('VoIP phones').vendorNote).toContain('“Mobile app, call routing, ringtones based on caller type, reports”')
+    expect(row('Month-to-month').vendor).toBe('partial')
+    expect(row('Month-to-month').vendorNote).toMatch(/a minimum of three billing cycles/)
+    expect(JSON.stringify(nx)).not.toMatch(/NexHealth-branded patient pages|run under its own brand/)
 
     // Annual billing, in its own arithmetic.
     expect(line('paying-annually', 'Switching to annual')).toBe('“a 12-month subscription (for the price of 11!)”')
@@ -142,9 +199,15 @@ describe('the registry', () => {
     expect(d.groups.map((g) => [g.id, new URL(g.source.url).hostname])).toEqual([
       ['the-subscription', 'www.nexhealth.com'],
       ['usage-and-overage-fees', 'help.nexhealth.com'],
+      ['patient-payments', 'help.nexhealth.com'],
       ['paying-annually', 'help.nexhealth.com'],
+      ['cancelling', 'help.nexhealth.com'],
+      ['the-agreement', 'www.nexhealth.com'],
       ['developer-api', 'synchronizer.nexhealth.com'],
     ])
+    expect(pay.source.pageSays).toBe('September 22, 2026')
+    expect(d.groups.find((g) => g.id === 'cancelling')!.source.pageSays).toBe('September 23, 2026')
+    expect(d.groups.find((g) => g.id === 'the-agreement')!.source.pageSays).toBe('Version: Oct. 27, 2026')
     // The two help articles carry their own dates, as the pages state them.
     expect(d.groups.find((g) => g.id === 'usage-and-overage-fees')!.source.pageSays).toBe('Updated this week')
     expect(d.groups.find((g) => g.id === 'paying-annually')!.source.pageSays).toBe('September 28, 2026')
@@ -325,6 +388,54 @@ describe('the registry', () => {
     // read out; on one that has a section saying "no third party’s figure is
     // repeated here", it is a contradiction a reader can see.
     for (const c of detailed) expect(c.reportedPricing, c.slug).not.toMatch(/third-party reviews report|reported by reviewers/)
+  })
+
+  /**
+   * TEBRA, PINNED. It was the first entry read out in full (2026-11-25) and
+   * the only one whose figures no test named: the generic rules hold an
+   * entry's shape, and a shape-correct line that misstates a price passes
+   * them. These are its figures, and the two pages its sitemap added.
+   */
+  it('Tebra: the per-provider prices, the fees outside the subscription, and the two pages its sitemap added', () => {
+    const tebra = COMPARISONS.find((c) => c.slug === 'patientpop')!
+    const d = tebra.pricingDetail!
+    const line = (group: string, label: string) =>
+      d.groups.find((g) => g.id === group)!.lines.find((l) => l.label === label)!.value
+
+    expect(line('published-prices', 'Patient Experience + Marketing, per non-physician provider')).toBe('Starting at $49 a month')
+    expect(line('published-prices', 'Patient Experience + Marketing, per physician')).toBe('Starting at $99 a month')
+    expect(line('published-prices', 'The whole range Tebra gives')).toBe('$49 to $799 per provider, per month')
+    expect(line('other-fees', 'Telecom messaging compliance fee')).toMatch(/^\$84\.87 per location, billed annually/)
+    expect(line('other-fees', 'Website export, if you leave')).toMatch(/^\$1,000 for the text and overall structure/)
+    expect(line('other-fees', 'Price increases')).toMatch(/^Up to 4\.9% at a time/)
+    expect(line('other-fees', 'Paying Tebra’s invoice by credit card')).toBe('A 2% processing fee')
+    expect(line('the-contract', 'To stop a renewal')).toMatch(/at least 60 days before the term ends/)
+
+    // Found when its sitemap was read on 2026-11-26.
+    const pay = d.groups.find((g) => g.id === 'payment-processing')!
+    expect(line('payment-processing', 'Card present')).toBe('“2.75% + $0.30 per Card Present transaction”')
+    expect(line('payment-processing', 'Card not present')).toBe('“3.25% + $0.30 per Card Not Present transaction”')
+    expect(pay.title).toMatch(/a separate service/)
+    // Printed, and nobody's search answer (see the same rule on NexHealth
+    // and Solutionreach: `docs/organic-go-live.md` Part 8, row 7).
+    expect(pay.question).toBeUndefined()
+    expect(d.versusUs).not.toMatch(/payment|processing|card fee|surcharg/i)
+    const records = d.groups.find((g) => g.id === 'your-records-if-you-leave')!
+    expect(line('your-records-if-you-leave', 'How long it is kept afterwards')).toBe('“an additional minimum 60 days (Data Retention Period)”')
+    expect(line('your-records-if-you-leave', 'Help after support has ended')).toBe(
+      '“Tebra may charge the Customer the standard rate of $100 an hour (minimum 30 minutes)”',
+    )
+    expect(records.source.pageSays).toBe('This policy was last updated on October 26, 2023')
+
+    expect(d.groups.map((g) => [g.id, new URL(g.source.url).pathname])).toEqual([
+      ['published-prices', '/pricing/overview'],
+      ['whats-included', '/pricing'],
+      ['other-fees', '/tebra-pricing-policy'],
+      ['the-contract', '/tebra-terms-of-service'],
+      ['if-you-leave', '/tebra-terms-of-service'],
+      ['payment-processing', '/tebra-payment-processing-pricing-policy'],
+      ['your-records-if-you-leave', '/term-termination-return-data-faq'],
+    ])
   })
 
   /**

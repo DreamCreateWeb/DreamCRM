@@ -103,9 +103,13 @@ describe('the other entries re-read the same day', () => {
     expect(nx.reportedPricing).not.toMatch(/third-party|reviews report/)
     expect(nx.reportedPricing).toMatch(/its help centre publishes/)
     const contract = nx.matrix.find((r) => r.feature.startsWith('Month-to-month'))!
-    // The honest "yes": they do offer month-to-month. The page used to say
-    // "terms vary".
-    expect(contract.vendor).toBe('yes')
+    // The page used to say "terms vary", then a plain "yes": they do offer
+    // month-to-month. On 2026-11-26 the pages its sitemap lists were read, and
+    // its help centre and its agreement say what that option comes with: a
+    // minimum of the first three billing cycles, and thirty days' notice. A
+    // row headed "month-to-month, no contract" cannot give that a plain yes.
+    expect(contract.vendor).toBe('partial')
+    expect(contract.vendorNote).toMatch(/a minimum of three billing cycles and 30 days’ notice/)
     expect(contract.vendorNote).toMatch(/90 days/)
   })
 })
@@ -152,7 +156,7 @@ describe('all eight entries, each re-read in a browser on the day it says', () =
     ['adit', 'adit.com', '2026-11-25'],
     ['dental-intelligence', 'dentalintel.com', '2026-11-25'],
     ['podium', 'podium.com', '2026-11-25'],
-    ['patientpop', 'tebra.com', '2026-11-25'],
+    ['patientpop', 'tebra.com', '2026-11-26'],
   ]
   const entry = (slug: string) => COMPARISONS.find((c) => c.slug === slug)!
   const contract = (slug: string) => entry(slug).matrix.find((r) => r.feature.startsWith('Month-to-month'))!

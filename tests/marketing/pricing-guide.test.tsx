@@ -128,11 +128,30 @@ describe('1 — it has no words of its own about a competitor', () => {
     render(<PricingGuide />)
     const rows = within(listUnder(/Can you pay month to month\?/)).getAllByRole('listitem')
     expect(rows).toHaveLength(read.length)
-    const word = { yes: 'Yes', no: 'No', partial: 'Not clear' } as const
+    // A "partial" row is one of two different things: the vendor's pages
+    // did not state its terms, or they state a month-to-month option and what
+    // comes with it. The guide used to call both "Not clear", which was
+    // false of a vendor whose pages are perfectly clear (NexHealth: three
+    // billing cycles minimum, thirty days' notice). Each partial vendor's
+    // word is named here, so a new one is a decision and not a default.
+    const PARTIAL_WORD: Record<string, string> = {
+      nexhealth: 'With conditions',
+      patientpop: 'With conditions',
+      'dental-intelligence': 'Not clear',
+      podium: 'Not clear',
+    }
+    const partial = read.filter((c) => contractAnswer(c).value === 'partial').map((c) => c.slug)
+    expect(partial.sort()).toEqual(Object.keys(PARTIAL_WORD).sort())
     read.forEach((c, i) => {
       const answer = contractAnswer(c)
-      expect(rows[i]!.textContent, c.slug).toBe(`${c.name}: ${word[answer.value]} — ${answer.note}.`)
+      const word = answer.value === 'partial' ? PARTIAL_WORD[c.slug] : { yes: 'Yes', no: 'No' }[answer.value]
+      expect(rows[i]!.textContent, c.slug).toBe(`${c.name}: ${word} — ${answer.note}.`)
+      // "Not clear" is said only where the line itself says the terms were not stated.
+      expect(word === 'Not clear', c.slug).toBe(answer.value === 'partial' && /not stated/i.test(answer.note))
     })
+    // And the page says what each word means.
+    const key = screen.getByText(/“Not clear” means/)
+    expect(key.textContent).toMatch(/“With conditions” means its pages describe a month-to-month option and what comes with it/)
   })
 })
 

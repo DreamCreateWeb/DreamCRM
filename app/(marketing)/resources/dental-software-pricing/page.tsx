@@ -65,6 +65,19 @@ const CONTRACT_WORD: Record<MatrixValue, string> = {
   partial: 'Not clear',
 }
 
+/**
+ * A "partial" row is one of two different things, and the line beside it says
+ * which: the vendor's pages did not state its terms ("Not clear"), or they
+ * describe a month-to-month option and what comes with it. Calling the second
+ * kind "Not clear" was false of a vendor whose pages are plain about a
+ * minimum term and a notice period. `tests/marketing/pricing-guide.test.tsx`
+ * names each partial vendor's word, so a new one is a decision.
+ */
+function contractWord(answer: { value: MatrixValue; note: string }): string {
+  if (answer.value !== 'partial') return CONTRACT_WORD[answer.value]
+  return /not stated/i.test(answer.note) ? CONTRACT_WORD.partial : 'With conditions'
+}
+
 function names(list: readonly VendorComparison[]): string {
   const all = list.map((c) => c.name)
   if (all.length <= 1) return all.join('')
@@ -174,14 +187,15 @@ export default function DentalSoftwarePricingGuide() {
           const answer = contractAnswer(c)
           return (
             <span key={c.slug}>
-              <strong>{c.name}:</strong> {CONTRACT_WORD[answer.value]}
+              <strong>{c.name}:</strong> {contractWord(answer)}
               {answer.note ? ` — ${answer.note}` : ''}.
             </span>
           )
         })}
       />
       <GuideP>
-        “Not clear” means the vendor’s own pages did not state its terms on the day they were read. Ask for them in
+        “Not clear” means the vendor’s own pages did not state its terms on the day they were read. “With conditions”
+        means its pages describe a month-to-month option and what comes with it. Either way, ask for the terms in
         writing.
       </GuideP>
 
