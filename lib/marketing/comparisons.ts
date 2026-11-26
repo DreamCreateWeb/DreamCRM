@@ -568,36 +568,207 @@ export const COMPARISONS: VendorComparison[] = [
     category: 'Dental marketing & communication suite',
     whatItIs:
       'RevenueWell is a dental marketing and communication suite: campaigns, reminders, two-way texting, phones and a patient portal. It also has an in-house marketing team that runs SEO, paid ads, social media and website design for a practice.',
+    // The line ended "third-party reviews report ~$349/mo for a single
+    // location" until 2026-11-26: a figure nobody could name the source of.
+    // It went when the pages its own sitemap lists were read (682, and the
+    // 218 articles of its help centre), which is also where the prices this
+    // line points at were found. The offer headline's free period is still
+    // not typed as a length: `tests/marketing/trial-copy.test.ts` reads any
+    // digit beside "free" as OUR trial.
     reportedPricing:
-      'No price published on its Plans page — it says to talk to its team to create a package; elsewhere on its own site an offer page for WinOMS practices is headlined with a free introductory period and “$199/Month” for its Marketing Platform, and third-party reviews report ~$349/mo for a single location, with add-ons priced separately (2025–2026)',
-    pricingChecked: { on: '2026-11-25', source: 'RevenueWell’s own Plans page', url: 'https://www.revenuewell.com/plans' },
+      'No price published on its Plans page — it says to start from its platform and add packages or services; elsewhere on its own site it prices single products ($149/mo for RW Virtual Office), an offer page for WinOMS practices is headlined with a free introductory period and “$199/Month” for its Marketing Platform, and its legal pages publish a fee schedule and its agreement',
+    pricingChecked: { on: '2026-11-26', source: 'RevenueWell’s own Plans page', url: 'https://www.revenuewell.com/plans' },
+    pricingDetail: {
+      intro:
+        'RevenueWell’s Plans page shows no price: it describes a platform to start from, add-ons and services, and a demo to book. Other pages of its own do print figures: a tiers page with a footnote about contracts, a price for one product, three offer pages, a schedule of usage fees, a billing article in its help centre, and its subscription agreement. This is what each page said on the day it was read.',
+      groups: [
+        {
+          id: 'the-plans-page',
+          title: 'The subscription, as its Plans page describes it',
+          source: { label: 'RevenueWell’s Plans page', url: 'https://www.revenuewell.com/plans', readOn: '2026-11-26' },
+          question: 'Does RevenueWell list its prices online?',
+          answer:
+            'RevenueWell’s Plans page shows no price. It describes a platform to start from, add-ons and standalone services, and a demo to book. Other pages of its site print a price for one product and for three offers, and its legal pages publish a schedule of usage fees and its subscription agreement.',
+          lines: [
+            { label: 'The price', value: 'None on the page: “Build the perfect plan for your practice. Start with the Practice Growth Platform, then add bundled packages or individual services à la carte.”' },
+            { label: 'What you start from', value: 'The Practice Growth Platform, “Required for software add-ons”' },
+            { label: 'Marked “coming soon” on the page', value: '“Reputation & review management” and the “ReadyVisit patient portal”' },
+            { label: 'Add-ons to the platform', value: 'AI Receptionist, AI Insurance Verification, Online Forms, Phone and RevenueWell TV' },
+            { label: 'Sold as standalone services', value: 'Website design, SEO, AEO, paid advertising, social media, video production and branding' },
+          ],
+        },
+        {
+          id: 'plan-tiers',
+          title: 'Its tiers page',
+          source: { label: 'RevenueWell’s plans-comparison page', url: 'https://www.revenuewell.com/meet-the-new-plans', readOn: '2026-11-26' },
+          lines: [
+            { label: 'The tiers', value: 'Starter, Professional and Premium; no price beside any of them' },
+            { label: 'The footnote', value: '“*Annual contract required for Starter, Professional, or Premium plans”' },
+            { label: 'Where a website comes in', value: 'Premium: “Add a content rich dental website with RevenueWell TV”' },
+          ],
+        },
+        {
+          id: 'virtual-office',
+          title: 'RW Virtual Office: video visits, texting and a web phone',
+          source: { label: 'RevenueWell’s Virtual Office page', url: 'https://www.revenuewell.com/virtual-office', readOn: '2026-11-26' },
+          question: 'How much is RevenueWell Virtual Office?',
+          answer:
+            'Its Virtual Office page prices that product at $149 a month paid monthly, with no contract, or $129 a month with a 12-month commitment. It says you can cancel within 30 days with full money back.',
+          lines: [
+            { label: 'The headline', value: '“RW Virtual Office is just $149 per month. Or even less if you sign up for a year.”' },
+            { label: 'Paid monthly', value: '“$149/mo”, and “Easy to try with no contract.”' },
+            { label: 'Paid for a year', value: '“$129/mo”, and “More affordable with a 12-month commitment.”' },
+            { label: 'Money back', value: '“You can cancel within 30 days with full money back.”' },
+          ],
+        },
+        // The next three are offer pages. The first is an offer for practices
+        // on one practice-management system; the other two carry "2024" in
+        // their addresses and state no date, and each says so.
+        {
+          id: 'winoms-offer',
+          title: 'An offer for WinOMS practices',
+          source: { label: 'RevenueWell’s WinOMS integration page', url: 'https://www.revenuewell.com/integrations/winoms-revenuewell', readOn: '2026-11-26' },
+          lines: [
+            { label: 'The headline', value: 'A free introductory period, then “$199/Month” for its Marketing Platform' },
+            { label: 'Who it is for', value: 'Practices using WinOMS: “Integrated Patient Communications with RevenueWell and WinOMS”' },
+          ],
+        },
+        {
+          id: 'website-offer',
+          title: 'An offer page for its websites',
+          source: { label: 'RevenueWell’s website offer page', url: 'https://www.revenuewell.com/website-offer-2024', readOn: '2026-11-26' },
+          lines: [
+            { label: 'The offer', value: '“For a limited time, you can upgrade to a semi-custom website for just $99/month (a significant discount from the usual $169/month).”' },
+            { label: 'How old it is', value: 'The page’s address ends “website-offer-2024”; the page itself states no date' },
+          ],
+        },
+        {
+          id: 'truform-offer',
+          title: 'An offer page for its forms',
+          source: { label: 'RevenueWell’s TruForm offer page', url: 'https://www.revenuewell.com/truform-offer-2024', readOn: '2026-11-26' },
+          lines: [
+            { label: 'The offer', value: '“Upgrade to TruForm with unlimited edits for $79/month”' },
+            { label: 'How old it is', value: 'The page’s address ends “truform-offer-2024”; the page itself states no date' },
+          ],
+        },
+        // THE FEE SCHEDULE IS A PICTURE. The page embeds a PDF whose table has
+        // no text layer, so it was read by eye, twice, and cannot be checked
+        // by the script that checks every other quotation against a saved
+        // copy. `tests/marketing/pricing-detail.test.tsx` pins every figure.
+        // The labels are its table's own row names.
+        {
+          id: 'fee-schedule',
+          title: 'Usage fees, from its Variable Fee Schedule',
+          source: {
+            label: 'RevenueWell’s Variable Fee Schedule',
+            url: 'https://www.revenuewell.com/legal/variable-fee-schedule',
+            readOn: '2026-11-26',
+            pageSays: 'Effective as of June 1st, 2026',
+          },
+          question: 'Does RevenueWell charge fees on top of the subscription?',
+          answer:
+            'Its Variable Fee Schedule, effective June 1st, 2026, lists a data and communication pass-through fee of $19.91 per location per month, one-time text registration fees of $15.00 and $44.00 per location, and a carrier fee for each outbound text beyond a package’s monthly limit. Mailed letters and post cards are priced per piece, plus postage.',
+          lines: [
+            { label: 'Carrier Fees for Text Messages above Maximum Limits', value: '$.015 per outbound text message over Package Limits' },
+            { label: 'Starter Limit', value: '750 Text Messages per month' },
+            { label: 'Marketing Platform Limit', value: '1750 Text Messages per month' },
+            { label: 'Data and Communication Pass Through Fee', value: '$19.91 per location per month' },
+            { label: 'One-Time Text Campaign Registration Fee', value: '$15.00 per location' },
+            { label: 'One-Time Text Brand Registration Fee', value: '$44.00 per location' },
+            { label: 'Additional Fees as Required by Regulatory Agencies', value: 'As Assessed' },
+            { label: 'Changing a package', value: '“Changes to a selected package will result in a $15.00 re-registration fee”' },
+            { label: 'Black and White Letters', value: '$0.62 + postage; additional pages $0.19' },
+            { label: 'Post Cards', value: '4.25" x 6": $0.44 + postage; 5.5" x 8.5": $0.82 + postage' },
+          ],
+        },
+        {
+          id: 'billing',
+          title: 'Billing, from its help centre',
+          source: {
+            label: 'RevenueWell’s help centre, “RevenueWell Billing”',
+            url: 'https://help.revenuewell.com/hc/en-us/articles/37489450622235-RevenueWell-Billing',
+            readOn: '2026-11-26',
+          },
+          lines: [
+            { label: 'Setup or registration fees', value: '“RevenueWell may charge a one-time setup or registration fee during onboarding. These fees are billed regardless of any promotional period.”' },
+            { label: 'Texts beyond the limit', value: '“Practices are charged for any SMS messages sent beyond the limits included.”' },
+            { label: 'Paying RevenueWell by credit card', value: '“Effective October 22, 2026, a 3% credit card surcharge will be added to payments made by credit card, including payments charged to the credit card currently on file for your RevenueWell account.”' },
+            { label: 'Paid advertising', value: '“(e.g., Google Ads) is billed directly by Google, not RevenueWell.”' },
+            { label: 'An unpaid account', value: '“we will send a 10-day final notice before any service interruption occurs”' },
+          ],
+        },
+        {
+          id: 'fees-and-price-changes',
+          title: 'Fees and price changes',
+          source: {
+            label: 'RevenueWell’s Master Subscription Agreement',
+            url: 'https://www.revenuewell.com/legal/resources/msa',
+            readOn: '2026-11-26',
+            pageSays: 'v1.8 (Updated July 2026)',
+          },
+          question: 'Can RevenueWell raise its price?',
+          answer:
+            'Its Master Subscription Agreement says RevenueWell may increase fees in a renewal term “by up to the greater of five percent (5%) or the adjusted Consumer Price Index cost increase”, and that a larger increase takes at least sixty days’ notice before the term ends. It also says fees paid are non-refundable.',
+          lines: [
+            { label: 'At renewal', value: '“We may increase the Fees in any Subscription Renewal Term (defined in Section 13.2) by up to the greater of five percent (5%) or the adjusted Consumer Price Index cost increase.”' },
+            { label: 'A larger increase', value: 'Takes “at least sixty (60) days’ notice” before the term ends, and lets you end the annual contract with thirty days’ notice' },
+            { label: 'Refunds', value: '“Payment obligations are non-cancelable, fees paid are non-refundable, and quantities purchased cannot be decreased during the relevant Subscription Term”' },
+            { label: 'Paying by credit card', value: '“RevenueWell shall apply a surcharge to any payments made by credit card, not to exceed three percent (3%) or such rate as allowed by applicable law.”' },
+            { label: 'A late start', value: 'If go-live slips more than ninety days because content or approvals were not provided: a fee of “not more than ten percent (10%) of the total Fees due under the applicable Order Form”' },
+          ],
+        },
+        {
+          id: 'the-contract',
+          title: 'The contract',
+          source: {
+            label: 'RevenueWell’s Master Subscription Agreement',
+            url: 'https://www.revenuewell.com/legal/resources/msa',
+            readOn: '2026-11-26',
+            pageSays: 'v1.8 (Updated July 2026)',
+          },
+          question: 'Does RevenueWell require a contract?',
+          answer:
+            'Its plans-comparison page says an annual contract is required for its Starter, Professional and Premium plans, and its home page says it offers both monthly and annual contracts. Its Master Subscription Agreement sets a one-year term where an order names none, renews it automatically a year at a time, and takes notice at least thirty days before a renewal to stop one.',
+          lines: [
+            { label: 'The term', value: '“If no term is set forth in an Order Form, then the Order Form shall be deemed to have a one-year Subscription Term”' },
+            { label: 'Renewal', value: 'Automatic: “for consecutive one (1) year renewal terms”' },
+            { label: 'To stop a renewal', value: 'Notice “at least thirty (30) days prior to commencement of an applicable Subscription Renewal Term”' },
+            { label: 'If you fall behind', value: 'Once an amount is “30 or more days overdue (or 10 or more days overdue in the case of amounts You have authorized Us to charge to Your payment method on file)”, it may make all unpaid fees due at once and suspend the service until they are paid' },
+          ],
+        },
+      ],
+      reported: [],
+      notRead: ['G2', 'Capterra', 'Software Advice', 'GetApp', 'TrustRadius'],
+      versusUs: `RevenueWell’s Plans page shows no subscription price, so there is no number of theirs to set beside ours: ${RATE_MONTHLY}/mo, published, month-to-month, with the website included. Its agreement sets a one-year term that renews itself where an order names none, and lets fees rise at each renewal. Two things are in RevenueWell’s favour: it sends texts, which DreamCRM does not do today, and it sells a phone system and a marketing team’s services, which we do not sell.`,
+    },
     summary:
-      'RevenueWell is a mature dental marketing suite — campaigns, reminders, two-way texting, phones, and a patient portal — with a done-for-you marketing team behind it. It earned its install base, and its own site says it offers monthly as well as annual contracts, and free trials. But it publishes no price, website design is sold as a separate service, and its help center describes a portal toggle that turns a function off while leaving the link in place. DreamCRM ships the same patient-facing jobs as one product at a published price, with toggles that fully remove what you turn off.',
+      'RevenueWell is a mature dental marketing suite — campaigns, reminders, two-way texting, phones, and a patient portal — with a done-for-you marketing team behind it. It earned its install base. Its Plans page shows no price; other pages of its site price single products, list usage fees and publish its agreement, which sets a one-year term that renews itself where an order names none. Website design is sold as a separate service, and its help center describes a portal switch that turns a function off while leaving the link in place. DreamCRM ships the same patient-facing jobs as one product at a published price, month-to-month.',
     theirStrengths: [
       { title: 'Marketing depth, and a team to run it', body: 'Years of dental campaign tooling with two-way texting, plus an in-house marketing team that runs SEO, paid ads, social media and website design for a practice. Our recall engine is email-first today, and we sell software, not a service.' },
       { title: 'Phones, an AI receptionist & add-ons', body: 'An integrated phone system, an AI receptionist and à la carte add-ons let a practice assemble a bigger bundle from one vendor. We do neither phones nor call answering.' },
       { title: 'PMS coverage', body: 'Long-standing sync with the major server PMSs.' },
     ],
     ourStrengths: [
-      { glyph: 'sliders', title: 'Toggles that actually hide', body: 'RevenueWell’s own help center notes that turning off portal payments disables the function without removing the payments link. In DreamCRM, off means gone — no dead links in front of patients.' },
-      { glyph: 'eye', title: 'Preview as a patient', body: 'One click shows you the portal exactly as a patient sees it with your saved settings. No competitor we surveyed documents this.' },
+      { glyph: 'sliders', title: 'Toggles that actually hide', body: 'RevenueWell’s help center says of the payments switch in its PatientConnect365 portal: “Disabling this does NOT remove the payments link from Payment Preferences—only disables the function in the portal.” In DreamCRM, off means gone — no dead links in front of patients.' },
+      { glyph: 'eye', title: 'Preview as a patient', body: 'One click shows you the portal exactly as a patient sees it with your saved settings.' },
       { glyph: 'globe', title: 'The website is the product, not an add-on', body: 'Edit-in-place studio, blog, SEO dashboard, careers, and shop are in the subscription — not a separately-sold service.' },
-      { glyph: 'tag', title: 'One published price', body: `${RATE_MONTHLY}/mo on the page, versus a platform you start from and then add bundles or à la carte services to — with no price shown for any of it.` },
+      { glyph: 'tag', title: 'One published price', body: `${RATE_MONTHLY}/mo on the page, versus a platform you start from and then add bundles or à la carte services to — with no price on its Plans page for any of it.` },
     ],
     matrix: baseMatrix({
       website: ['partial', 'Website design sold as a standalone service'],
-      booking: ['yes'],
-      portal: ['partial', 'A patient portal is listed; clinic branding not stated on its Plans page'],
+      booking: ['yes', 'Its Plans page: “Let patients request and book appointments at their convenience.”'],
+      portal: ['partial', 'Its help center documents a portal, PatientConnect365; its Plans page lists a “ReadyVisit patient portal” as coming soon'],
       inbox: ['yes', 'Text and email in one shared inbox'],
-      reviews: ['yes'],
+      reviews: ['yes', 'Its help center describes an app to “send, view, and respond to patient reviews”; its Plans page marks review management as coming soon'],
       recall: ['yes', 'Recall and follow-up campaigns with two-way texting'],
       social: ['yes', 'Social media offered as a service; review tools cover Google and Meta'],
       shop: ['no'],
       careers: ['no'],
       pms: ['yes'],
+      insurance: ['yes', 'An add-on: “AI Insurance Verification”, per its Plans page'],
       phones: ['yes', 'An add-on phone system'],
-      sms: ['yes'],
-      contract: ['yes', 'Monthly and annual contracts, per its own site'],
+      sms: ['yes', '750 or 1750 texts a month by package, per its fee schedule'],
+      contract: ['partial', 'Its home page says “RevenueWell offers both monthly and annual contracts”; its plans-comparison page says “Annual contract required for Starter, Professional, or Premium plans”'],
     }),
     bottomLine:
       'If you want a marketing team to run your ads and SEO for you, with phones and texting from the same vendor, RevenueWell offers more today. If you want the patient-facing system — site, booking, a portal patients actually like, reviews, shop — as one product whose price you can read before you call anyone, that is DreamCRM.',

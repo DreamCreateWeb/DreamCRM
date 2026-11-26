@@ -2824,3 +2824,44 @@ live (`docs/organic-go-live.md` Part 10, item 15).
   product, two dated offers); Adit's has a payments-terms page and a price
   in its structured data on several product pages.
 
+**Part 12 slice 20 — RevenueWell, line by line (2026-11-26, no migration).**
+
+- **Read from** the 682 pages its sitemap lists and the 218 articles of its
+  help centre. The help centre answers a real browser and refuses anything
+  else (403), so its articles were read rendered.
+- **Its Plans page shows no price; six other pages of its own print one, or
+  a fee, or a term.** A tiers page with a footnote ("Annual contract
+  required for Starter, Professional, or Premium plans"); a price for one
+  product (RW Virtual Office, $149 a month, or $129 with a year's
+  commitment); three offer pages (its Marketing Platform for WinOMS
+  practices, a website at $99 a month "from the usual $169", forms at $79);
+  a schedule of usage fees; a billing article; and its subscription
+  agreement (a one-year term where an order names none, renewing itself,
+  with fees that may rise at renewal by up to the greater of five percent or
+  the adjusted CPI). Ten groups, one page each.
+- **The fee schedule is a picture.** The page embeds a PDF whose table has
+  no text layer. It was read by eye, and the script that checks every other
+  quotation against a saved copy cannot check it; the test pins every row
+  instead. 39 other quotations were checked by script.
+- **The unnamed figure is gone.** The top line ended "third-party reviews
+  report ~$349/mo". It now points at what its own pages print.
+- **The contract row carries both things its site says.** Its home page:
+  "RevenueWell offers both monthly and annual contracts". Its tiers page:
+  "Annual contract required". The row was a plain yes on the first alone.
+- **Two things the read of the 25th had ruled out are on its own pages.**
+  That read banned "PatientConnect365" (a product name "not on its site")
+  and "postcard" (a channel "its pages no longer mention") from the entry.
+  Its help centre documents PatientConnect365 today, and its fee schedule,
+  effective June 2026, prices post cards. The ban was lifted with the
+  reason written beside it; the strength about its portal's payments switch
+  is now its help centre's own sentence, quoted.
+- **One claim about everybody was removed.** "No competitor we surveyed
+  documents this" (of our preview-as-patient) said something about every
+  competitor that nobody can check (`docs/organic-go-live.md` Part 8, row 3).
+- **An offer's free period is still never typed as a length.** The trial
+  guard reads any digit beside "free" as our own trial, and a test holds the
+  entry clear of it.
+- **Tests.** `pricing-detail.test.tsx` (a RevenueWell block),
+  `comparison-pricing-check.test.tsx`, `pricing-guide.test.tsx`. Forty-four
+  mutations, all caught.
+

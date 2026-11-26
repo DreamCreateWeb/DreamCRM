@@ -391,6 +391,131 @@ describe('the registry', () => {
   })
 
   /**
+   * REVENUEWELL, PINNED. Read on 2026-11-26 from the pages its own sitemap
+   * lists (682) and its help centre (218 articles, which answer a browser
+   * and refuse anything else). Its Plans page shows no price; six other pages
+   * of its own print one, or a fee, or a term.
+   */
+  it('RevenueWell: no price on its Plans page, and the pages of its own that print one', () => {
+    const rw = COMPARISONS.find((c) => c.slug === 'revenuewell')!
+    const d = rw.pricingDetail!
+    const line = (group: string, label: string) =>
+      d.groups.find((g) => g.id === group)!.lines.find((l) => l.label === label)!.value
+
+    // The Plans page: no number, and what it marks as not there yet.
+    expect(publishesPrice(rw)).toBe(false)
+    expect(line('the-plans-page', 'The price')).toMatch(/^None on the page/)
+    expect(line('the-plans-page', 'Marked “coming soon” on the page')).toBe(
+      '“Reputation & review management” and the “ReadyVisit patient portal”',
+    )
+    expect(JSON.stringify(d.groups[0]!.lines)).not.toMatch(/\$\d/)
+    // Its tiers page, and the footnote under them.
+    expect(line('plan-tiers', 'The tiers')).toBe('Starter, Professional and Premium; no price beside any of them')
+    expect(line('plan-tiers', 'The footnote')).toBe('“*Annual contract required for Starter, Professional, or Premium plans”')
+
+    // The single products and offers its site prices.
+    expect(line('virtual-office', 'Paid monthly')).toBe('“$149/mo”, and “Easy to try with no contract.”')
+    expect(line('virtual-office', 'Paid for a year')).toBe('“$129/mo”, and “More affordable with a 12-month commitment.”')
+    expect(line('winoms-offer', 'The headline')).toBe('A free introductory period, then “$199/Month” for its Marketing Platform')
+    expect(line('website-offer', 'The offer')).toBe(
+      '“For a limited time, you can upgrade to a semi-custom website for just $99/month (a significant discount from the usual $169/month).”',
+    )
+    expect(line('truform-offer', 'The offer')).toBe('“Upgrade to TruForm with unlimited edits for $79/month”')
+    // An offer page that states no date says so, and says what its address says.
+    for (const id of ['website-offer', 'truform-offer']) {
+      expect(line(id, 'How old it is'), id).toMatch(/address ends “[a-z-]+-2024”; the page itself states no date/)
+    }
+
+    // THE FEE SCHEDULE. Its table is a picture inside an embedded PDF, so it
+    // was read by eye and no script can check it against a saved text: every
+    // figure is pinned here instead.
+    const fees = d.groups.find((g) => g.id === 'fee-schedule')!
+    expect(fees.source.pageSays).toBe('Effective as of June 1st, 2026')
+    expect(fees.lines.map((l) => [l.label, l.value])).toEqual([
+      ['Carrier Fees for Text Messages above Maximum Limits', '$.015 per outbound text message over Package Limits'],
+      ['Starter Limit', '750 Text Messages per month'],
+      ['Marketing Platform Limit', '1750 Text Messages per month'],
+      ['Data and Communication Pass Through Fee', '$19.91 per location per month'],
+      ['One-Time Text Campaign Registration Fee', '$15.00 per location'],
+      ['One-Time Text Brand Registration Fee', '$44.00 per location'],
+      ['Additional Fees as Required by Regulatory Agencies', 'As Assessed'],
+      ['Changing a package', '“Changes to a selected package will result in a $15.00 re-registration fee”'],
+      ['Black and White Letters', '$0.62 + postage; additional pages $0.19'],
+      ['Post Cards', '4.25" x 6": $0.44 + postage; 5.5" x 8.5": $0.82 + postage'],
+    ])
+
+    // Its help centre's billing article.
+    expect(line('billing', 'Setup or registration fees')).toBe(
+      '“RevenueWell may charge a one-time setup or registration fee during onboarding. These fees are billed regardless of any promotional period.”',
+    )
+    expect(line('billing', 'Paying RevenueWell by credit card')).toMatch(
+      /^“Effective October 22, 2026, a 3% credit card surcharge will be added to payments made by credit card/,
+    )
+
+    // The agreement: what a term is, how it renews, and what renewal can cost.
+    expect(line('the-contract', 'The term')).toBe(
+      '“If no term is set forth in an Order Form, then the Order Form shall be deemed to have a one-year Subscription Term”',
+    )
+    expect(line('the-contract', 'Renewal')).toMatch(/“for consecutive one \(1\) year renewal terms”/)
+    expect(line('the-contract', 'To stop a renewal')).toMatch(/“at least thirty \(30\) days prior to commencement of an applicable Subscription Renewal Term”/)
+    expect(line('fees-and-price-changes', 'At renewal')).toBe(
+      '“We may increase the Fees in any Subscription Renewal Term (defined in Section 13.2) by up to the greater of five percent (5%) or the adjusted Consumer Price Index cost increase.”',
+    )
+    expect(line('fees-and-price-changes', 'A larger increase')).toMatch(/“at least sixty \(60\) days’ notice”/)
+    expect(line('fees-and-price-changes', 'Refunds')).toMatch(/^“Payment obligations are non-cancelable, fees paid are non-refundable/)
+
+    // Ten groups, each one page of its own (its help centre is a subdomain).
+    expect(d.groups.map((g) => [g.id, new URL(g.source.url).hostname + new URL(g.source.url).pathname])).toEqual([
+      ['the-plans-page', 'www.revenuewell.com/plans'],
+      ['plan-tiers', 'www.revenuewell.com/meet-the-new-plans'],
+      ['virtual-office', 'www.revenuewell.com/virtual-office'],
+      ['winoms-offer', 'www.revenuewell.com/integrations/winoms-revenuewell'],
+      ['website-offer', 'www.revenuewell.com/website-offer-2024'],
+      ['truform-offer', 'www.revenuewell.com/truform-offer-2024'],
+      ['fee-schedule', 'www.revenuewell.com/legal/variable-fee-schedule'],
+      ['billing', 'help.revenuewell.com/hc/en-us/articles/37489450622235-RevenueWell-Billing'],
+      ['fees-and-price-changes', 'www.revenuewell.com/legal/resources/msa'],
+      ['the-contract', 'www.revenuewell.com/legal/resources/msa'],
+    ])
+    expect(d.groups.filter((g) => g.source.pageSays === 'v1.8 (Updated July 2026)').map((g) => g.id)).toEqual([
+      'fees-and-price-changes',
+      'the-contract',
+    ])
+
+    // No third party's figure, in the section or on the top line.
+    expect(d.reported).toEqual([])
+    expect(rw.reportedPricing).not.toMatch(/third-party|reviews report/)
+    expect(rw.reportedPricing).toMatch(/^No price published on its Plans page/)
+    // A competitor's free period is never typed as a length: the trial guard
+    // reads any digit beside "free" as OUR trial, and it is right to.
+    expect(JSON.stringify(rw)).not.toMatch(/Free for 90 Days|90[- ]day/i)
+    // No claim about every competitor at once.
+    expect(JSON.stringify(rw)).not.toMatch(/No competitor we surveyed/)
+
+    // The table: the contract row carries BOTH things its site says, and the
+    // rows that said "listed" or "not verified" quote a page.
+    const row = (starts: string) => rw.matrix.find((r) => r.feature.startsWith(starts))!
+    expect(row('Month-to-month').vendor).toBe('partial')
+    expect(row('Month-to-month').vendorNote).toContain('“RevenueWell offers both monthly and annual contracts”')
+    expect(row('Month-to-month').vendorNote).toContain('“Annual contract required for Starter, Professional, or Premium plans”')
+    expect(row('Patient portal').vendorNote).toContain('PatientConnect365')
+    expect(row('Patient portal').vendorNote).toContain('“ReadyVisit patient portal”')
+    expect(row('Insurance eligibility').vendor).toBe('yes')
+    expect(row('Review collection').vendorNote).toContain('“send, view, and respond to patient reviews”')
+    // The strength about its portal's switch is its help centre's own sentence.
+    expect(rw.ourStrengths[0]!.body).toContain(
+      '“Disabling this does NOT remove the payments link from Payment Preferences—only disables the function in the portal.”',
+    )
+
+    // And the comparison: no number of theirs to set beside ours, what its
+    // agreement says, and what is in its favour.
+    expect(d.versusUs).toMatch(/shows no subscription price/)
+    expect(d.versusUs).toMatch(/in RevenueWell’s favour/)
+    expect(d.versusUs).toMatch(/which we do not sell/)
+    expect(d.versusUs).not.toMatch(/payment|processing|card fee|surcharg/i)
+  })
+
+  /**
    * TEBRA, PINNED. It was the first entry read out in full (2026-11-25) and
    * the only one whose figures no test named: the generic rules hold an
    * entry's shape, and a shape-correct line that misstates a price passes

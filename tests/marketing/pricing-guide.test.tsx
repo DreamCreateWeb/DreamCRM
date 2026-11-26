@@ -136,6 +136,7 @@ describe('1 — it has no words of its own about a competitor', () => {
     // word is named here, so a new one is a decision and not a default.
     const PARTIAL_WORD: Record<string, string> = {
       nexhealth: 'With conditions',
+      revenuewell: 'With conditions',
       patientpop: 'With conditions',
       'dental-intelligence': 'Not clear',
       podium: 'Not clear',
