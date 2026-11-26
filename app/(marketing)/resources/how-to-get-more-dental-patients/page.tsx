@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getResourceGuide } from '@/lib/marketing/resources'
+import { REVIEW_RULES } from '@/lib/marketing/guide-sources'
 import { GuideShell, GuideH2, GuideP, GuideList, GuideNote } from '../guide-ui'
 import { pageMetadata } from '@/lib/marketing/seo'
 
@@ -47,7 +48,7 @@ export default function MorePatientsGuide() {
       </GuideP>
       <GuideList
         items={[
-          <><strong>Ask every patient, the same way, after every completed visit.</strong> Same ask for everyone — filtering who you ask by how happy they seemed (“review gating”) violates the FTC’s fake-reviews rule and Google’s policies.</>,
+          <><strong>Ask every patient, the same way, after every completed visit.</strong> Same ask for everyone — filtering who you ask by how happy they seemed (“review gating”) is against Google’s policy, which does not allow a business to “{REVIEW_RULES.googlePolicy.says.gating}”. The wording for the ask, and the rest of the rules, are in the{' '}<Link href="/resources/dental-review-request-templates" className="font-semibold text-teal-700 hover:underline">review request templates</Link>.</>,
           <><strong>Ask while it’s fresh.</strong> The review request that goes out the evening of the visit converts multiples better than the one that goes out Friday.</>,
           <><strong>Reply to everything,</strong> especially the bad ones — calmly, without discussing the person’s care in public. Future patients read your replies as a preview of how you handle problems.</>,
         ]}

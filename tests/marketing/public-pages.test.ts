@@ -90,6 +90,8 @@ describe('a content key moves exactly when the page’s content does', () => {
       'dental-software-pricing',
       'dental-cancellation-no-show-policy',
       'dental-appointment-reminder-templates',
+      'dental-review-request-templates',
+      'how-to-get-more-dental-patients',
     ]
     for (const g of RESOURCE_GUIDES) {
       if (builtFromElsewhere.includes(g.slug)) {

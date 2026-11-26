@@ -107,3 +107,16 @@ export const REMINDER_TEXT_SAMPLE: Record<string, string> = {
 export function fillSample(template: string): string {
   return Object.entries(REMINDER_TEXT_SAMPLE).reduce((s, [blank, value]) => s.replaceAll(blank, value), template)
 }
+
+/**
+ * THE REVIEW REQUEST TEXT — hand-written, one message on the sample fill.
+ *
+ * Not the product's (it sends no text today). And not a reminder: asking for
+ * a review is not among the purposes the calling rule's health-care exemption
+ * lists, so the guide says to text only patients who agreed to hear from the
+ * practice by text. It carries the practice's name first and the STOP line
+ * last; "good or bad" is in the message because asking only for good ones is
+ * the thing Google's policy forbids.
+ */
+export const REVIEW_REQUEST_TEXT =
+  '{practice name}: Thanks for coming in, {first name}. Would you share how it went, good or bad? {link} Reply STOP to opt out.'

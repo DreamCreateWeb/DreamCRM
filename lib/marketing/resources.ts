@@ -117,6 +117,25 @@ export const RESOURCE_GUIDES: ResourceGuide[] = [
     datePublished: '2026-11-25',
   },
   {
+    slug: 'dental-review-request-templates',
+    title: 'Dental review request templates (email, text, front desk & the counter card)',
+    description:
+      'Copy-ready dental review request templates: the email, the text, the front-desk ask and the counter card, with what Google and the FTC allow in their own words.',
+    // `star` — growth. Reputation is something a practice earns, and this
+    // guide is the asking, not the having.
+    glyph: 'star',
+    contains: [
+      'The review request email, subject line and body',
+      'A text template that fits a single message',
+      'What to say at the front desk',
+      'The wording for a card on the counter',
+      'Replies to a critical review and a kind one',
+      'What Google and the FTC allow, in their own words',
+    ],
+    readMinutes: 5,
+    datePublished: '2026-11-26',
+  },
+  {
     slug: 'dental-membership-plan-pricing',
     title: 'How to price a dental membership plan (with the math)',
     description:

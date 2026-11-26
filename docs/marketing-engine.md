@@ -2343,3 +2343,49 @@ change: `subscription_status` is free text, and the new state is a value.
 - **Tests.** `tests/marketing/reminder-templates-guide.test.tsx` (fourteen)
   plus one on the hub; thirty-one mutations, all caught.
 
+**Part 12 slice 8 — the review request templates guide, and one legal claim in an older guide cut back to what was read (2026-11-26, no migration).**
+
+- **The page.** `/resources/dental-review-request-templates`, queue item 3:
+  the review request email, a one-message text, what to say at the front
+  desk, the wording for a card on the counter, two public replies, how often
+  to ask, and what Google and the FTC allow.
+- **The one guide where the template itself can break a rule.** A request
+  that says "if you loved your visit, leave us five stars" is the practice
+  selectively soliciting positive reviews, in the words of the Google policy
+  the page quotes. So the first thing the test holds is the cards: none asks
+  for a good review, names a number of stars, offers anything in return or
+  asks for a name, and every ask says in its own words that a bad answer is
+  welcome.
+- **The email is the product's**, read from its spec; its button is checked
+  against the sender. Its own wording — "good, bad, or in-between" — is the
+  sentence the guide tells a practice to keep.
+- **The rules are quoted, each fragment pinned:** seven lines of Google's
+  Maps user-generated content policy, two of its Business Profile help page,
+  and the FTC's rule on paid reviews (16 CFR 465.4, read at Cornell's Legal
+  Information Institute). The rule's section on a business's own people
+  (465.5) is named by its title and not summarised; it runs to conditions a
+  one-line paraphrase would get wrong.
+- **The text is hand-written, one message on the sample fill,** and the page
+  says a review request is not among the purposes the calling rule's
+  health-care allowance lists — so text only patients who agreed to it.
+- **The replies never confirm a patient,** by test.
+- **The closing block is tied to the schema's defaults:** sent when a visit
+  is marked complete, one ask per patient per year, the same page for every
+  patient (the private note on, the star ask off). It says the product sends
+  no text today.
+- **A CLAIM IN THE PATIENT-GROWTH GUIDE WAS CUT BACK.** It said review gating
+  "violates the FTC's fake-reviews rule and Google's policies". Google's
+  policy says so in words the registry now quotes. The sections of the FTC's
+  rule read for this slice (465.2, 465.4, 465.5, 465.7) do not say it in any
+  words that can be quoted, so the sentence now claims the half that was read
+  and links to the new guide. Its search-notice key follows the quoted line.
+- **Seen and NOT fixed here — a follow-up.** The two guides written in
+  September (patient growth, membership pricing) carry figures and
+  comparisons with no source ("100+ Google reviews", "converts multiples
+  better", "almost every time"). The registry's content law is "no invented
+  statistics". They need a re-read against it, sentence by sentence; that is
+  its own slice, and it is on the queue in `docs/organic-go-live.md`.
+- **Tests.** `tests/marketing/review-request-guide.test.tsx` (sixteen);
+  thirty-three mutations, all caught (one was missed on the first pass — a
+  caveat said twice — and the assertion was narrowed to the one it protects).
+

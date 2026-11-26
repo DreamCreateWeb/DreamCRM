@@ -213,7 +213,14 @@ ${MOVED.body}
         >
           cancellation and no-show policy template
         </Link>
-        , with the letters that go with it.
+        , with the letters that go with it. And for the visits that go well, the{' '}
+        <Link
+          href="/resources/dental-review-request-templates"
+          className="font-semibold text-teal-700 hover:underline"
+        >
+          review request templates
+        </Link>{' '}
+        are the ask that follows.
       </GuideP>
     </GuideShell>
   )
