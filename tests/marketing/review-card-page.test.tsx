@@ -2,6 +2,7 @@ import { afterEach, describe, it, expect, vi } from 'vitest'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import QRCode from 'qrcode'
 import ReviewCardPage, { metadata } from '@/app/(marketing)/google-review-card/page'
 import ReviewCardMaker from '@/app/(marketing)/google-review-card/review-card-maker'
 import ReviewRequestGuide from '@/app/(marketing)/resources/dental-review-request-templates/page'
@@ -186,14 +187,40 @@ describe('the maker', () => {
     }
   })
 
-  it('the code can be saved as a file named for the practice', async () => {
+  it('the code can be saved as a file named for the practice, with its own white border', async () => {
     render(<ReviewCardMaker />)
     type('Practice name', 'Maple Street Dental')
     type('Your Google review link', LINK)
     const link = await screen.findByRole('link', { name: 'Download the QR code (SVG)' })
     expect(link).toHaveAttribute('download', reviewCodeFileName('Maple Street Dental', 'svg'))
     expect(link.getAttribute('href')).toMatch(/^data:image\/svg\+xml;charset=utf-8,/)
-    expect(decodeURIComponent(link.getAttribute('href')!)).toContain('<svg')
+    const saved = decodeURIComponent(link.getAttribute('href')!.replace(/^data:image\/svg\+xml;charset=utf-8,/, ''))
+    expect(saved).toContain('<svg')
+    // The saved file will be pasted onto somebody's flyer, on any colour, so
+    // it carries the white border a scanner needs: four modules a side. The
+    // copy on the card carries none, because the card around it is white.
+    const side = (svg: string) => Number(/viewBox="0 0 (\d+) \d+"/.exec(svg)![1])
+    const onCard = screen.getByRole('img', { name: /QR code/ }).innerHTML
+    expect(side(saved)).toBe(side(onCard) + 8)
+  })
+
+  it('offers a picture file too, when the browser can draw one', async () => {
+    vi.spyOn(QRCode, 'toDataURL').mockResolvedValue('data:image/png;base64,AAAA' as never)
+    render(<ReviewCardMaker />)
+    type('Practice name', 'Maple Street Dental')
+    type('Your Google review link', LINK)
+    const png = await screen.findByRole('link', { name: 'Download the QR code (PNG)' })
+    expect(png).toHaveAttribute('download', reviewCodeFileName('Maple Street Dental', 'png'))
+    expect(png).toHaveAttribute('href', 'data:image/png;base64,AAAA')
+  })
+
+  it('leaves the picture out where it cannot draw one, and loses nothing else', async () => {
+    vi.spyOn(QRCode, 'toDataURL').mockRejectedValue(new Error('no canvas here'))
+    render(<ReviewCardMaker />)
+    type('Your Google review link', LINK)
+    await screen.findByRole('link', { name: 'Download the QR code (SVG)' })
+    expect(screen.queryByRole('link', { name: 'Download the QR code (PNG)' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Print the card' })).toBeEnabled()
   })
 
   it('taking the link away takes the code away', async () => {
@@ -203,6 +230,39 @@ describe('the maker', () => {
     type('Your Google review link', '')
     await waitFor(() => expect(screen.queryByRole('img', { name: /QR code/ })).toBeNull())
     expect(screen.getByRole('button', { name: 'Print the card' })).toBeDisabled()
+    expect(screen.queryByRole('link', { name: /Download the QR code/ })).toBeNull()
+  })
+
+  /**
+   * A CODE BELONGS TO THE LINK IT WAS DRAWN FROM. Drawing takes a moment, and
+   * for that moment the last link's code is still in memory. Shown under the
+   * new link it is a printable card that opens the wrong practice's reviews,
+   * and nothing on the page would say so. Found by mutation (2026-11-26): the
+   * first version cleared the code only when the field was emptied.
+   */
+  it('a new link never wears the last link’s code, not even while its own is being drawn', async () => {
+    const real = QRCode.toString.bind(QRCode) as (text: string, options: unknown) => Promise<string>
+    const held: Array<() => void> = []
+    vi.spyOn(QRCode, 'toString').mockImplementation(((text: string, options: unknown) => {
+      if (!text.includes('SECOND')) return real(text, options)
+      return new Promise<string>((resolve) => held.push(() => resolve(real(text, options))))
+    }) as never)
+
+    render(<ReviewCardMaker />)
+    type('Your Google review link', LINK)
+    const first = (await screen.findByRole('img', { name: /QR code/ })).innerHTML
+
+    type('Your Google review link', 'https://g.page/r/SECOND/review')
+    // Its code is still being drawn. The first one must not stand in for it.
+    expect(screen.queryByRole('img', { name: /QR code/ })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Print the card' })).toBeDisabled()
+    expect(screen.queryByRole('link', { name: /Download the QR code/ })).toBeNull()
+
+    expect(held.length).toBeGreaterThan(0)
+    for (const release of held) release()
+    const second = await screen.findByRole('img', { name: /QR code/ })
+    expect(second.innerHTML).not.toBe(first)
+    expect(screen.getByRole('button', { name: 'Print the card' })).toBeEnabled()
   })
 })
 
@@ -309,7 +369,22 @@ describe('the page', () => {
     }
     const signup = Array.from(container.querySelectorAll('a[href="/signup"]'))
     expect(signup.some((a) => a.textContent === TRIAL.cta)).toBe(true)
-    expect(container.querySelector('a[href="/resources/dental-review-request-templates"]')).toBeTruthy()
+    // The guide is linked from the rules AND is the close's second button: a
+    // page-wide "is it linked" passed with the button deleted (mutation run).
+    const toGuide = Array.from(container.querySelectorAll('a[href="/resources/dental-review-request-templates"]'))
+    expect(toGuide.map((a) => a.textContent)).toContain('Review request templates')
+    expect(toGuide.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('each rule card carries the line that makes it a rule', () => {
+    renderPage()
+    // Card by card. The gating line is also quoted in an answer further down,
+    // so a page-wide match kept passing with it cut from its own card.
+    const card = (title: string) => screen.getByRole('heading', { level: 3, name: title }).parentElement!.textContent!
+    expect(card('Nothing in return')).toContain(REVIEW_LINK_HELP.says.incentives)
+    expect(card('The same card for everyone')).toContain(REVIEW_RULES.googlePolicy.says.gating)
+    expect(card('A sign, not a request at the desk')).toContain(REVIEW_LINK_HELP.says.display)
+    expect(card('A sign, not a request at the desk')).toContain(REVIEW_RULES.googlePolicy.says.pressure)
   })
 
   it('prints the cards and only the cards', () => {

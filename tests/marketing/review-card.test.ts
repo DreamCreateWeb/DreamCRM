@@ -127,6 +127,10 @@ describe('checkReviewLink — a Google link is printed, anything else is refused
       ['', 'empty'],
       ['   ', 'empty'],
       ['our google reviews', 'not-a-link'],
+      // A link with words after it is a pasted sentence. Taking the words as
+      // part of the address would print a code that opens a page Google never made.
+      ['https://g.page/r/CabcDEF123/review thanks!', 'not-a-link'],
+      ['g.page/r/CabcDEF123/review\tand more', 'not-a-link'],
       ['javascript:alert(1)', 'not-a-link'],
       ['mailto:desk@example.com', 'not-a-link'],
       // A Google host is not enough: the scheme has to be one a phone opens as a web page.

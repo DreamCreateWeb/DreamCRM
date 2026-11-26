@@ -49,12 +49,30 @@ const HINT = 'mt-1.5 block text-[0.8rem] leading-snug text-gray-600'
 /** Dark on white, always: a phone camera reads nothing else reliably. */
 const CODE_COLORS = { dark: '#111827', light: '#FFFFFF' } as const
 
+/**
+ * The white border a saved code carries, in modules: four a side, the quiet
+ * zone a scanner expects. A saved file gets pasted onto somebody's flyer, on
+ * any colour. The copy on the card carries none: the card around it is white.
+ */
+const FILE_BORDER = 4
+
+/** What was drawn, and the link it was drawn from. */
+interface Drawn {
+  url: string
+  /** The code as it sits on the card. */
+  card: string
+  /** The code as a file to save. */
+  file: string
+  /** The same as a picture, where the browser can draw one; otherwise empty. */
+  png: string
+}
+
 export default function ReviewCardMaker() {
   const [name, setName] = useState('')
   const [link, setLink] = useState('')
   const [headline, setHeadline] = useState<ReviewCardHeadline>(REVIEW_CARD_HEADLINES[0])
   const [format, setFormat] = useState<ReviewCardFormat>(REVIEW_CARD_FORMATS[0].id)
-  const [code, setCode] = useState('')
+  const [drawn, setDrawn] = useState<Drawn | null>(null)
   // Has the link been pasted, or the field left? Until then nothing is said
   // about it: somebody typing "g.page/…" passes through "g", which is no
   // link at all, and a red sentence over the second keystroke teaches a
@@ -71,24 +89,40 @@ export default function ReviewCardMaker() {
   useEffect(() => {
     let live = true
     if (!url) {
-      setCode('')
+      setDrawn(null)
       return
     }
-    // `margin: 0` — the card's own padding is the quiet zone. Level M keeps
-    // the code coarse enough to scan off a counter sign from arm's length.
-    QRCode.toString(url, { type: 'svg', margin: 0, errorCorrectionLevel: 'M', color: CODE_COLORS })
-      .then((svg) => {
-        if (live) setCode(svg)
+    // Level M keeps the code coarse enough to scan off a counter sign from
+    // arm's length.
+    const svg = (margin: number) =>
+      QRCode.toString(url, { type: 'svg', margin, errorCorrectionLevel: 'M', color: CODE_COLORS })
+    // The picture needs a canvas. Every browser has one; where there is none
+    // the file is simply not offered, and nothing else waits on it.
+    const picture = (async () => {
+      try {
+        return await QRCode.toDataURL(url, { width: 1024, margin: FILE_BORDER, errorCorrectionLevel: 'M', color: CODE_COLORS })
+      } catch {
+        return ''
+      }
+    })()
+    Promise.all([svg(0), svg(FILE_BORDER), picture])
+      .then(([card, file, png]) => {
+        if (live) setDrawn({ url, card, file, png })
       })
       .catch(() => {
-        if (live) setCode('')
+        if (live) setDrawn(null)
       })
     return () => {
       live = false
     }
   }, [url])
 
-  const ready = Boolean(url && code)
+  // A CODE BELONGS TO THE LINK IT WAS DRAWN FROM. Drawing takes a moment, and
+  // for that moment the last link's code is still held. Shown under a new
+  // link it would be a printable card that opens somebody else's reviews, so
+  // what is drawn is used only while it is this link's.
+  const code = drawn && drawn.url === url ? drawn : null
+  const ready = code !== null
 
   return (
     <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
@@ -213,12 +247,12 @@ export default function ReviewCardMaker() {
           </p>
           <p className="mx-auto mt-3 max-w-sm text-[0.95rem] leading-relaxed text-gray-700">{REVIEW_CARD_BODY}</p>
 
-          {ready ? (
+          {code ? (
             <div
               role="img"
               aria-label="QR code for your Google review link"
               className="mx-auto mt-6 h-48 w-48 [&>svg]:h-full [&>svg]:w-full"
-              dangerouslySetInnerHTML={{ __html: code }}
+              dangerouslySetInnerHTML={{ __html: code.card }}
             />
           ) : (
             <div
@@ -244,9 +278,18 @@ export default function ReviewCardMaker() {
           >
             Print the card
           </button>
-          {ready && (
+          {code?.png && (
             <a
-              href={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(code)}`}
+              href={code.png}
+              download={reviewCodeFileName(practice, 'png')}
+              className="inline-flex min-h-11 items-center text-[0.9rem] font-semibold text-teal-700 underline underline-offset-2"
+            >
+              Download the QR code (PNG)
+            </a>
+          )}
+          {code && (
+            <a
+              href={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(code.file)}`}
               download={reviewCodeFileName(practice, 'svg')}
               className="inline-flex min-h-11 items-center text-[0.9rem] font-semibold text-teal-700 underline underline-offset-2"
             >
@@ -255,8 +298,9 @@ export default function ReviewCardMaker() {
           )}
         </div>
         <p className="mt-3 text-[0.8rem] leading-relaxed text-gray-600">
-          Print opens your browser’s own print window, where you can also save the page as a PDF. Before you print a
-          stack, scan the code with your phone and check that it opens your reviews.
+          Print opens your browser’s own print window, where you can also save the page as a PDF. The PNG is a
+          picture for Word, Google Docs or Canva; the SVG stays sharp at any size. Before you print a stack, scan
+          the code with your phone and check that it opens your reviews.
         </p>
       </div>
 
@@ -272,12 +316,12 @@ export default function ReviewCardMaker() {
         aria-hidden="true"
         className="hidden"
       >
-        {ready &&
+        {code &&
           Array.from({ length: perPage }, (_, i) => (
             <div key={i} data-print-card>
               <p data-print-headline>{headline}</p>
               <p data-print-body>{REVIEW_CARD_BODY}</p>
-              <div data-print-code dangerouslySetInnerHTML={{ __html: code }} />
+              <div data-print-code dangerouslySetInnerHTML={{ __html: code.card }} />
               {practice && <p data-print-name>{practice}</p>}
             </div>
           ))}
