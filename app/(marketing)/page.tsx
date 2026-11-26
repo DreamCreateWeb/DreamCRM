@@ -144,7 +144,9 @@ const TENETS: Array<{ title: string; body: string; glyph: ToneTileGlyph }> = [
   {
     glyph: 'door',
     title: 'Leaving is allowed',
-    body: 'Month-to-month, no contract. Your PMS stays the system of record and your website content exports with you. Lock-in is not a feature.',
+    // "Your website content exports with you" stood here until 2026-11-26.
+    // The product has no export of a site; the patient list is what exports.
+    body: 'Month-to-month, no contract. Your PMS stays the system of record, and your patient list exports whenever you want it. Lock-in is not a feature.',
   },
 ]
 

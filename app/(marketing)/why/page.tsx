@@ -137,7 +137,9 @@ const BELIEFS: Array<{
   {
     glyph: 'door',
     title: 'Leaving is allowed',
-    body: 'Month-to-month, no contract, no setup fee. Your website content exports with you, and your PMS never stopped being the source of truth. Lock-in is a business model for vendors who expect you to want to leave. We’d rather build the thing you don’t want to leave.',
+    // "Your website content exports with you" stood here until 2026-11-26.
+    // The product has no export of a site; the patient list is what exports.
+    body: 'Month-to-month, no contract, no setup fee. Your patient list exports whenever you want it, and your PMS never stopped being the source of truth. Lock-in is a business model for vendors who expect you to want to leave. We’d rather build the thing you don’t want to leave.',
     proof: { href: '/pricing', label: 'See the price and the terms' },
   },
 ]

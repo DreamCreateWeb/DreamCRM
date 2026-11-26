@@ -78,7 +78,7 @@ const TERMS: Array<{ glyph: ToneTileGlyph; term: string; detail: string }> = [
   {
     glyph: 'door',
     term: 'Month-to-month',
-    detail: 'No contract, no setup fee, cancel anytime — your content exports with you.',
+    detail: 'No contract, no setup fee, cancel anytime.',
   },
   {
     glyph: 'gift',
