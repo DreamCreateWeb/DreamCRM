@@ -2459,3 +2459,41 @@ change: `subscription_status` is free text, and the new state is a value.
 - **Tests.** `tests/marketing/welcome-letter-guide.test.tsx` (twelve);
   twenty-seven mutations, all caught.
 
+**Part 12 slice 11 — the two September guides, re-read against the library's own content law (2026-11-26, no migration).**
+
+- **What was wrong.** The resource registry's content law is "no invented
+  statistics", and it was written beside two guides that broke it. The
+  patient-growth guide said most new patients pick from the map's three
+  tiles, that winning practices carry 100+ Google reviews, that an evening
+  review request "converts multiples better", that unverified listings "get
+  outranked", and that "we've watched a practice lose essentially all of its
+  online traffic" to a dead link. The membership guide said what practices
+  "commonly" charge and what hygiene costs "in most practices". None had a
+  source, and nothing found them for two and a half months because no test
+  read prose for a number. Found while building slice 8.
+- **Sourced where a source exists.** Google's own help page on local ranking
+  was read as served and five of its lines are now quoted, pinned and linked
+  (`LOCAL_RANKING`): verifying, complete information, reviews and ratings,
+  replies, and that a ranking cannot be requested or bought. They replace the
+  guide's own assertions on those five points.
+- **Cut where there is none.** The share of patients who pick from the map,
+  the review count of "winning practices", the conversion multiple, the
+  after-hours share, the "typical practice" and the anecdote nobody could
+  verify are gone. The guide now says what to do and stops saying how often
+  it works.
+- **The membership example says it is an example.** Its lines read as market
+  facts ("commonly 10–20%", "a common landing spot"). They are one example's
+  choices now, said as choices. Its arithmetic was also inconsistent — a
+  target band of $280–$345 a year printed beside a "landing spot" of
+  $350–$420 — and has one price inside its own floor and ceiling; a test adds
+  it up. The legal note stopped describing what "several US states" require,
+  which nobody here had read.
+- **A rule for the whole library.** In any prose guide, a percentage in the
+  guide's own words is either inside a quotation from a registered source or
+  in a sentence that calls itself an example. The guides are imported by
+  name and the list is checked against the registry.
+- **Dates.** Both guides carry the day they were revised; the growth guide's
+  search-notice key now follows the page it quotes.
+- **Tests.** `tests/marketing/sourced-guides.test.tsx` (eight); seventeen
+  mutations, all caught.
+

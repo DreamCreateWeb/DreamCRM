@@ -194,3 +194,30 @@ export const PRIVACY_NOTICE_RULE = {
     website: 'must prominently post its notice on the web site',
   },
 } as const
+
+/**
+ * WHAT GOOGLE SAYS MOVES A LOCAL RANKING — the patient-growth guide's source.
+ *
+ * That guide was written in September with a figure or a comparison in most
+ * paragraphs and a source for none of them ("most new patients pick from
+ * those three tiles", "100+ Google reviews", "converts multiples better").
+ * The library's content law is "no invented statistics", so on 2026-11-26
+ * each was sourced, softened or cut. What could be sourced is here: Google's
+ * own help page on local ranking, read as served, each line word for word and
+ * pinned in `tests/marketing/sourced-guides.test.tsx`.
+ */
+export const LOCAL_RANKING = {
+  source: {
+    label: 'Google Business Profile Help, “Tips to improve your local ranking on Google”',
+    url: 'https://support.google.com/business/answer/7091',
+    readOn: '2026-11-26',
+  } satisfies GuideSource,
+  says: {
+    verify:
+      'This tells Google that you’re authorized to represent the business, so it\'s more likely to show up in search results.',
+    complete: 'Businesses with complete and accurate info are more likely to show up in local search results.',
+    reviews: 'More reviews and positive ratings can help your business’s local ranking.',
+    replies: 'Positive reviews and helpful replies can help your business stand out.',
+    noPaying: 'There\'s no way to request or pay for a better local ranking on Google.',
+  },
+} as const

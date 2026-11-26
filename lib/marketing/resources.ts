@@ -168,7 +168,9 @@ export const RESOURCE_GUIDES: ResourceGuide[] = [
       'The state-regulation caveat, unhedged',
     ],
     readMinutes: 8,
-    datePublished: '2026-09-08',
+    // Revised 2026-11-26: every figure sourced, softened or cut
+    // (`tests/marketing/sourced-guides.test.tsx`).
+    datePublished: '2026-11-26',
   },
   {
     slug: 'how-to-get-more-dental-patients',
@@ -191,7 +193,9 @@ export const RESOURCE_GUIDES: ResourceGuide[] = [
       'The one-page version at the end',
     ],
     readMinutes: 10,
-    datePublished: '2026-09-08',
+    // Revised 2026-11-26: every figure sourced, softened or cut
+    // (`tests/marketing/sourced-guides.test.tsx`).
+    datePublished: '2026-11-26',
   },
   {
     slug: 'dental-software-pricing',
