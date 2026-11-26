@@ -510,7 +510,7 @@ export const DOCS: DocArticle[] = [
       {
         heading: 'Where the answers go',
         paragraphs: [
-          'Each submission attaches to the patient with an AI summary of what matters for the visit, offered in Spanish when needed. If your PMS is connected, a copy of the completed form is mirrored into the patient’s chart as an honest text note — never a fabricated structured-field sync.',
+          'Each submission attaches to the patient with an AI summary of what matters for the visit, offered in Spanish when needed. The completed form stays on the patient’s record in DreamCRM; it is not copied to your PMS today.',
         ],
       },
     ],

@@ -78,6 +78,25 @@ function contractWord(answer: { value: MatrixValue; note: string }): string {
   return /not stated/i.test(answer.note) ? CONTRACT_WORD.partial : 'With conditions'
 }
 
+/**
+ * What each word in the list above means — for the words the list USES, and
+ * no others. Once every vendor's terms had been read from its own legal pages
+ * nobody was "Not clear", and a key that went on explaining the word would be
+ * explaining nothing on the page.
+ */
+function ContractKey({ words }: { words: readonly string[] }) {
+  const used = new Set(words)
+  const parts: string[] = []
+  if (used.has(CONTRACT_WORD.partial)) {
+    parts.push('“Not clear” means the vendor’s own pages did not state its terms on the day they were read.')
+  }
+  if (used.has('With conditions')) {
+    parts.push('“With conditions” means its pages describe a month-to-month option and what comes with it.')
+  }
+  if (parts.length === 0) return null
+  return <GuideP>{`${parts.join(' ')} Either way, ask for the terms in writing.`}</GuideP>
+}
+
 function names(list: readonly VendorComparison[]): string {
   const all = list.map((c) => c.name)
   if (all.length <= 1) return all.join('')
@@ -193,11 +212,7 @@ export default function DentalSoftwarePricingGuide() {
           )
         })}
       />
-      <GuideP>
-        “Not clear” means the vendor’s own pages did not state its terms on the day they were read. “With conditions”
-        means its pages describe a month-to-month option and what comes with it. Either way, ask for the terms in
-        writing.
-      </GuideP>
+      <ContractKey words={read.map((c) => contractWord(contractAnswer(c)))} />
 
       <GuideH2>What to ask before a demo</GuideH2>
       <GuideList

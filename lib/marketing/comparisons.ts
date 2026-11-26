@@ -1128,16 +1128,117 @@ export const COMPARISONS: VendorComparison[] = [
     name: 'Dental Intelligence',
     category: 'Practice analytics + patient engagement',
     whatItIs:
-      'Dental Intelligence is practice analytics and patient engagement software. It is known for morning-huddle dashboards and production numbers read from the practice management system, and its acquisition of Modento added a patient app for forms, reminders and payments.',
+      'Dental Intelligence is practice analytics and patient engagement software. It is known for morning-huddle dashboards and production numbers read from the practice management system, and Modento, which joined the company, added a patient app for forms and messages.',
+    // The line ended "third-party reviews report ~$300–$600+/mo per location"
+    // until 2026-11-26: a figure nobody could name the source of. It went
+    // when the pages its sitemap lists were read (1,227), which is also where
+    // what it does publish was found: not a price, but its terms.
+    //
+    // "NO PRICE" TOOK THE THREE READS. Its home page rendered in a browser;
+    // its sitemap and its menu searched for a pricing page (there is none);
+    // and the structured data of every page read (no price in any).
     reportedPricing:
-      'No price published that we could find — its own home page shows none and asks you to get a demo; third-party reviews report ~$300–$600+/mo per location depending on the analytics + engagement bundle (2025–2026)',
-    pricingChecked: { on: '2026-11-25', source: 'Dental Intelligence’s own home page', url: 'https://www.dentalintel.com/' },
+      'No price published — its site has no pricing page, and its home page asks you to get a demo; its terms publish how an agreement renews, a five percent rise in fees at each renewal, and what texts and call minutes beyond a subscription’s limits cost',
+    pricingChecked: { on: '2026-11-26', source: 'Dental Intelligence’s own home page', url: 'https://www.dentalintel.com/' },
+    pricingDetail: {
+      intro:
+        'Dental Intelligence publishes no subscription price: its site has no pricing page, and its home page asks you to get a demo. What it does publish is in its terms: how an agreement renews and what leaving early costs, a five percent rise in fees at each renewal, and what texts and call minutes beyond a subscription’s limits cost. This is what each page said on the day it was read.',
+      groups: [
+        {
+          id: 'the-home-page',
+          title: 'The subscription: no price on its site',
+          source: { label: 'Dental Intelligence’s home page', url: 'https://www.dentalintel.com/', readOn: '2026-11-26' },
+          question: 'Does Dental Intelligence list its prices online?',
+          answer:
+            'Dental Intelligence shows no subscription price. Its home page asks you to get a demo, its menu has no pricing link, and its sitemap lists no pricing page. Its terms do publish how fees change at renewal and what usage beyond a subscription’s limits costs.',
+          lines: [
+            { label: 'The price', value: 'None: the page asks you to “Get a Demo”' },
+            { label: 'A pricing page', value: 'None in its menu, and none among the pages its sitemap lists' },
+          ],
+        },
+        {
+          id: 'renewal-and-price-changes',
+          title: 'Renewal and price changes',
+          source: {
+            label: 'Dental Intelligence’s Customer Terms of Service',
+            url: 'https://www.dentalintel.com/terms/TOS',
+            readOn: '2026-11-26',
+            pageSays: 'Effective Date: November 5, 2026',
+          },
+          question: 'Can Dental Intelligence raise its price?',
+          answer:
+            'Its Customer Terms of Service say that on each renewal the fees “will automatically increase by five percent (5%)”, unless an order says otherwise, and that any other change takes at least thirty days’ notice before the term ends. They also say all payments are non-refundable, except as the terms set out.',
+          lines: [
+            { label: 'At each renewal', value: '“On each renewal of Subscription Services, the Fees for such Subscription Services will automatically increase by five percent (5%) over the Fees in effect immediately prior to the renewal, unless otherwise expressly set forth in the Order or a written amendment signed by the parties.”' },
+            { label: 'Any other change', value: 'Takes “at least thirty (30) days’ prior notice before the end of Customer’s then-current Term”' },
+            { label: 'When payment is due', value: '“payments are due in advance, at the beginning of the Initial Term and each successive Renewal Term”' },
+            { label: 'Refunds', value: '“All payments are non-refundable, other than as expressly set forth in these Terms.”' },
+            { label: 'Usage fees it names', value: '“usage based fees such as SMS fees incurred in accordance with the SMS Volume Limits and Pricing Policy, fees for printing and mailing services, PCI Non-Compliance Fees, Surcharge Attestation Fees, fees related to Telecom Services”' },
+          ],
+        },
+        {
+          id: 'the-contract',
+          title: 'The contract',
+          source: {
+            label: 'Dental Intelligence’s cancellation policy',
+            url: 'https://www.dentalintel.com/terms/cancellation',
+            readOn: '2026-11-26',
+            pageSays: 'Effective date: June 1, 2024',
+          },
+          question: 'Does Dental Intelligence require a contract?',
+          answer:
+            'Its cancellation policy says an agreement “renews automatically for the agreed-upon term, typically annually”. Stopping a renewal takes a cancellation request at least 30 days before the renewal date, and a request made mid-term stops the renewal but leaves the remaining contracted payments owed.',
+          lines: [
+            { label: 'The term', value: '“An agreement with Dental Intelligence renews automatically for the agreed-upon term, typically annually.”' },
+            { label: 'An annual agreement', value: '“it will automatically renew for successive 12-month periods”' },
+            { label: 'To stop a renewal', value: '“sending a cancellation request to cancel@dentalintel.com at least 30 days prior to the renewal date and having a brief discussion with a member of our Customer Success team”' },
+            { label: 'Cancelling mid-term', value: '“the agreement will not renew but you will still owe the remaining contracted payments for the then-current term”' },
+            { label: 'Refunds', value: '“All payments for services rendered are non-refundable.”' },
+          ],
+        },
+        {
+          id: 'texts',
+          title: 'Texts: what is included and what more costs',
+          source: {
+            label: 'Dental Intelligence’s SMS Volume Limitation & Pricing Policy',
+            url: 'https://www.dentalintel.com/terms/sms',
+            readOn: '2026-11-26',
+            pageSays: 'Effective Date: November 5, 2026',
+          },
+          question: 'Does Dental Intelligence charge for extra texts?',
+          answer:
+            'Its SMS policy gives every location on a subscription with Engagement 5,000 SMS segments a month. Segments beyond that are billed at $0.04 each, or a practice can add blocks of 2,500 for $50.00 a month. Unused segments do not roll over.',
+          lines: [
+            { label: 'Included each month', value: '“Every Location subscribed to Engagement (or a subscription that includes Engagement) automatically receives 5,000 SMS Segments per month”' },
+            { label: 'Beyond that', value: '“billed to the Customer at $0.04 per SMS Segment in the next billing cycle”' },
+            { label: 'Buying more ahead', value: '“a Customer can add blocks of 2,500 SMS Segments for $50.00 per block per month”' },
+            { label: 'Unused texts', value: '“Unused SMS Segments for a given month expire, do not roll forward to a subsequent month”' },
+          ],
+        },
+        {
+          id: 'voice',
+          title: 'Call minutes on its phone system',
+          source: {
+            label: 'Dental Intelligence’s Voice terms',
+            url: 'https://www.dentalintel.com/terms/voice',
+            readOn: '2026-11-26',
+            pageSays: 'Effective Date: November 5, 2026',
+          },
+          lines: [
+            { label: 'Call minutes', value: '“Usage of over 2,000 minutes per VOIP User per month is subject to a $0.02 per minute charge for such excess minutes.”' },
+          ],
+        },
+      ],
+      reported: [],
+      notRead: ['G2', 'Capterra', 'Software Advice', 'GetApp', 'TrustRadius'],
+      versusUs: `Dental Intelligence shows no subscription price, so there is no number of theirs to set beside ours: ${RATE_MONTHLY}/mo, published, month-to-month, with the website included. Its agreements renew themselves, typically a year at a time, with fees rising five percent at each renewal unless an order says otherwise. Three things are in its favour: production analytics deeper than ours, texting, which DreamCRM does not do today, and a phone system and an AI receptionist, which we do not sell.`,
+    },
     summary:
-      'Dental Intelligence is the analytics leader in the category — morning-huddle dashboards and production KPIs pulled straight from the PMS — and its acquisition of Modento added a patient app for forms, reminders, and payments. Its site now lists VoIP phones, an AI receptionist and insurance verification as well. If deep production analytics is what you want, DI is genuinely ahead of us there. What it isn’t is a storefront: its site lists no practice website and no online store, and does not say whether its patient portal wears the practice’s own brand. DreamCRM is the patient-facing half — the site that wins the patient and the portal they return to — with honest, booked-visit-level reporting rather than deep clinical production metrics.',
+      'Dental Intelligence built its name on analytics — morning-huddle dashboards and production KPIs pulled straight from the PMS — and Modento, which joined the company, added a patient app for forms and messages. Its site now lists VoIP phones, an AI receptionist and insurance verification as well. If deep production analytics is what you want, DI is ahead of us there. What it isn’t is a storefront: its site lists no practice website and no online store, and does not say whether its patient portal wears the practice’s own brand. DreamCRM is the patient-facing half — the site that wins the patient and the portal they return to — with honest, booked-visit-level reporting rather than deep clinical production metrics.',
     theirStrengths: [
       { title: 'Production analytics depth', body: 'DI reads clinical production numbers out of the PMS — hygiene reactivation value, provider production, unscheduled treatment — deeper than our booked-visit-level reporting, which intentionally stops at the CRM/PMS line.' },
-      { title: 'The morning-huddle dashboard', body: 'Its live KPI huddle is the product it’s famous for, and it’s excellent.' },
-      { title: 'A wide front-office bundle', body: 'A patient app for forms, reminders and payments (it came with the Modento acquisition), and its site now lists VoIP phones and an AI receptionist too — neither of which we do.' },
+      { title: 'The morning-huddle dashboard', body: 'Its morning-huddle view of the day’s numbers is the product it is known for.' },
+      { title: 'A wide front-office bundle', body: 'A patient app for forms and messages (Modento, which joined the company), and its site now lists VoIP phones and an AI receptionist too — neither of which we sell.' },
     ],
     ourStrengths: [
       { glyph: 'globe', title: 'A website is included', body: 'Dental Intelligence lists no website product, so you keep paying a website vendor. DreamCRM ships one — edit-in-place studio, blog, SEO dashboard, careers — and replaces that retainer.' },
@@ -1149,20 +1250,23 @@ export const COMPARISONS: VendorComparison[] = [
       website: ['no', 'None listed on its site'],
       booking: ['yes'],
       portal: ['partial', 'A patient portal and a patient app are listed; clinic branding not stated on its site'],
-      inbox: ['partial', 'Patient chat + reminders'],
-      reviews: ['yes'],
-      recall: ['yes', 'Strong reactivation tooling from production data'],
-      social: ['no', 'None listed on its site'],
+      // Four rows corrected IN ITS FAVOUR on 2026-11-26, each from a page of
+      // its own: the inbox said "patient chat + reminders", the reviews row
+      // named only its partner, and the Google row said "none listed".
+      inbox: ['yes', 'Its two-way communication page: patient chats “across text, email, and the app, all in one consolidated thread”'],
+      reviews: ['yes', 'Its product descriptions list “Online Reviews” in its Engagement bundle, and reputation management “via our third-party partner Swellcx.com”'],
+      recall: ['yes', 'Its product descriptions list “Automated Recalls”; its comparison page, “reactivation tools to win back overdue and lapsed patients”'],
+      social: ['partial', 'Its marketing page lists “social media templates” to customize and post; its scheduling page, a “Book Now” button on a Google Business Profile'],
       shop: ['partial', 'A patient loyalty program is listed; no online store or membership plans'],
       careers: ['no'],
       pms: ['yes', 'Deep multi-PMS analytics is its foundation'],
       insurance: ['yes', 'Eligibility verification and claims processing listed on its site'],
       phones: ['yes', 'Voice, its VoIP product'],
-      sms: ['yes', 'Listed as Patient Chat and Mass Communication'],
-      contract: ['partial', 'Terms not stated on its home page; it links a cancellation policy'],
+      sms: ['yes', '5,000 text segments a month per location, per its SMS policy'],
+      contract: ['no', 'Its cancellation policy: an agreement renews automatically, “typically annually”, and cancelling mid-term leaves “the remaining contracted payments” owed'],
     }),
     bottomLine:
-      'If you want the deepest production analytics and huddle dashboards in dentistry, Dental Intelligence is the leader and we don’t try to be. If what’s missing is the patient-facing storefront — website, branded portal, shop — at a flat published price, that’s DreamCRM. Many practices run one for the numbers and the other for the front door.',
+      'If deep production analytics and huddle dashboards are what you want, that is what Dental Intelligence is built around, and we don’t try to match it. If what’s missing is the patient-facing storefront — website, branded portal, shop — at a flat published price, that’s DreamCRM. The two do different jobs: one is for the numbers, the other for the front door.',
   },
   {
     slug: 'podium',
@@ -1172,34 +1276,118 @@ export const COMPARISONS: VendorComparison[] = [
       'Podium is a reviews, webchat and texting tool for local businesses of every kind, not a dental product. It asks customers for Google reviews by text, turns website chats into text conversations, and takes payments over text.',
     reportedPricing:
       'Published at $399/mo for its Core plan and $599/mo for Pro, with a Signature plan priced by quote; every plan is bought through its sales team, and its pricing page sends HVAC businesses to sales for their own pricing',
-    pricingChecked: { on: '2026-11-25', source: 'Podium’s own pricing page', url: 'https://www.podium.com/pricing' },
+    pricingChecked: { on: '2026-11-26', source: 'Podium’s own pricing page', url: 'https://www.podium.com/pricing' },
+    pricingDetail: {
+      intro:
+        'Podium publishes two of its three plan prices on its pricing page, with its add-ons priced beside them, and says plans are bought through its sales team. Its terms of service set the length of a subscription, how it renews and how fees can change. This is what each page said on the day it was read.',
+      groups: [
+        {
+          id: 'published-prices',
+          title: 'The prices Podium publishes',
+          source: { label: 'Podium’s pricing page', url: 'https://www.podium.com/pricing', readOn: '2026-11-26' },
+          question: 'How much does Podium cost per month?',
+          answer:
+            'Podium’s pricing page lists Core at $399 a month and Pro at $599 a month, with a Signature plan at custom pricing. It says plans are bought through its sales team, and that pricing may vary by industry, partnerships, integrations, volume and carrier fees.',
+          lines: [
+            { label: 'Core', value: '“$399 USD per month”' },
+            { label: 'Pro', value: '“$599 USD per month”' },
+            { label: 'Signature', value: '“Custom pricing”' },
+            { label: 'How a plan is bought', value: '“Plans designed to fit your specific business needs, talk to our sales team for details.”' },
+            { label: 'One industry', value: '“HVAC businesses should contact sales for applicable pricing”' },
+            { label: 'The small print', value: '“Please note that pricing plans may vary based on industry, partnerships, integrations, volume, and carrier fees.”' },
+          ],
+        },
+        {
+          id: 'add-ons',
+          title: 'Usage and add-ons, on the same page',
+          source: { label: 'Podium’s pricing page', url: 'https://www.podium.com/pricing', readOn: '2026-11-26' },
+          question: 'Does Podium charge extra for phones and texting?',
+          answer:
+            'Its pricing page lists them. Podium Phones are $30 per user a month for one to four users, or $25 for five or more, with a $500 network optimization fee per location. A base 10DLC fee of $5 a month is charged for US locations, each phone number beyond a plan’s allowance is $5 a month, and high-volume carrier-verified messaging is $15 a month on Core.',
+          lines: [
+            { label: 'Bulk messages', value: '“250 credits/mo” on Core and “500 credits/mo” on Pro' },
+            { label: 'Phone numbers', value: '“5 numbers” on Core and “15 numbers” on Pro; “Every additional number is $5/month.”' },
+            { label: 'High-volume carrier-verified messaging', value: '“$15/month” on Core; “Included” on Pro' },
+            { label: 'A carrier fee', value: '“A base 10DLC fee of $5/month is charged for all US locations.”' },
+            { label: 'Podium Phones', value: '“$30 per user/mo (1-4 users)” or “$25 per user/mo (5+ users)”' },
+            { label: 'Setting up phones', value: '“There is a $500 network optimization fee per location. Usage rates apply”' },
+          ],
+        },
+        {
+          id: 'the-contract',
+          title: 'The contract',
+          source: {
+            label: 'Podium’s terms of service',
+            url: 'https://legal.podium.com/#termsofservice-us',
+            readOn: '2026-11-26',
+            pageSays: 'Effective: October 15, 2026',
+          },
+          question: 'Does Podium require a contract?',
+          answer:
+            'Its terms set two defaults that apply unless the order says otherwise: an initial term of twelve months that renews automatically for periods of the same length, and subscription fees paid annually in advance. Stopping a renewal takes written notice at least thirty days before the term ends.',
+          lines: [
+            { label: 'The term', value: '“the initial term for any Subscription to the Services is twelve (12) months”, unless the order says otherwise' },
+            { label: 'Renewal', value: 'Automatic: it “will automatically renew for subsequent periods of equal duration”' },
+            { label: 'To stop a renewal', value: '“written notice of non-renewal at least thirty (30) days before the end of the then-current Subscription Term”' },
+            { label: 'When fees are paid', value: '“Subscription Fees will be paid annually in advance”, unless the order says otherwise' },
+          ],
+        },
+        {
+          id: 'fees-and-price-changes',
+          title: 'Fees and price changes',
+          source: {
+            label: 'Podium’s terms of service',
+            url: 'https://legal.podium.com/#termsofservice-us',
+            readOn: '2026-11-26',
+            pageSays: 'Effective: October 15, 2026',
+          },
+          question: 'Can Podium raise its price?',
+          answer:
+            'Its terms say Podium may increase fees on forty-five days’ prior written notice, effective at the start of the next subscription term, and that continued use after an increase counts as acceptance. They also say all fees are non-refundable and non-creditable, with exceptions the terms list.',
+          lines: [
+            { label: 'Price changes', value: '“Podium may increase Fees applicable to you upon forty-five (45) days’ prior written notice, effective on the start date of your subsequent Subscription Term”' },
+            { label: 'If you keep using it', value: '“Your continued use of the Services after a Fee increase will constitute your agreement and acceptance to any increase in Fees.”' },
+            { label: 'Refunds', value: '“All Fees are non-refundable and non-creditable”, with exceptions the terms list' },
+            { label: 'Usage fees', value: '“Usage Fees will be invoiced monthly in arrears based on Client’s usage during the applicable billing period”' },
+          ],
+        },
+      ],
+      reported: [],
+      notRead: ['G2', 'Capterra', 'Software Advice', 'GetApp', 'TrustRadius'],
+      versusUs: `Podium’s Core plan is $399 a month and Pro is $599. Unless the order says otherwise, its terms set a twelve-month term paid annually in advance. ${RATE_MONTHLY}/mo here is month-to-month, with the website, the patient portal and online booking included. Two things are in Podium’s favour: it sends texts, which DreamCRM does not do today, and it sells a phone system, which we do not sell.`,
+    },
     summary:
-      'Podium built the review-generation and business-texting category — it’s excellent at turning a happy customer into a Google review over text, and its webchat-to-text and Payments products are mature. But Podium is a general local-business tool, not a dental product: no practice website, no patient portal, no PMS sync, no dental-specific recall or intake. DreamCRM is dentistry-native and ships the whole patient-facing stack; where Podium leads today is live two-way SMS, which is still on our roadmap.',
+      'Podium made its name on review requests and business texting: a Google review asked for by text, website chats turned into text conversations, and payments taken over text. But Podium is a general local-business tool, not a dental product: its site lists no practice website and no patient portal, and its dental page names no practice-management system, dental recall or intake. DreamCRM is dentistry-native and ships the whole patient-facing stack; where Podium leads today is live two-way SMS, which is still on our roadmap.',
     theirStrengths: [
       { title: 'Two-way texting today', body: 'Mature SMS with webchat-to-text and campaign texting, and an AI employee that answers and schedules over text. Our SMS channel is still on the roadmap — if texting is your #1 need today, Podium is ahead.' },
-      { title: 'Review generation', body: 'The text-to-review flow that made Podium famous is best-in-class at volume.' },
+      { title: 'Review generation', body: 'Asking for a Google review by text is the product Podium is known for, and its pricing page lists “Review Management with AI Responses”.' },
       { title: 'Payments over text', body: 'Text-to-pay tied into the messaging stack.' },
     ],
     ourStrengths: [
-      { glyph: 'tooth', title: 'Dentistry-native, not generic', body: 'Visit-type booking rules, dental intake with insurance-card OCR, recall on PMS due dates, an OD chart mirror — none of which a general local-business tool models.' },
-      { glyph: 'globe', title: 'The website + portal Podium has neither of', body: 'A real practice site with an edit-in-place studio and a clinic-branded patient portal — Podium ships no website and no portal.' },
-      { glyph: 'star', title: 'FTC-clean reviews', body: 'Same ask to every patient, no rating-gating — clean under the FTC fake-reviews rule, and the results feed your own site’s testimonials.' },
+      { glyph: 'tooth', title: 'Dentistry-native, not generic', body: 'Visit-type booking rules, dental intake with insurance-card OCR and recall on PMS due dates. Podium’s pricing page lists none of them.' },
+      { glyph: 'globe', title: 'The website + portal Podium has neither of', body: 'A real practice site with an edit-in-place studio and a clinic-branded patient portal. Podium’s site lists neither a website builder nor a patient portal.' },
+      { glyph: 'star', title: 'The same ask to every patient', body: 'Every patient gets the same review request, whatever they are likely to say; nobody is filtered by rating first. The results feed your own site’s testimonials.' },
       { glyph: 'tag', title: 'One flat dental price', body: `${RATE_MONTHLY}/mo for the whole stack, against $399 a month for Podium’s Core plan and $599 for Pro on its own pricing page.` },
     ],
     matrix: baseMatrix({
       website: ['no'],
-      booking: ['partial', 'Scheduling via integrations, not native to a dental PMS'],
+      // Rows re-read on 2026-11-26 against its pricing page, which lists
+      // every feature by plan. The inbox row had said "no portal/email
+      // patient threads"; that page lists email in the inbox. The insurance
+      // row had said "not verified here"; it now says what was read.
+      booking: ['partial', 'Its pricing page lists an “AI Scheduler” on its Signature plan; its dental page names no practice-management system'],
       portal: ['no'],
-      inbox: ['partial', 'SMS + webchat unified; no portal/email patient threads'],
-      reviews: ['yes', 'Their origin product — excellent'],
-      recall: ['partial', 'Generic campaigns, not PMS-recall-driven'],
-      social: ['partial'],
+      inbox: ['yes', 'Its pricing page: “Manage all your customer conversations across texts, calls, emails, social media, and more.” It lists no patient portal'],
+      reviews: ['yes', 'Its pricing page lists “Google Reviews”, “Facebook Reviews” and “Review Management with AI Responses”'],
+      recall: ['partial', 'Its pricing page lists text marketing and automations, among them “Appointment Confirmations and Reminders”; dental recall is not named on it'],
+      social: ['partial', 'Its pricing page lists “Google Reviews”, “Google Messaging”, “Facebook Messaging” and “Instagram Messaging”; social posting is not on its feature list'],
       shop: ['no'],
       careers: ['no'],
-      pms: ['no', 'Not a dental PMS integrator'],
+      pms: ['partial', 'Its pricing page lists “200+ Integration with Integration Support”; its dental page names no practice-management system, and one of its guides names “Dentrix Enterprise” among the software it works with'],
+      insurance: ['no', 'None on its pricing page’s feature list'],
       phones: ['yes', 'Podium Phones'],
       sms: ['yes'],
-      contract: ['partial', 'Terms not stated on its pricing page; annual terms commonly reported'],
+      contract: ['no', 'Unless the order says otherwise, its terms set a twelve-month initial term that renews automatically, with subscription fees “paid annually in advance”'],
     }),
     bottomLine:
       'If two-way texting and review volume are the whole job, Podium is a strong pick and beats us on SMS today. If you want a dentistry-native platform — website, booking, branded portal, PMS sync, dental intake — at a flat price, that’s DreamCRM.',
