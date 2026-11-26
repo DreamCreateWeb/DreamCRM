@@ -2298,3 +2298,48 @@ change: `subscription_status` is free text, and the new state is a value.
   date shared with another rule — and both assertions were narrowed to the
   sentence they protect).
 
+**Part 12 slice 7 — the appointment reminder templates guide, and the library's opening claim corrected (2026-11-26, no migration).**
+
+- **The page.** `/resources/dental-appointment-reminder-templates`, queue item
+  1: the confirmation email sent when a visit is booked, the reminder email
+  for a visit not yet confirmed, the quieter heads-up once it is, the email
+  for a moved visit, four reminder texts, the confirmation call and its
+  voicemail, the timing, and the federal rule on reminder texts and calls.
+- **The four emails are the product's, read from its spec** through
+  `productEmail` (slice 6's reader). `REMINDER_GUIDE_EMAILS` is the one list
+  of which four: the page, the page's search-notice key and the test all read
+  it. The lines the senders add around each (the heading, the button, the
+  last line) are typed on the page and checked against the senders' source.
+- **The texts are NOT the product's, and the page says so twice** — beside
+  them and in the closing block. They are hand-written
+  (`REMINDER_TEXTS`) and held by test to what the rule quoted under them
+  asks: one message on a realistic fill by the product's own segment math
+  (`lib/sms-segments.ts`), the plain alphabet, the practice named first, a
+  number to call, nothing about money, the STOP line last. The first draft of
+  the longest one measured 176 characters on that fill and went out as two
+  messages; the test is why it does not.
+- **The rule is quoted, not paraphrased:** seven fragments of 47 CFR
+  64.1200(a)(9)(iv), each pinned in the test, read at Cornell's Legal
+  Information Institute and labelled so — the government's own copies
+  (ecfr.gov, govinfo.gov) refused the reader. The page says it is not legal
+  advice and that whether a practice relies on that exemption or on its
+  patients' consent is a question for its lawyer and its texting vendor.
+- **The closing block is tied to the defaults:** the confirmation, the
+  reminder at three days and one day, and the confirmed-visit note are each
+  on unless switched off; the timing chapter's "three at most" and "never
+  two in a day" are the product's own limits. It says the product sends no
+  text today and places no calls.
+- **THE HUB'S OPENING LINE WAS FALSE AND IS CORRECTED.** `/resources` opened
+  with "the scripts are the ones our own platform sends". That stopped being
+  true guide by guide — phone scripts, then texts, then a mailed letter, then
+  a policy to sign — and each guide was corrected as it changed while the
+  sentence above all of them was not. It now says the emails are the
+  platform's and the rest are written to the same rules; a test holds the old
+  sentence out. The hub's description and the header menu's line were
+  brought up to what is on the shelf.
+- **Wiring.** Registry entry, footer link, a link each way with the no-show
+  guide, the search-notice key built from the rule, the texts and the four
+  emails.
+- **Tests.** `tests/marketing/reminder-templates-guide.test.tsx` (fourteen)
+  plus one on the hub; thirty-one mutations, all caught.
+

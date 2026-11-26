@@ -10,6 +10,7 @@ import MembershipPricingGuide from '@/app/(marketing)/resources/dental-membershi
 import MorePatientsGuide from '@/app/(marketing)/resources/how-to-get-more-dental-patients/page'
 import PricingGuide from '@/app/(marketing)/resources/dental-software-pricing/page'
 import NoShowPolicyGuide from '@/app/(marketing)/resources/dental-cancellation-no-show-policy/page'
+import ReminderTemplatesGuide from '@/app/(marketing)/resources/dental-appointment-reminder-templates/page'
 
 /**
  * The practice-growth resource library (marketing-engine slice 4b). The
@@ -48,6 +49,19 @@ describe('the hub', () => {
     }
     // The grader cross-link — the library feeds the same funnel.
     expect(screen.getByText('Grade your practice free')).toBeInTheDocument()
+  })
+
+  it('says which scripts the platform sends — the emails — and not that it sends them all', () => {
+    // The hub's opening line called every script on the shelf one "our own
+    // platform sends". That stopped being true guide by guide: phone
+    // scripts, then texts (the product sends none today), then a mailed
+    // letter, then a policy to sign. Each guide was corrected as it changed
+    // and the sentence above all of them was not, until 2026-11-26.
+    const { container } = render(<ResourcesIndexPage />)
+    const text = container.textContent ?? ''
+    expect(text).not.toMatch(/the scripts are the ones our own platform sends/i)
+    expect(text).toMatch(/The emails are the ones our own platform sends/)
+    expect(text).toMatch(/the letters, the texts and the phone scripts are written to the same rules/)
   })
 })
 
@@ -192,6 +206,7 @@ describe('the library reads as a shelf rather than three equal cards', () => {
       ['how-to-get-more-dental-patients', MorePatientsGuide],
       ['dental-software-pricing', PricingGuide],
       ['dental-cancellation-no-show-policy', NoShowPolicyGuide],
+      ['dental-appointment-reminder-templates', ReminderTemplatesGuide],
     ] as const) {
       const guide = getResourceGuide(name)!
       const { container, unmount } = render(<Page />)
@@ -222,7 +237,7 @@ describe('the library reads as a shelf rather than three equal cards', () => {
     const price = `$${getQuotedPlan().price.toLocaleString('en-US')}/mo`
     // The pricing guide closes in its own words (it is not a how-to), and
     // its price is resolved from the same config — so it is held here too.
-    for (const Page of [RecallScriptsGuide, MembershipPricingGuide, MorePatientsGuide, PricingGuide, NoShowPolicyGuide]) {
+    for (const Page of [RecallScriptsGuide, MembershipPricingGuide, MorePatientsGuide, PricingGuide, NoShowPolicyGuide, ReminderTemplatesGuide]) {
       const { unmount } = render(<Page />)
       expect(
         screen.getByText((_, el) => el?.textContent?.includes(price) === true, {

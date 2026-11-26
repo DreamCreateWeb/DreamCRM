@@ -86,7 +86,11 @@ describe('a content key moves exactly when the page’s content does', () => {
     // pricing guide (the comparison registry — held in
     // tests/marketing/pricing-guide.test.tsx) and the no-show policy guide
     // (the outside pages it quotes — tests/marketing/no-show-policy-guide.test.tsx).
-    const builtFromElsewhere = ['dental-software-pricing', 'dental-cancellation-no-show-policy']
+    const builtFromElsewhere = [
+      'dental-software-pricing',
+      'dental-cancellation-no-show-policy',
+      'dental-appointment-reminder-templates',
+    ]
     for (const g of RESOURCE_GUIDES) {
       if (builtFromElsewhere.includes(g.slug)) {
         expect(keyOf(`/resources/${g.slug}`), g.slug).not.toBe(contentKey(g))

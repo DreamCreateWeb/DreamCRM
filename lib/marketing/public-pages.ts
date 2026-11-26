@@ -4,8 +4,8 @@ import { CHANGELOG_ENTRIES } from '@/lib/marketing/changelog'
 import { DOCS } from '@/lib/marketing/docs'
 import { LEGAL_UPDATED } from '@/lib/marketing/legal'
 import { RESOURCE_GUIDES } from '@/lib/marketing/resources'
-import { NO_SHOW_SOURCES } from '@/lib/marketing/guide-sources'
-import { productEmail } from '@/lib/marketing/guide-templates'
+import { NO_SHOW_SOURCES, REMINDER_RULE } from '@/lib/marketing/guide-sources'
+import { productEmail, REMINDER_GUIDE_EMAILS, REMINDER_TEXTS } from '@/lib/marketing/guide-templates'
 import { MARKETING_PUBLIC_PATHS, TRIAL } from '@/lib/marketing/site'
 import { contentKey } from '@/lib/indexnow'
 import { getQuotedPlan } from '@/lib/stripe-config'
@@ -78,6 +78,13 @@ const GUIDE_SOURCES: Record<string, () => unknown> = {
   // (`guide-templates.ts`). A re-read source or an edit to that email changes
   // what the page says without touching the guide's own entry.
   'dental-cancellation-no-show-policy': () => [NO_SHOW_SOURCES, productEmail('no_show_rebook')],
+  // The reminder guide is the product's four appointment emails, four
+  // hand-written texts and a quoted rule: all three live outside its entry.
+  'dental-appointment-reminder-templates': () => [
+    REMINDER_RULE,
+    REMINDER_TEXTS,
+    REMINDER_GUIDE_EMAILS.map((key) => productEmail(key)),
+  ],
 }
 
 function postModified(post: PublicPost): Date | null {

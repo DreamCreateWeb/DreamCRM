@@ -294,7 +294,14 @@ Sincerely,
         ]}
       />
       <GuideP>
-        And for the patient who cancels and then goes quiet, the{' '}
+        The reminders themselves are their own page:{' '}
+        <Link
+          href="/resources/dental-appointment-reminder-templates"
+          className="font-semibold text-teal-700 hover:underline"
+        >
+          appointment reminder templates
+        </Link>{' '}
+        for email, text and phone. And for the patient who cancels and then goes quiet, the{' '}
         <Link href="/resources/dental-recall-scripts" className="font-semibold text-teal-700 hover:underline">
           dental recall scripts
         </Link>{' '}

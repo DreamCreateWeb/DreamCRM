@@ -61,7 +61,7 @@ import { TRIAL } from '@/lib/marketing/site'
 export const metadata = pageMetadata({
   title: 'Practice growth library — free guides for dental practices',
   description:
-    'Free, copy-ready guides for growing a dental practice: recall scripts that get patients back, membership plan pricing math, and the patient-growth playbook in the right order.',
+    'Free, copy-ready templates and guides for dental practices: recall scripts, appointment reminders, a cancellation and no-show policy, and membership pricing math.',
   path: '/resources',
 })
 
@@ -86,7 +86,7 @@ export default function ResourcesIndexPage() {
       <PageHero
         eyebrow="Practice growth library"
         title="Free guides, real scripts, honest math."
-        sub="Everything here is copy-ready and works whether or not you ever use DreamCRM — the scripts are the ones our own platform sends, and the math is the math."
+        sub="Everything here is copy-ready and works whether or not you ever use DreamCRM. The emails are the ones our own platform sends; the letters, the texts and the phone scripts are written to the same rules; and the math is the math."
       />
 
       {/* ── THE SHELF ─────────────────────────────────────────────────────

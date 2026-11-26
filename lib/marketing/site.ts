@@ -141,7 +141,7 @@ export const MARKETING_NAV: MarketingNavItem[] = [
     children: [
       { label: 'Grade your practice', href: '/grade', description: 'Free — your site, listing & reviews, scored' },
       { label: 'Recall ROI calculator', href: '/roi', description: 'What missed hygiene visits cost you' },
-      { label: 'Practice growth library', href: '/resources', description: 'Recall scripts, membership math, patient growth' },
+      { label: 'Practice growth library', href: '/resources', description: 'Scripts, letters and policies to copy' },
       { label: 'Help docs', href: '/docs', description: 'Setup guides in front-desk language' },
       { label: 'Blog', href: '/blog', description: 'Announcements & essays from the team' },
       { label: 'Changelog', href: '/changelog', description: 'What shipped, week by week' },
@@ -181,6 +181,7 @@ export const FOOTER_COLUMNS: Array<{ title: string; links: Array<{ label: string
       { label: 'Grade your practice', href: '/grade' },
       { label: 'Recall ROI calculator', href: '/roi' },
       { label: 'Dental recall scripts', href: '/resources/dental-recall-scripts' },
+      { label: 'Appointment reminder templates', href: '/resources/dental-appointment-reminder-templates' },
       { label: 'Cancellation & no-show policy', href: '/resources/dental-cancellation-no-show-policy' },
       { label: 'Membership plan pricing', href: '/resources/dental-membership-plan-pricing' },
       { label: 'Get more dental patients', href: '/resources/how-to-get-more-dental-patients' },

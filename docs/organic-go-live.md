@@ -570,6 +570,8 @@ In this order, one or two at a time. Each is the thing the searcher wanted,
 ready to copy — not an article about it.
 
 1. Appointment reminder and confirmation templates (text, email, phone).
+   **Built 2026-11-26:** `/resources/dental-appointment-reminder-templates`
+   (`docs/marketing-engine.md`, Part 12 slice 7).
 2. No-show and cancellation policy, with the letters that go with it. The
    results for this search are weak; it is the likeliest quick page one.
    **Built 2026-11-25:** `/resources/dental-cancellation-no-show-policy`
